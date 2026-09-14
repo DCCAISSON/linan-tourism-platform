@@ -46,6 +46,14 @@ git switch -c feat/<module>-<result>
 
 主远端负责协作，镜像远端只负责灾备。禁止把同一个分支分别在GitHub和Gitee独立提交后再互相覆盖。
 
+## E盘开发副本
+
+- E盘当前是USB外接磁盘且NTFS卷为Dirty，修复并复查Healthy前不得迁入正式工作副本。
+- 修复后从私有Git主远端克隆到 `E:\Projects\linan-platform`，不直接剪切当前仓库，以便验证失败时回退。
+- E盘副本通过 `npm run repo:setup`、`npm run repo:verify`、三端启动和构建后，才作为主工作区。
+- 每个完成的原子提交当天推送；外接盘断开前停止开发数据库和Docker，正常卸载磁盘。
+- 当前C盘仓库保留到E盘副本、私有远端和可恢复备份均验证完成。
+
 ## 文件命名
 
 - 代码、目录和数据库字段使用英文小写与现有框架规范。

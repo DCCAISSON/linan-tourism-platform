@@ -86,12 +86,12 @@ Your next move: free local disk space, then execute Wave 1 in order. Full execut
   QA scenarios: happy, run the hook with the intended staged tree and save output; failure, force-stage a dummy `.env` and verify the hook exits nonzero, then unstage and remove only that dummy. Evidence `.omo/evidence/task-1-linan-platform-bootstrap.txt`.
   Commit: Y | `chore(repo): initialize protected project workspace`
 
-- [ ] 2. Place development caches and data on a drive with safe capacity
-  What to do / Must NOT do: keep source under the current workspace; configure pnpm store, Docker disk image, MySQL dev volume, test uploads and build cache on E. Inspect existing Docker volumes and npm cache before changing them. Do not delete caches, images, volumes or other project data without a verified owner and recovery path.
+- [ ] 2. Repair and prepare the E-drive development workspace
+  What to do / Must NOT do: back up important E-drive files, clear its current NTFS Dirty/Full Repair Needed state with an approved offline repair, create a private Git remote, then clone the working repository to `E:\Projects\linan-platform`; configure pnpm store, Docker disk image, disposable MySQL dev volume, test uploads and build cache on E. Inspect existing Docker volumes and npm cache before changing them. Do not move the only repository copy or database data onto E before the volume is healthy, and do not delete caches, images, volumes or other project data without a verified owner and recovery path.
   Parallelization: Wave 1 | Blocked by: 1 | Blocks: 3, 5
   References: `docs/STORAGE_PLAN.md:5`, `docs/STORAGE_PLAN.md:18`, `docs/STORAGE_PLAN.md:32`
-  Acceptance criteria: C has at least 30GB free; E target directories exist; pnpm reports its store on E; Docker reports its data location on E after restart; a disposable MySQL volume persists across container restart.
-  QA scenarios: happy, write/build/restart disposable artifacts and record locations; failure, set the disk threshold check above current free space and verify installation aborts without changing caches. Evidence `.omo/evidence/task-2-linan-platform-bootstrap.txt`.
+  Acceptance criteria: `fsutil dirty query E:` reports the volume is not dirty; `Get-Volume -DriveLetter E` is Healthy; C retains at least 15GB system headroom; the E clone matches the private remote; pnpm reports its store on E; Docker reports its data location on E after restart; a disposable MySQL volume persists across container restart.
+  QA scenarios: happy, clone from the private remote, run repository verification, then write/build/restart disposable artifacts and record locations; failure, detect a dirty or unhealthy E volume and abort before moving a repository, cache or database. Evidence `.omo/evidence/task-2-linan-platform-bootstrap.txt`.
   Commit: N | machine-local storage configuration
 
 - [ ] 3. Scaffold API, admin and miniapp from pinned permissive sources
