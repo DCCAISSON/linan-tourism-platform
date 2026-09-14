@@ -1,0 +1,58 @@
+# Dependencies and package stores
+node_modules/
+.pnpm-store/
+
+# Build, test, and framework output
+dist/
+build/
+coverage/
+.turbo/
+.vite/
+.cache/
+unpackage/
+*.tsbuildinfo
+
+# Runtime and local configuration
+.env
+.env.*
+!.env.example
+*.local
+project.private.config.json
+
+# Secrets and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+secrets/
+
+# Customer data and generated business files
+private/
+data/
+uploads/
+exports/
+backups/
+*.dump
+*.bak
+*.sql.gz
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/
+
+# Editors and operating systems
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local planning evidence and tool state
+.omo/evidence/
+.codegraph/

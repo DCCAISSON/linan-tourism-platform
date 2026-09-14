@@ -1,0 +1,6 @@
+# 类型(范围): 一句话说明结果
+#
+# 类型：feat | fix | docs | test | refactor | chore | ci
+# 示例：feat(enrollment): support multiple participants in one order
+#
+# 正文说明为什么修改、验证方式和需要注意的数据影响。

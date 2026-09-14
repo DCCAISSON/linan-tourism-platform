@@ -1,0 +1,34 @@
+#!/usr/bin/env sh
+set -eu
+
+blocked='(^|/)(\.env($|\.)|project\.private\.config\.json$|private/|data/|uploads/|exports/|backups/|secrets/)|\.(pem|key|p12|pfx|cer|crt|dump|bak)$'
+failed=0
+
+staged_files="$(git diff --cached --name-only --diff-filter=ACMR)"
+blocked_files="$(printf '%s\n' "$staged_files" | grep -E "$blocked" | grep -Ev '(^|/)\.env\.example$' || true)"
+
+if [ -n "$blocked_files" ]; then
+  echo "提交已阻止：暂存区包含本地配置、证书、客户数据或备份文件。"
+  printf '%s\n' "$blocked_files"
+  failed=1
+fi
+
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+  size="$(git cat-file -s ":$file" 2>/dev/null || echo 0)"
+  if [ "$size" -gt 10485760 ]; then
+    echo "提交已阻止：$file 超过 10MB。请确认是否属于源码，必要时使用对象存储或 Git LFS。"
+    failed=1
+  fi
+done <<EOF
+$staged_files
+EOF
+
+if ! git diff --cached --check; then
+  echo "提交已阻止：暂存内容存在空白或冲突标记问题。"
+  failed=1
+fi
+
+if [ "$failed" -ne 0 ]; then
+  exit 1
+fi
