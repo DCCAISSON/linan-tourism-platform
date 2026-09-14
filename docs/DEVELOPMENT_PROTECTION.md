@@ -10,6 +10,7 @@
 - `.githooks/pre-commit` 阻止常见密钥/证书路径、客户数据目录、备份文件和超过10MB的文件进入提交。
 - `.gitattributes` 固定文本行尾并标记二进制文件，降低Windows环境下的无意义变更。
 - Git本地配置使用 `.githooks`、只允许快进拉取，并在拉取时清理失效远端引用。
+- 新克隆必须运行 `npm run repo:setup` 恢复上述本地Git配置，再运行 `npm run repo:verify` 检查保护状态。
 
 ## 分支与提交
 

@@ -4,6 +4,10 @@
   "private": true,
   "description": "临安旅游集散中心数字化系统",
   "packageManager": "pnpm@12.4.1",
+  "scripts": {
+    "repo:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-repository.ps1",
+    "repo:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-repository.ps1"
+  },
   "engines": {
     "node": ">=22.17 <23"
   }

@@ -24,10 +24,12 @@ third_party/  第三方来源、版本与许可证台账
 
 ## 开工入口
 
-1. 阅读 `docs/PROJECT_PLAN.md`，确认当天任务和里程碑。
-2. 阅读 `docs/TOMORROW_HANDOFF_CHECKLIST.md`，准备需求方账号和资料。
-3. 阅读 `docs/DEVELOPMENT_PROTECTION.md`，遵守分支、密钥、数据和备份规则。
-4. 前端开发前必须先阅读根目录 `DESIGN.md`。
+1. 每次新克隆后运行 `npm run repo:setup`，恢复本地Git保护并报告磁盘容量。
+2. 运行 `npm run repo:verify`，确认仓库没有跟踪密钥、客户数据或大文件。
+3. 阅读 `docs/PROJECT_PLAN.md`，确认当天任务和里程碑。
+4. 阅读 `docs/TOMORROW_HANDOFF_CHECKLIST.md`，准备需求方账号和资料。
+5. 阅读 `docs/DEVELOPMENT_PROTECTION.md`，遵守分支、密钥、数据和备份规则。
+6. 前端开发前必须先阅读根目录 `DESIGN.md`。
 
 ## 本地前置条件
 
