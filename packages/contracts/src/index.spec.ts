@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   DOMAIN_ERROR_CODE,
+  DOMAIN_ENTITY_CONTRACTS,
   DOMAIN_ENTITY_KIND,
   DOMAIN_POLICY_VERSION,
   HEALTH_STATUS,
@@ -50,6 +51,12 @@ describe("health contract", () => {
 
   it("uses enrollment as the registration contract name", () => {
     expect(DOMAIN_ENTITY_KIND.enrollment).toBe("enrollment")
+  })
+
+  it("publishes school grade and class entity contracts", () => {
+    expect(DOMAIN_ENTITY_CONTRACTS.map(({ tableName }) => tableName)).toEqual(
+      expect.arrayContaining(["school_grades", "school_classes"]),
+    )
   })
 
   it("returns a typed state error when a succeeded payment returns to pending", () => {

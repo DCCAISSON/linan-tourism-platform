@@ -12,12 +12,28 @@ import type {
   PaymentStatus,
   RosterEntryId,
   RosterStatus,
+  SchoolClassId,
+  SchoolGradeId,
   TourSessionId,
   TourSessionStatus,
 } from "./index.js"
 
 export type OrganizationContract = {
   readonly id: OrganizationId
+  readonly code: string
+  readonly name: string
+}
+
+export type SchoolGradeContract = {
+  readonly id: SchoolGradeId
+  readonly organizationId: OrganizationId
+  readonly code: string
+  readonly name: string
+}
+
+export type SchoolClassContract = {
+  readonly id: SchoolClassId
+  readonly gradeId: SchoolGradeId
   readonly code: string
   readonly name: string
 }
@@ -41,6 +57,8 @@ export type TourSessionContract = {
   readonly capacity: number
   readonly startsAt: Date
   readonly endsAt: Date
+  readonly enrollmentOpensAt: Date | null
+  readonly enrollmentClosesAt: Date | null
   readonly policyVersion: string
 }
 

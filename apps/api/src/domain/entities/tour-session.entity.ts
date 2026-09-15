@@ -56,6 +56,12 @@ export class TourSessionEntity {
   @Column({ name: "ends_at", type: "datetime", precision: 6 })
   endsAt = new Date(0)
 
+  @Column({ name: "enrollment_opens_at", type: "datetime", precision: 6, nullable: true })
+  enrollmentOpensAt: Date | null = null
+
+  @Column({ name: "enrollment_closes_at", type: "datetime", precision: 6, nullable: true })
+  enrollmentClosesAt: Date | null = null
+
   @Column({ name: "policy_version", type: "varchar", length: 64 })
   policyVersion = DOMAIN_POLICY_VERSION
 

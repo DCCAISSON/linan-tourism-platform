@@ -6,6 +6,8 @@ import { OrderEntity } from "./order.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 import { PaymentEntity } from "./payment.entity.js"
 import { RosterEntryEntity } from "./roster-entry.entity.js"
+import { SchoolClassEntity } from "./school-class.entity.js"
+import { SchoolGradeEntity } from "./school-grade.entity.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
 
 export { AuditLogEntity } from "./audit-log.entity.js"
@@ -16,10 +18,14 @@ export { OrderEntity } from "./order.entity.js"
 export { OrganizationEntity } from "./organization.entity.js"
 export { PaymentEntity } from "./payment.entity.js"
 export { RosterEntryEntity } from "./roster-entry.entity.js"
+export { SchoolClassEntity } from "./school-class.entity.js"
+export { SchoolGradeEntity } from "./school-grade.entity.js"
 export { TourSessionEntity } from "./tour-session.entity.js"
 
 export const DOMAIN_ENTITIES = [
   OrganizationEntity,
+  SchoolGradeEntity,
+  SchoolClassEntity,
   CatalogItemEntity,
   TourSessionEntity,
   EnrollmentEntity,

@@ -18,6 +18,8 @@ export type {
   OrganizationContract,
   PaymentContract,
   RosterEntryContract,
+  SchoolClassContract,
+  SchoolGradeContract,
   TourSessionContract,
 } from "./domain-entities.js"
 
@@ -26,6 +28,8 @@ export const DOMAIN_SCHEMA_VERSION = "provisional-domain-schema-v1" as const
 
 export const DOMAIN_ENTITY_KIND = {
   organization: "organization",
+  schoolGrade: "school_grade",
+  schoolClass: "school_class",
   catalogItem: "catalog_item",
   tourSession: "tour_session",
   enrollment: "enrollment",
@@ -44,6 +48,8 @@ export type DomainEntityId<Kind extends DomainEntityKind> = {
 }
 
 export type OrganizationId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.organization>
+export type SchoolGradeId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.schoolGrade>
+export type SchoolClassId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.schoolClass>
 export type CatalogItemId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.catalogItem>
 export type TourSessionId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.tourSession>
 export type EnrollmentId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.enrollment>
@@ -143,6 +149,8 @@ export type DomainEntityContract = {
 
 export const DOMAIN_ENTITY_CONTRACTS = [
   { kind: DOMAIN_ENTITY_KIND.organization, tableName: "organizations", idPrefix: "org" },
+  { kind: DOMAIN_ENTITY_KIND.schoolGrade, tableName: "school_grades", idPrefix: "grade" },
+  { kind: DOMAIN_ENTITY_KIND.schoolClass, tableName: "school_classes", idPrefix: "class" },
   { kind: DOMAIN_ENTITY_KIND.catalogItem, tableName: "catalog_items", idPrefix: "catalog" },
   { kind: DOMAIN_ENTITY_KIND.tourSession, tableName: "tour_sessions", idPrefix: "session" },
   { kind: DOMAIN_ENTITY_KIND.enrollment, tableName: "enrollments", idPrefix: "enrollment" },
