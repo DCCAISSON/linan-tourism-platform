@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "pnpm build:mp-weixin",
     "dev:mp-weixin": "uni -p mp-weixin",
     "build:mp-weixin": "uni build -p mp-weixin",
+    "lint": "oxlint src/ tests/ scripts/ vite.config.ts",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run --config vitest.config.mjs",
     "test:e2e": "node scripts/e2e.mjs"
@@ -21,6 +23,7 @@
     "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5020620260914001",
     "@types/node": "22.20.2",
     "miniprogram-automator": "0.12.1",
+    "oxlint": "^1.58.0",
     "typescript": "5.9.2",
     "vite": "5.2.8",
     "vitest": "2.1.9",

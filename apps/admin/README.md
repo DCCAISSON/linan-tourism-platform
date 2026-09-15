@@ -6,12 +6,14 @@ Vue 3、Vite、TypeScript 和 Element Plus 的最小后台骨架，参考 `pure-
 
 ## 本地脚本
 
-所有 Node 命令在本机执行时请显式使用 `D:\Software\Node-v22.23.2` 下的 Node/Corepack/pnpm。
+每个新的 PowerShell 会话先把 Node 22.23.2 放到 PATH 最前面，再使用裸 `pnpm`。这样 `pnpm` 脚本内部调用的 `pnpm` 和 Playwright webServer 也会继承同一个 Node 版本。
 
 ```powershell
-& 'D:\Software\Node-v22.23.2\corepack.cmd' pnpm --filter @linan/admin dev
-& 'D:\Software\Node-v22.23.2\corepack.cmd' pnpm --filter @linan/admin typecheck
-& 'D:\Software\Node-v22.23.2\corepack.cmd' pnpm --filter @linan/admin test
-& 'D:\Software\Node-v22.23.2\corepack.cmd' pnpm --filter @linan/admin test:e2e
-& 'D:\Software\Node-v22.23.2\corepack.cmd' pnpm --filter @linan/admin build
+$env:Path = 'D:\Software\Node-v22.23.2;' + $env:Path
+pnpm --filter @linan/admin dev
+pnpm --filter @linan/admin lint
+pnpm --filter @linan/admin typecheck
+pnpm --filter @linan/admin test
+pnpm --filter @linan/admin test:e2e
+pnpm --filter @linan/admin build
 ```

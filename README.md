@@ -39,3 +39,23 @@ third_party/  第三方来源、版本与许可证台账
 - Git 2.43+
 - Docker Desktop（保留现有镜像和卷，可启动本项目开发环境）
 - 微信开发者工具（取得 AppID 后安装和配置）
+
+## Node 与 pnpm 激活
+
+本机默认 Node 仍可能不是本项目要求的版本。每个新的 PowerShell 会话先执行以下命令，让裸 `pnpm`、脚本内嵌的 `pnpm` 和 Playwright webServer 都继承 `D:\Software\Node-v22.23.2`：
+
+```powershell
+$env:Path = 'D:\Software\Node-v22.23.2;' + $env:Path
+node -v
+pnpm --version
+```
+
+确认输出为 `v22.23.2` 和 `12.4.1` 后，再运行仓库脚本：
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm build
+pnpm typecheck
+pnpm test
+```

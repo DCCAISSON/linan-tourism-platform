@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "lint": "oxlint src/ tests/ e2e/ vite.config.ts playwright.config.ts vitest.config.ts",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
@@ -21,6 +22,7 @@
     "@types/node": "22.19.0",
     "@vitejs/plugin-vue": "6.0.1",
     "jsdom": "30.0.1",
+    "oxlint": "^1.58.0",
     "typescript": "5.9.3",
     "vite": "7.1.12",
     "vitest": "5.0.0",
