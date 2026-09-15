@@ -1,4 +1,5 @@
 import { createRequire } from "node:module"
+import { spawn } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
@@ -8,6 +9,11 @@ const cliPath = process.env.WECHAT_DEVTOOLS_CLI
 
 if (!cliPath) {
   console.error("E2E blocked: WECHAT_DEVTOOLS_CLI is not set; WeChat DevTools automation was not run.")
+  process.exit(1)
+}
+
+if (!path.isAbsolute(cliPath) || path.extname(cliPath).toLowerCase() !== ".bat" || !fs.existsSync(cliPath)) {
+  console.error("E2E blocked: WECHAT_DEVTOOLS_CLI must point to an existing absolute cli.bat path.")
   process.exit(1)
 }
 
@@ -21,20 +27,49 @@ if (!fs.existsSync(projectPath)) {
   process.exit(1)
 }
 
-const miniProgram = await automator.launch({
-  cliPath,
-  projectPath,
-})
+const runCli = (args, timeout) =>
+  new Promise((resolve, reject) => {
+    const cli = spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "call", cliPath, ...args], {
+      stdio: "inherit",
+      windowsHide: true,
+    })
+    const timer = setTimeout(() => {
+      cli.kill()
+      reject(new Error(`WeChat DevTools CLI timed out: ${args[0]}`))
+    }, timeout)
+
+    cli.once("error", (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    cli.once("exit", (code) => {
+      clearTimeout(timer)
+      if (code === 0) resolve()
+      else reject(new Error(`WeChat DevTools CLI exited with code ${code}: ${args[0]}`))
+    })
+  })
+
+await runCli(["auto", "--project", projectPath, "--auto-port", "9421", "--trust-project"], 45_000)
+
+// DevTools 2.02.2608070 no longer responds to the legacy Tool.getInfo handshake
+// used by miniprogram-automator 0.12.1. connectTool skips that version query
+// while retaining the automator page API used below.
+const miniProgram = await automator.launcher.connectTool({ wsEndpoint: "ws://127.0.0.1:9421" })
 
 try {
-  const page = await miniProgram.reLaunch("/pages/index/index")
-  await page.waitFor(500)
+  const page = await miniProgram.currentPage()
+  await page.waitFor(".status__text")
   const status = await page.$(".status__text")
+  if (!status) throw new Error("Miniapp health status was not rendered.")
   const text = await status.text()
+
+  if (page.path !== "pages/index/index") {
+    throw new Error(`Unexpected miniapp page: ${page.path}`)
+  }
 
   if (text !== "骨架已就绪") {
     throw new Error(`Unexpected health status: ${text}`)
   }
 } finally {
-  await miniProgram.close()
+  miniProgram.disconnect()
 }

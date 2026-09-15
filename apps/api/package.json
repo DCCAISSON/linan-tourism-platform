@@ -6,16 +6,16 @@
   "scripts": {
     "build": "nest build",
     "db:check": "node scripts/check-database-url.mjs",
-    "db:migrate": "pnpm --filter @linan/contracts build && pnpm build && node scripts/domain-database.mjs migrate",
-    "db:revert": "pnpm --filter @linan/contracts build && pnpm build && node scripts/domain-database.mjs revert",
-    "db:seed:test": "pnpm --filter @linan/contracts build && pnpm build && node scripts/seed-domain-test.mjs",
-    "dev": "pnpm db:check && nest start --watch",
+    "db:migrate": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/domain-database.mjs migrate",
+    "db:revert": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/domain-database.mjs revert",
+    "db:seed:test": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/seed-domain-test.mjs",
+    "dev": "corepack pnpm db:check && nest start --watch",
     "lint": "oxlint src/ test/ scripts/",
-    "start": "pnpm db:check && nest start",
-    "start:prod": "pnpm db:check && node dist/main.js",
+    "start": "corepack pnpm db:check && nest start",
+    "start:prod": "corepack pnpm db:check && node dist/main.js",
     "test": "vitest run",
-    "test:e2e": "pnpm --filter @linan/contracts build && vitest run --config ./vitest.config.e2e.ts",
-    "typecheck": "pnpm --filter @linan/contracts build && tsc --noEmit -p tsconfig.json"
+    "test:e2e": "corepack pnpm --filter @linan/contracts build && vitest run --config ./vitest.config.e2e.ts",
+    "typecheck": "corepack pnpm --filter @linan/contracts build && tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@linan/contracts": "workspace:*",
