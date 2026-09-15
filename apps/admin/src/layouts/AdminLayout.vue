@@ -12,6 +12,7 @@
       <nav class="admin-nav" aria-label="主要菜单">
         <router-link class="admin-nav__item" to="/home">首页</router-link>
         <router-link class="admin-nav__item" to="/configuration">配置</router-link>
+        <router-link class="admin-nav__item" to="/roster">名单统计</router-link>
       </nav>
     </aside>
 

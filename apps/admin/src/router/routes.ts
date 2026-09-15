@@ -4,11 +4,13 @@ import AdminLayout from "@/layouts/AdminLayout.vue"
 import ConfigurationView from "@/views/ConfigurationView.vue"
 import HomeView from "@/views/HomeView.vue"
 import LoginView from "@/views/LoginView.vue"
+import RosterView from "@/views/RosterView.vue"
 
 export const routeNames = {
   configuration: "configuration",
   home: "home",
   login: "login",
+  roster: "roster",
 } as const
 
 export const routes: RouteRecordRaw[] = [
@@ -39,6 +41,14 @@ export const routes: RouteRecordRaw[] = [
         component: ConfigurationView,
         meta: {
           title: "配置",
+        },
+      },
+      {
+        path: "roster",
+        name: routeNames.roster,
+        component: RosterView,
+        meta: {
+          title: "名单统计",
         },
       },
     ],
