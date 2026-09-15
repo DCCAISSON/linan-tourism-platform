@@ -9,6 +9,6 @@
     "repo:verify": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-repository.ps1"
   },
   "engines": {
-    "node": ">=22.17 <23"
+    "node": ">=22.22.3 <23"
   }
 }
