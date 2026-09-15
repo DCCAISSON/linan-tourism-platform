@@ -1,0 +1,19 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "临安文旅",
+        "navigationBarBackgroundColor": "#F7F9F8",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#F7F9F8"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTitleText": "临安文旅",
+    "navigationBarBackgroundColor": "#F7F9F8",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F7F9F8"
+  }
+}
