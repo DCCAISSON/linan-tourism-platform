@@ -2,9 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": "src",
-    "paths": {
-      "@linan/contracts": ["packages/contracts/dist/index.d.ts"]
-    }
+    "paths": {}
   },
   "include": ["src/**/*.ts"],
   "exclude": ["test", "src/**/*.spec.ts", "dist"]

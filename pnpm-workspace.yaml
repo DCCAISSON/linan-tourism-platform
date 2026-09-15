@@ -8,3 +8,19 @@ allowBuilds:
   vue-demi: true
 minimumReleaseAgeExclude:
   - '@nestjs/cli@12.0.1'
+  - multer@2.4.0
+overrides:
+  '@intlify/core-base': 9.14.5
+  '@intlify/message-resolver': 9.1.11
+  adm-zip: 0.6.1
+  jpeg-js: 0.4.4
+  multer: 2.4.0
+  postcss: 8.5.28
+  ws: 8.21.3
+packageExtensions:
+  '@dcloudio/uni-h5-vite@3.0.0-alpha-5020620260914001':
+    dependencies:
+      vite: 6.4.3
+  '@dcloudio/uni-mp-vite@3.0.0-alpha-5020620260914001':
+    dependencies:
+      estree-walker: 2.0.2
