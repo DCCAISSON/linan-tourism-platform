@@ -20,10 +20,11 @@ if (!path.isAbsolute(cliPath) || path.extname(cliPath).toLowerCase() !== ".bat" 
 const require = createRequire(import.meta.url)
 const automator = require("miniprogram-automator")
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
-const projectPath = path.resolve(currentDir, "../dist/dev/mp-weixin")
+const projectPath = path.resolve(currentDir, "../dist/build/mp-weixin")
+const automationEndpoint = "ws://127.0.0.1:9421"
 
 if (!fs.existsSync(projectPath)) {
-  console.error("E2E blocked: dist/dev/mp-weixin is missing; run dev:mp-weixin before automation.")
+  console.error("E2E blocked: dist/build/mp-weixin is missing; run build:mp-weixin before automation.")
   process.exit(1)
 }
 
@@ -49,15 +50,36 @@ const runCli = (args, timeout) =>
     })
   })
 
+const connectWhenReady = async (timeout) => {
+  const deadline = Date.now() + timeout
+  let lastError
+
+  while (Date.now() < deadline) {
+    let candidate
+    try {
+      candidate = await automator.launcher.connectTool({ wsEndpoint: automationEndpoint })
+      const page = await candidate.currentPage()
+      return { miniProgram: candidate, page }
+    } catch (error) {
+      candidate?.disconnect()
+      lastError = error
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  }
+
+  throw lastError ?? new Error(`WeChat DevTools automation was not ready at ${automationEndpoint}.`)
+}
+
+await runCli(["close", "--project", projectPath], 15_000)
 await runCli(["auto", "--project", projectPath, "--auto-port", "9421", "--trust-project"], 45_000)
+const connection = await connectWhenReady(60_000)
 
 // DevTools 2.02.2608070 no longer responds to the legacy Tool.getInfo handshake
 // used by miniprogram-automator 0.12.1. connectTool skips that version query
 // while retaining the automator page API used below.
-const miniProgram = await automator.launcher.connectTool({ wsEndpoint: "ws://127.0.0.1:9421" })
+const { miniProgram, page } = connection
 
 try {
-  const page = await miniProgram.currentPage()
   await page.waitFor(".flow-title")
   const title = await page.$(".flow-title")
   if (!title) throw new Error("Miniapp enrollment flow title was not rendered.")
@@ -72,4 +94,5 @@ try {
   }
 } finally {
   miniProgram.disconnect()
+  await runCli(["close", "--project", projectPath], 15_000)
 }
