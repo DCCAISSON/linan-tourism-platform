@@ -1,0 +1,11 @@
+.git
+.omo
+node_modules
+**/dist
+**/*.tsbuildinfo
+**/test-results
+**/playwright-report
+*.log
+.env
+.env.*
+!.env.example

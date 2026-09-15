@@ -1,0 +1,55 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: linan_uat
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - linan_uat_mysql:/var/lib/mysql
+
+  api:
+    image: linan-platform-uat:${LINAN_IMAGE_TAG:-candidate}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${LINAN_PUBLIC_API_BASE_URL:-http://127.0.0.1:3300}
+    environment:
+      ADMIN_WEB_ORIGIN: http://127.0.0.1:${LINAN_ADMIN_PORT:-4174}
+      DATABASE_URL: mysql://root@mysql:3306/linan_uat
+      NODE_ENV: development
+      PORT: "3000"
+    command: ["sh", "-c", "node apps/api/scripts/domain-database.mjs migrate && node apps/api/dist/main.js"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "${LINAN_API_PORT:-3300}:3000"
+
+  admin:
+    image: linan-platform-uat:${LINAN_IMAGE_TAG:-candidate}
+    pull_policy: never
+    command: ["corepack", "pnpm", "--filter", "@linan/admin", "preview", "--port", "4174"]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4174').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "${LINAN_ADMIN_PORT:-4174}:4174"
+
+volumes:
+  linan_uat_mysql:
