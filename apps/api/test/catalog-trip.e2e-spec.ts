@@ -6,6 +6,7 @@ import {
   createCatalogTripApp,
   createScope,
   databaseUrl,
+  DEV_ADMIN_HEADERS,
   initializeCatalogTripDatabase,
   resetCatalogTripData,
 } from "./catalog-trip-fixture.js"
@@ -35,24 +36,29 @@ describe.skipIf(databaseUrl === undefined)("School catalog and trip configuratio
   it("creates and reads two schools with different prices and trip dates", async () => {
     const schoolA = await request(app.getHttpServer())
       .post("/schools")
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `school-${scope}-a`, name: "Catalog Trip School A" })
       .expect(201)
     const schoolB = await request(app.getHttpServer())
       .post("/schools")
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `school-${scope}-b`, name: "Catalog Trip School B" })
       .expect(201)
     const grade = await request(app.getHttpServer())
       .post(`/schools/${schoolA.body.id}/grades`)
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `grade-${scope}-a`, name: "Grade A" })
       .expect(201)
 
     await request(app.getHttpServer())
       .post(`/grades/${grade.body.id}/classes`)
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `class-${scope}-a`, name: "Class A" })
       .expect(201)
 
     const catalogA = await request(app.getHttpServer())
       .post("/catalog-items")
+      .set(DEV_ADMIN_HEADERS)
       .send({
         organizationId: schoolA.body.id,
         code: `catalog-${scope}-a`,
@@ -62,6 +68,7 @@ describe.skipIf(databaseUrl === undefined)("School catalog and trip configuratio
       .expect(201)
     const catalogB = await request(app.getHttpServer())
       .post("/catalog-items")
+      .set(DEV_ADMIN_HEADERS)
       .send({
         organizationId: schoolB.body.id,
         code: `catalog-${scope}-b`,
@@ -72,6 +79,7 @@ describe.skipIf(databaseUrl === undefined)("School catalog and trip configuratio
 
     const sessionA = await request(app.getHttpServer())
       .post("/tour-sessions")
+      .set(DEV_ADMIN_HEADERS)
       .send({
         organizationId: schoolA.body.id,
         catalogItemId: catalogA.body.id,
@@ -88,6 +96,7 @@ describe.skipIf(databaseUrl === undefined)("School catalog and trip configuratio
 
     await request(app.getHttpServer())
       .post("/tour-sessions")
+      .set(DEV_ADMIN_HEADERS)
       .send({
         organizationId: schoolB.body.id,
         catalogItemId: catalogB.body.id,

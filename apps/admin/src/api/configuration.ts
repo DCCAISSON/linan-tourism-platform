@@ -37,6 +37,7 @@ export type {
 
 const fallbackApiBaseUrl = "http://127.0.0.1:3000"
 const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const devStaffId = import.meta.env["VITE_DEV_STAFF_ID"] ?? "dev-admin"
 
 export async function listSchools(): Promise<readonly School[]> {
   return await readCollection("/schools", "学校", parseSchool)
@@ -127,7 +128,7 @@ async function patchResource<T>(path: string, payload: object, parse: (value: un
 }
 
 async function deleteResource(path: string): Promise<void> {
-  await request(path, { method: "DELETE" })
+  await request(path, { method: "DELETE", headers: staffHeaders() })
 }
 
 function jsonRequest(method: string, payload: object): RequestInit {
@@ -135,8 +136,16 @@ function jsonRequest(method: string, payload: object): RequestInit {
     method,
     headers: {
       "Content-Type": "application/json",
+      ...staffHeaders(),
     },
     body: JSON.stringify(payload),
+  }
+}
+
+function staffHeaders(): Record<string, string> {
+  return {
+    "x-linan-dev-staff-id": devStaffId,
+    "x-linan-dev-staff-role": "administrator",
   }
 }
 

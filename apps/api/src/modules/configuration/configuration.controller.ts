@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from "@nestjs/common"
+import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common"
+import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import { ConfigurationService } from "./configuration.service.js"
 import {
   malformedInput,
@@ -25,10 +26,14 @@ import type {
 
 @Controller()
 export class ConfigurationController {
-  constructor(@Inject(ConfigurationService) private readonly configuration: ConfigurationService) {}
+  constructor(
+    @Inject(ConfigurationService) private readonly configuration: ConfigurationService,
+    @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
+  ) {}
 
   @Post("schools")
-  async createSchool(@Body() body: unknown): Promise<SchoolResponse> {
+  async createSchool(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<SchoolResponse> {
+    this.assertWrite(headers)
     return this.configuration.createSchool(parseSchool(body))
   }
 
@@ -38,20 +43,24 @@ export class ConfigurationController {
   }
 
   @Patch("schools/:id")
-  async updateSchool(@Param("id") id: string, @Body() body: unknown): Promise<SchoolResponse> {
+  async updateSchool(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<SchoolResponse> {
+    this.assertWrite(headers)
     return this.configuration.updateSchool(id, parseSchoolPatch(body))
   }
 
   @Delete("schools/:id")
-  async deleteSchool(@Param("id") id: string): Promise<void> {
+  async deleteSchool(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
+    this.assertWrite(headers)
     await this.configuration.deleteSchool(id)
   }
 
   @Post("schools/:schoolId/grades")
   async createGrade(
+    @Headers() headers: RequestHeaders,
     @Param("schoolId") schoolId: string,
     @Body() body: unknown,
   ): Promise<GradeResponse> {
+    this.assertWrite(headers)
     return this.configuration.createGrade(parseGrade(body, schoolId))
   }
 
@@ -61,20 +70,24 @@ export class ConfigurationController {
   }
 
   @Patch("grades/:id")
-  async updateGrade(@Param("id") id: string, @Body() body: unknown): Promise<GradeResponse> {
+  async updateGrade(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<GradeResponse> {
+    this.assertWrite(headers)
     return this.configuration.updateGrade(id, parseGradePatch(body))
   }
 
   @Delete("grades/:id")
-  async deleteGrade(@Param("id") id: string): Promise<void> {
+  async deleteGrade(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
+    this.assertWrite(headers)
     await this.configuration.deleteGrade(id)
   }
 
   @Post("grades/:gradeId/classes")
   async createClass(
+    @Headers() headers: RequestHeaders,
     @Param("gradeId") gradeId: string,
     @Body() body: unknown,
   ): Promise<ClassResponse> {
+    this.assertWrite(headers)
     return this.configuration.createClass(parseClass(body, gradeId))
   }
 
@@ -84,17 +97,20 @@ export class ConfigurationController {
   }
 
   @Patch("classes/:id")
-  async updateClass(@Param("id") id: string, @Body() body: unknown): Promise<ClassResponse> {
+  async updateClass(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<ClassResponse> {
+    this.assertWrite(headers)
     return this.configuration.updateClass(id, parseClassPatch(body))
   }
 
   @Delete("classes/:id")
-  async deleteClass(@Param("id") id: string): Promise<void> {
+  async deleteClass(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
+    this.assertWrite(headers)
     await this.configuration.deleteClass(id)
   }
 
   @Post("catalog-items")
-  async createCatalogItem(@Body() body: unknown): Promise<CatalogItemResponse> {
+  async createCatalogItem(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<CatalogItemResponse> {
+    this.assertWrite(headers)
     return this.configuration.createCatalogItem(parseCatalogItem(body))
   }
 
@@ -105,19 +121,23 @@ export class ConfigurationController {
 
   @Patch("catalog-items/:id")
   async updateCatalogItem(
+    @Headers() headers: RequestHeaders,
     @Param("id") id: string,
     @Body() body: unknown,
   ): Promise<CatalogItemResponse> {
+    this.assertWrite(headers)
     return this.configuration.updateCatalogItem(id, parseCatalogItemPatch(body))
   }
 
   @Delete("catalog-items/:id")
-  async deleteCatalogItem(@Param("id") id: string): Promise<void> {
+  async deleteCatalogItem(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
+    this.assertWrite(headers)
     await this.configuration.deleteCatalogItem(id)
   }
 
   @Post("tour-sessions")
-  async createTourSession(@Body() body: unknown): Promise<TourSessionResponse> {
+  async createTourSession(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<TourSessionResponse> {
+    this.assertWrite(headers)
     return this.configuration.createTourSession(parseTourSession(body))
   }
 
@@ -128,14 +148,17 @@ export class ConfigurationController {
 
   @Patch("tour-sessions/:id")
   async updateTourSession(
+    @Headers() headers: RequestHeaders,
     @Param("id") id: string,
     @Body() body: unknown,
   ): Promise<TourSessionResponse> {
+    this.assertWrite(headers)
     return this.configuration.updateTourSession(id, parseTourSessionPatch(body))
   }
 
   @Delete("tour-sessions/:id")
-  async deleteTourSession(@Param("id") id: string): Promise<void> {
+  async deleteTourSession(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
+    this.assertWrite(headers)
     await this.configuration.deleteTourSession(id)
   }
 
@@ -150,4 +173,10 @@ export class ConfigurationController {
 
     return this.configuration.checkEnrollmentAvailability(id, parseAvailabilityTime(at))
   }
+
+  private assertWrite(headers: RequestHeaders): void {
+    this.staffAccess.assertConfigurationWrite(this.staffAccess.resolve(headers))
+  }
 }
+
+type RequestHeaders = Record<string, string | readonly string[] | undefined>

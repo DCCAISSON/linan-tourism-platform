@@ -6,6 +6,7 @@ import {
   createCatalogTripApp,
   createScope,
   databaseUrl,
+  DEV_ADMIN_HEADERS,
   initializeCatalogTripDatabase,
   resetCatalogTripData,
 } from "./catalog-trip-fixture.js"
@@ -35,37 +36,45 @@ describe.skipIf(databaseUrl === undefined)("School catalog mutation and rejectio
   it("updates trips and rejects duplicate class keys foreign-key deletes and bad school catalog pairs", async () => {
     const schoolA = await request(app.getHttpServer())
       .post("/schools")
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `school-${scope}-a`, name: "Mutation School A" })
       .expect(201)
     const schoolB = await request(app.getHttpServer())
       .post("/schools")
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `school-${scope}-b`, name: "Mutation School B" })
       .expect(201)
     const grade = await request(app.getHttpServer())
       .post(`/schools/${schoolA.body.id}/grades`)
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `grade-${scope}`, name: "Mutation Grade" })
       .expect(201)
 
     await request(app.getHttpServer())
       .post(`/grades/${grade.body.id}/classes`)
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `class-${scope}`, name: "Class A" })
       .expect(201)
     await request(app.getHttpServer())
       .post(`/grades/${grade.body.id}/classes`)
+      .set(DEV_ADMIN_HEADERS)
       .send({ code: `class-${scope}`, name: "Class B" })
       .expect(409)
 
     const catalogA = await request(app.getHttpServer())
       .post("/catalog-items")
+      .set(DEV_ADMIN_HEADERS)
       .send({ organizationId: schoolA.body.id, code: `catalog-${scope}-a`, title: "Trip A", status: "active" })
       .expect(201)
     const catalogB = await request(app.getHttpServer())
       .post("/catalog-items")
+      .set(DEV_ADMIN_HEADERS)
       .send({ organizationId: schoolB.body.id, code: `catalog-${scope}-b`, title: "Trip B", status: "active" })
       .expect(201)
 
     const session = await request(app.getHttpServer())
       .post("/tour-sessions")
+      .set(DEV_ADMIN_HEADERS)
       .send({
         organizationId: schoolA.body.id,
         catalogItemId: catalogA.body.id,
@@ -82,6 +91,7 @@ describe.skipIf(databaseUrl === undefined)("School catalog mutation and rejectio
 
     const updatedSession = await request(app.getHttpServer())
       .patch(`/tour-sessions/${session.body.id}`)
+      .set(DEV_ADMIN_HEADERS)
       .send({
         status: "published",
         priceFen: 13_900,
@@ -97,6 +107,7 @@ describe.skipIf(databaseUrl === undefined)("School catalog mutation and rejectio
 
     await request(app.getHttpServer())
       .post("/tour-sessions")
+      .set(DEV_ADMIN_HEADERS)
       .send({
         organizationId: schoolA.body.id,
         catalogItemId: catalogB.body.id,
@@ -113,6 +124,7 @@ describe.skipIf(databaseUrl === undefined)("School catalog mutation and rejectio
 
     await request(app.getHttpServer())
       .post("/tour-sessions")
+      .set(DEV_ADMIN_HEADERS)
       .send({
         organizationId: schoolA.body.id,
         catalogItemId: catalogA.body.id,
@@ -127,9 +139,10 @@ describe.skipIf(databaseUrl === undefined)("School catalog mutation and rejectio
       })
       .expect(400)
 
-    await request(app.getHttpServer()).delete(`/schools/${schoolA.body.id}`).expect(409)
+    await request(app.getHttpServer()).delete(`/schools/${schoolA.body.id}`).set(DEV_ADMIN_HEADERS).expect(409)
     await request(app.getHttpServer())
       .patch(`/tour-sessions/${session.body.id}`)
+      .set(DEV_ADMIN_HEADERS)
       .send({ status: "closed" })
       .expect(200)
     await request(app.getHttpServer())

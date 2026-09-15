@@ -6,6 +6,10 @@ import { createDomainDataSource } from "../src/domain/data-source.js"
 
 export const databaseUrl = process.env["DOMAIN_TEST_DATABASE_URL"]
 export const dataSource = createDomainDataSource(databaseUrl ?? "")
+export const DEV_ADMIN_HEADERS = {
+  "x-linan-dev-staff-id": "dev-admin",
+  "x-linan-dev-staff-role": "administrator",
+} as const
 
 if (databaseUrl !== undefined) {
   process.env["DATABASE_URL"] = databaseUrl

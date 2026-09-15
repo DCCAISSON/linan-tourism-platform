@@ -1,7 +1,7 @@
 import { DOMAIN_SCHEMA_VERSION, FAMILY_ENROLLMENT_AGREEMENT_VERSION } from "@linan/contracts"
 import type { INestApplication, LoggerService } from "@nestjs/common"
 import request from "supertest"
-import { dataSource } from "./catalog-trip-fixture.js"
+import { dataSource, DEV_ADMIN_HEADERS } from "./catalog-trip-fixture.js"
 
 export const AGREEMENT_VERSION = FAMILY_ENROLLMENT_AGREEMENT_VERSION
 
@@ -27,18 +27,22 @@ export async function createCatalog(
 ): Promise<CatalogFixture> {
   const school = await request(app.getHttpServer())
     .post("/schools")
+    .set(DEV_ADMIN_HEADERS)
     .send({ code: `school-${scope}`, name: "Enrollment School" })
     .expect(201)
   const grade = await request(app.getHttpServer())
     .post(`/schools/${school.body.id}/grades`)
+    .set(DEV_ADMIN_HEADERS)
     .send({ code: `grade-${scope}`, name: "Grade One" })
     .expect(201)
   const schoolClass = await request(app.getHttpServer())
     .post(`/grades/${grade.body.id}/classes`)
+    .set(DEV_ADMIN_HEADERS)
     .send({ code: `class-${scope}`, name: "Class One" })
     .expect(201)
   const catalog = await request(app.getHttpServer())
     .post("/catalog-items")
+    .set(DEV_ADMIN_HEADERS)
     .send({
       organizationId: school.body.id,
       code: `catalog-${scope}`,
@@ -48,6 +52,7 @@ export async function createCatalog(
     .expect(201)
   const tourSession = await request(app.getHttpServer())
     .post("/tour-sessions")
+    .set(DEV_ADMIN_HEADERS)
     .send({
       organizationId: school.body.id,
       catalogItemId: catalog.body.id,
@@ -140,6 +145,10 @@ export function createCapturingLogger(messages: string[]): LoggerService {
 }
 
 export async function resetEnrollmentConsentData(scope: string): Promise<void> {
+  await dataSource.query(
+    "delete from audit_logs where organization_id in (select id from organizations where code like ?)",
+    [`school-${scope}%`],
+  )
   await dataSource.query(
     "delete from consent_records where family_id in (select id from families where code like ?)",
     [`family-${scope}%`],

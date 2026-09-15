@@ -16,6 +16,7 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import { throwWriteConflict } from "../configuration/configuration.errors.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import { ConfigurationService } from "../configuration/configuration.service.js"
+import { AuditLogService } from "../iam/audit-log.service.js"
 import {
   applyMemberPatch,
   ensureFamily,
@@ -40,6 +41,7 @@ export class EnrollmentService {
   constructor(
     @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
     @Inject(ConfigurationService) private readonly configuration: ConfigurationService,
+    @Inject(AuditLogService) private readonly audit: AuditLogService,
   ) {}
 
   async createMember(identity: EnrollmentIdentity, input: NewFamilyMember): Promise<FamilyMemberResponse> {
@@ -160,6 +162,13 @@ export class EnrollmentService {
           schemaVersion: input.schemaVersion,
           acceptedAt: new Date(),
           policyVersion: DOMAIN_POLICY_VERSION,
+        })
+        await this.audit.record(manager, {
+          organizationId: session.organizationId,
+          actorId: family.id,
+          action: "agreement.confirmed",
+          targetType: "enrollment",
+          targetId: enrollment.id,
         })
         return {
           id: enrollment.id,
