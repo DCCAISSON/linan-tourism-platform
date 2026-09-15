@@ -40,7 +40,7 @@ export type CatalogState = {
   readonly sessions: readonly TourSession[]
 }
 
-export type PageMode = "editing" | "review" | "submitting" | "submitted"
+export type PageMode = "editing" | "review" | "submitting" | "paymentPending" | "paid"
 export type LoadState = "loading" | "ready" | "empty" | "error"
 
 export type EnrollmentReadiness =
@@ -189,7 +189,7 @@ export function optionNames<T extends { readonly name?: string; readonly code: s
 }
 
 export function sessionOptionNames(sessions: readonly TourSession[]): readonly string[] {
-  return sessions.map((session) => `${session.code} · ${formatFen(session.priceFen)}`)
+  return sessions.map((session) => `${session.code} · ${formatFen(session.priceFen)} · ${sessionStatusLabel(session.status)}`)
 }
 
 export function formatFen(priceFen: number): string {
@@ -207,4 +207,23 @@ export function formatDateLabel(iso: string): string {
 
 function pad(value: number): string {
   return value.toString().padStart(2, "0")
+}
+
+function sessionStatusLabel(status: TourSession["status"]): string {
+  switch (status) {
+    case "published":
+      return "可报名"
+    case "draft":
+      return "未开放"
+    case "closed":
+      return "已关闭"
+    case "cancelled":
+      return "已取消"
+    default:
+      return assertNever(status)
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected enrollment state: ${value}`)
 }

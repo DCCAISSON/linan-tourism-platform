@@ -1,8 +1,7 @@
 <script setup lang="ts">
 defineProps<{
-  readonly kind: "loading" | "empty" | "error" | "success"
+  readonly kind: "loading" | "empty" | "error"
   readonly message?: string
-  readonly submissionCode?: string
 }>()
 
 defineEmits<{
@@ -14,24 +13,19 @@ defineEmits<{
   <view class="state-panel" :class="`state-panel--${kind}`" aria-live="polite">
     <template v-if="kind === 'loading'">
       <text class="state-panel__title">正在加载可报名信息</text>
-      <text class="state-panel__body">请稍候，系统正在读取学校、年级、班级和团期。</text>
+      <text class="state-panel__body">系统正在读取学校、年级、班级和团期。</text>
     </template>
 
     <template v-else-if="kind === 'empty'">
       <text class="state-panel__title">暂无可报名团期</text>
-      <text class="state-panel__body">当前还没有开放报名的学校或团期，请稍后再试。</text>
-      <button class="secondary-button" @tap="$emit('retry')">重新加载</button>
-    </template>
-
-    <template v-else-if="kind === 'error'">
-      <text class="state-panel__title">加载失败</text>
-      <text class="state-panel__body">{{ message }}</text>
+      <text class="state-panel__body">当前没有开放报名的学校或团期，请稍后再试。</text>
       <button class="secondary-button" @tap="$emit('retry')">重新加载</button>
     </template>
 
     <template v-else>
-      <text class="state-panel__title">已提交报名信息</text>
-      <text class="state-panel__body">报名编号：{{ submissionCode }}</text>
+      <text class="state-panel__title">加载失败</text>
+      <text class="state-panel__body">{{ message }}</text>
+      <button class="secondary-button" @tap="$emit('retry')">重新加载</button>
     </template>
   </view>
 </template>
@@ -47,10 +41,6 @@ defineEmits<{
 
 .state-panel--error {
   border: 1px solid var(--status-error);
-}
-
-.state-panel--success {
-  border: 1px solid var(--status-success);
 }
 
 .state-panel__title {

@@ -67,7 +67,7 @@ try {
     throw new Error(`Unexpected miniapp page: ${page.path}`)
   }
 
-  if (text !== "报名信息核对") {
+  if (text !== "研学报名与支付") {
     throw new Error(`Unexpected enrollment flow title: ${text}`)
   }
 } finally {

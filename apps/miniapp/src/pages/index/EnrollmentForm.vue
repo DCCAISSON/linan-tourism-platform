@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatDateLabel } from "../../enrollment-flow"
+import { formatDateLabel, formatFen } from "../../enrollment-flow"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
 const props = defineProps<{
@@ -21,6 +21,7 @@ const {
   schoolNames,
   selectedClass,
   selectedGrade,
+  selectedMembers,
   selectedSchool,
   selectedSession,
   sessionNames,
@@ -32,7 +33,7 @@ const {
   <view class="section">
     <view class="section__header">
       <text class="section__title">学校与班级</text>
-      <text class="section__hint">请选择学生所在学校</text>
+      <text class="section__hint">先选学校，再选年级和班级。</text>
     </view>
 
     <picker mode="selector" :range="schoolNames" @change="onSchoolChange">
@@ -59,12 +60,15 @@ const {
 
   <view class="section">
     <view class="section__header">
-      <text class="section__title">家庭成员</text>
+      <view>
+        <text class="section__title">参与成员</text>
+        <text class="section__hint">已选择 {{ selectedMembers.length }} 人，可多人报名。</text>
+      </view>
       <button class="text-button" @tap="addMember">添加</button>
     </view>
 
     <view v-if="draft.familyMembers.length === 0" class="empty-line">
-      <text>尚未添加家庭成员。添加后可选择多人参加。</text>
+      <text>尚未添加家庭成员。请使用成员编号和称呼，不填写真实未成年人姓名。</text>
     </view>
 
     <view v-for="member in draft.familyMembers" :key="member.id" class="member-row">
@@ -72,11 +76,7 @@ const {
         <input v-model="member.code" class="text-input" maxlength="64" placeholder="成员编号" placeholder-class="input-placeholder" />
         <input v-model="member.displayName" class="text-input" maxlength="120" placeholder="成员称呼" placeholder-class="input-placeholder" />
       </view>
-      <button
-        class="toggle-button"
-        :class="{ 'toggle-button--on': member.selected }"
-        @tap="toggleMember(member.id)"
-      >
+      <button class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
         {{ member.selected ? "已选择" : "未选择" }}
       </button>
     </view>
@@ -84,44 +84,29 @@ const {
 
   <view class="section">
     <text class="section__title">联系人</text>
-    <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="家长联系人姓名" placeholder-class="input-placeholder" />
-    <input
-      v-model="draft.emergencyContact.name"
-      class="text-input text-input--block"
-      maxlength="120"
-      placeholder="紧急联系人姓名"
-      placeholder-class="input-placeholder"
-    />
-    <input
-      v-model="draft.emergencyContact.phone"
-      class="text-input text-input--block"
-      maxlength="32"
-      type="number"
-      placeholder="紧急联系人电话"
-      placeholder-class="input-placeholder"
-    />
+    <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="家长联系人" placeholder-class="input-placeholder" />
+    <input v-model="draft.emergencyContact.name" class="text-input text-input--block" maxlength="120" placeholder="紧急联系人姓名" placeholder-class="input-placeholder" />
+    <input v-model="draft.emergencyContact.phone" class="text-input text-input--block" maxlength="32" type="number" placeholder="紧急联系人电话" placeholder-class="input-placeholder" />
   </view>
 
   <view class="section">
-    <text class="section__title">团期</text>
+    <text class="section__title">行程</text>
     <picker mode="selector" :range="sessionNames" :disabled="availableSessions.length === 0" @change="onSessionChange">
       <view class="field-control" :class="{ 'field-control--disabled': availableSessions.length === 0 }">
         <text class="field-control__label">可报名团期</text>
         <text class="field-control__value">{{ selectedSession?.code ?? "请选择团期" }}</text>
       </view>
     </picker>
-    <view v-if="selectedSession" class="trip-line">
-      <text>{{ formatDateLabel(selectedSession.startsAt) }} 至 {{ formatDateLabel(selectedSession.endsAt) }}</text>
+    <view v-if="selectedSession" class="trip-detail">
+      <text class="trip-line">日期：{{ formatDateLabel(selectedSession.startsAt) }} 至 {{ formatDateLabel(selectedSession.endsAt) }}</text>
+      <text class="trip-line">单价：{{ formatFen(selectedSession.priceFen) }}，容量：{{ selectedSession.capacity }} 人</text>
+      <text class="trip-line">报名：{{ formatDateLabel(selectedSession.enrollmentOpensAt) }} 至 {{ formatDateLabel(selectedSession.enrollmentClosesAt) }}</text>
     </view>
   </view>
 
   <view class="section">
     <text class="section__title">协议版本确认</text>
-    <button
-      class="consent-button"
-      :class="{ 'consent-button--on': draft.agreementAccepted }"
-      @tap="draft.agreementAccepted = !draft.agreementAccepted"
-    >
+    <button class="consent-button" :class="{ 'consent-button--on': draft.agreementAccepted }" @tap="draft.agreementAccepted = !draft.agreementAccepted">
       {{ draft.agreementAccepted ? "已确认" : "点击确认" }} {{ FAMILY_ENROLLMENT_AGREEMENT_VERSION }}
     </button>
   </view>
@@ -158,6 +143,7 @@ const {
 
 .section__hint,
 .trip-line {
+  display: block;
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.4;
@@ -214,7 +200,7 @@ const {
 
 .text-input--block,
 .member-row,
-.trip-line {
+.trip-detail {
   margin-top: 12px;
 }
 
