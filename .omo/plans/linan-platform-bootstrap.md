@@ -146,7 +146,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, run `pnpm --filter @linan/api test:e2e -- test/catalog-trip.e2e-spec.ts` and `pnpm --filter @linan/admin test:e2e -- catalog-trip.spec.ts` to create, publish and read a valid trip. Failure cases in the same suites submit duplicate class keys, negative price and an expired enrollment window and assert stable API errors and visible admin messages. Evidence `.omo/evidence/task-6-linan-platform-bootstrap/`.
   Commit: Y | `feat(catalog): configure schools courses and trips`
 
-- [ ] 7. Implement family members, multi-participant enrollment and consent
+- [x] 7. Implement family members, multi-participant enrollment and consent
   What to do / Must NOT do: support parent identity placeholder/WeChat identity adapter, multiple family members, structured school-grade-class selection, emergency contact, field validation, review-before-submit and agreement version records. Do not store real minor data in local fixtures or logs.
   Parallelization: Wave 2 | Blocked by: 5–6 | Blocks: 8, 10, 13
   References: `docs/系统架构.md:42`, `DESIGN.md:3`, `docs/开发保护与恢复规则.md:41`, `docs/需求方交接清单.md:33`
