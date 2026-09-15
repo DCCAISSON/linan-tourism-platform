@@ -154,7 +154,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, run `pnpm --filter @linan/api test:e2e -- test/enrollment-consent.e2e-spec.ts` to enroll two fictitious children and query the exact agreement version. Failure cases omit consent and use another family's member ID, expecting 4xx denial and no sensitive values in captured logs. Evidence `.omo/evidence/task-7-linan-platform-bootstrap.md`.
   Commit: Y | `feat(enrollment): support families and consented group signup`
 
-- [ ] 8. Implement authoritative orders and mock payment
+- [x] 8. Implement authoritative orders and mock payment
   What to do / Must NOT do: calculate price only on the server, snapshot participant lines, create unique orders, expose mock provider locally, process verified/queried events through an idempotent state machine and keep client display state non-authoritative.
   Parallelization: Wave 2 | Blocked by: 5–7 | Blocks: 9–10, 12–15
   References: `docs/系统架构.md:42`, `.env.example:1`, `docs/项目计划与进度.md:41`
