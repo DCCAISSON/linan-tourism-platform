@@ -194,7 +194,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, run automated official callback fixtures, then use the certified test configuration and WeChat Developer Tools/real device to pay one authorized small order; call the provider query API and next-day statement job and reconcile order, participant roster and admin statistics. Failure, run fixtures for bad signature, wrong merchant/amount and duplicate notification and assert rejection or idempotent no-op. Evidence `.omo/evidence/task-12-linan-platform-bootstrap.md` with redacted identifiers.
   Commit: Y | `feat(payment): integrate verified WeChat payment`
 
-- [ ] 13. Complete scoped roles, export protection and audit trail
+- [x] 13. Complete scoped roles, export protection and audit trail
   What to do / Must NOT do: enforce parent-own-family, school-own-school, guide-assigned-trip, finance-payment-only and administrator scopes at the API; audit refunds, permission changes, order edits and agreement confirmations. Do not rely on hidden menus for authorization.
   Parallelization: Wave 3 | Blocked by: 5–8 | Blocks: 14–16
   References: `docs/系统架构.md:28`, `docs/开发保护与恢复规则.md:41`, `docs/开发保护与恢复规则.md:58`
