@@ -14,7 +14,7 @@
     "start": "pnpm db:check && nest start",
     "start:prod": "pnpm db:check && node dist/main.js",
     "test": "vitest run",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:e2e": "pnpm --filter @linan/contracts build && vitest run --config ./vitest.config.e2e.ts",
     "typecheck": "pnpm --filter @linan/contracts build && tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
