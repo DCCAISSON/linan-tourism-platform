@@ -130,7 +130,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, use the chosen remote CLI to create a disposable documentation branch/PR, wait for `lint`, `typecheck`, `test`, `test:e2e`, `build`, secret scan and dependency audit, merge it, then verify the primary and mirror resolve to the same commit. Failure, create a disposable branch containing a forced dummy `.env`, verify both `.githooks/pre-commit` and CI reject it, then delete only that disposable branch/file. Evidence `.omo/evidence/task-4-linan-platform-bootstrap.md`.
   Commit: Y | `ci(repo): enforce protected build and secret checks`
 
-- [ ] 5. Define the shared domain contract, access baseline and first database migration
+- [x] 5. Define the shared domain contract, access baseline and first database migration
   What to do / Must NOT do: use TypeORM + `mysql2` with `synchronize: false`; define IDs, money-in-cents, organization/catalog/trip/enrollment/order/payment/roster/consent/audit entities, state enums, API error shape and first migration. Miniapp identity uses a development adapter and a production `wx.login`/server `code2Session` adapter; staff access uses server-issued revocable sessions and a one-time production administrator bootstrap, with secrets supplied only by environment configuration. Add database unique constraints for order number, request idempotency key and provider transaction/event identifiers, and use MySQL transactions for order creation and payment-state transitions. Do not encode a still-unconfirmed approval-before-payment rule or unconfirmed personal fields; isolate each behind an explicit policy/schema version.
   Parallelization: Wave 1 | Blocked by: 3; production sign-off also requires the named business inputs | Blocks: 6–13
   References: `docs/系统架构.md:28`, `docs/系统架构.md:42`, `docs/系统架构.md:53`, `packages/contracts/README.md:3`, `docs/需求方交接清单.md:33`
@@ -138,7 +138,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, run `pnpm --filter @linan/api db:migrate`, `pnpm --filter @linan/api db:seed:test`, `pnpm --filter @linan/api test:e2e -- test/contracts-state.e2e-spec.ts`, then `db:revert` and `db:migrate` again against a fresh MySQL 8.4 LTS test database. Failure, the same suite submits invalid transitions, repeated idempotency keys and duplicate provider identifiers and expects transaction rollback/unique-conflict responses. Evidence `.omo/evidence/task-5-linan-platform-bootstrap.txt`.
   Commit: Y | `feat(contracts): define enrollment and payment domain`
 
-- [ ] 6. Implement school, catalog and trip configuration
+- [x] 6. Implement school, catalog and trip configuration
   What to do / Must NOT do: implement API and admin CRUD for school, grade, class, product/course, school-specific price, trip date, enrollment window and open/closed state. Do not add CMS, search, promotion or CRM scope.
   Parallelization: Wave 2 | Blocked by: 5 | Blocks: 7–10
   References: `docs/项目计划与进度.md:18`, `docs/项目计划与进度.md:39`, `docs/项目计划与进度.md:41`, `docs/系统架构.md:28`
