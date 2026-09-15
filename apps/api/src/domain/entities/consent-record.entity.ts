@@ -1,6 +1,7 @@
 import { DOMAIN_POLICY_VERSION } from "@linan/contracts"
 import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn } from "typeorm"
 import { EnrollmentEntity } from "./enrollment.entity.js"
+import { FamilyEntity } from "./family.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 
 @Entity({ name: "consent_records" })
@@ -10,6 +11,7 @@ import { OrganizationEntity } from "./organization.entity.js"
   { unique: true },
 )
 @Index("idx_consent_records_subject", ["subjectId"])
+@Index("idx_consent_records_family", ["familyId"])
 export class ConsentRecordEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
@@ -21,6 +23,14 @@ export class ConsentRecordEntity {
   })
   @Column({ name: "organization_id", type: "varchar", length: 64 })
   organizationId = ""
+
+  @ForeignKey(() => FamilyEntity, {
+    name: "fk_consent_records_family",
+    onDelete: "RESTRICT",
+    onUpdate: "CASCADE",
+  })
+  @Column({ name: "family_id", type: "varchar", length: 64, nullable: true })
+  familyId: string | null = null
 
   @ForeignKey(() => EnrollmentEntity, {
     name: "fk_consent_records_subject",

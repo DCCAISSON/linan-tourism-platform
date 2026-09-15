@@ -14,6 +14,9 @@ export type {
   CatalogItemContract,
   ConsentRecordContract,
   EnrollmentContract,
+  EnrollmentParticipantContract,
+  FamilyContract,
+  FamilyMemberContract,
   OrderContract,
   OrganizationContract,
   PaymentContract,
@@ -25,11 +28,15 @@ export type {
 
 export const DOMAIN_POLICY_VERSION = "provisional-domain-policy-v1" as const
 export const DOMAIN_SCHEMA_VERSION = "provisional-domain-schema-v1" as const
+export const FAMILY_ENROLLMENT_AGREEMENT_VERSION = "family-enrollment-agreement-v1" as const
 
 export const DOMAIN_ENTITY_KIND = {
   organization: "organization",
+  family: "family",
+  familyMember: "family_member",
   schoolGrade: "school_grade",
   schoolClass: "school_class",
+  enrollmentParticipant: "enrollment_participant",
   catalogItem: "catalog_item",
   tourSession: "tour_session",
   enrollment: "enrollment",
@@ -48,8 +55,11 @@ export type DomainEntityId<Kind extends DomainEntityKind> = {
 }
 
 export type OrganizationId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.organization>
+export type FamilyId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.family>
+export type FamilyMemberId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.familyMember>
 export type SchoolGradeId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.schoolGrade>
 export type SchoolClassId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.schoolClass>
+export type EnrollmentParticipantId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.enrollmentParticipant>
 export type CatalogItemId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.catalogItem>
 export type TourSessionId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.tourSession>
 export type EnrollmentId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.enrollment>
@@ -149,8 +159,15 @@ export type DomainEntityContract = {
 
 export const DOMAIN_ENTITY_CONTRACTS = [
   { kind: DOMAIN_ENTITY_KIND.organization, tableName: "organizations", idPrefix: "org" },
+  { kind: DOMAIN_ENTITY_KIND.family, tableName: "families", idPrefix: "family" },
+  { kind: DOMAIN_ENTITY_KIND.familyMember, tableName: "family_members", idPrefix: "member" },
   { kind: DOMAIN_ENTITY_KIND.schoolGrade, tableName: "school_grades", idPrefix: "grade" },
   { kind: DOMAIN_ENTITY_KIND.schoolClass, tableName: "school_classes", idPrefix: "class" },
+  {
+    kind: DOMAIN_ENTITY_KIND.enrollmentParticipant,
+    tableName: "enrollment_participants",
+    idPrefix: "participant",
+  },
   { kind: DOMAIN_ENTITY_KIND.catalogItem, tableName: "catalog_items", idPrefix: "catalog" },
   { kind: DOMAIN_ENTITY_KIND.tourSession, tableName: "tour_sessions", idPrefix: "session" },
   { kind: DOMAIN_ENTITY_KIND.enrollment, tableName: "enrollments", idPrefix: "enrollment" },

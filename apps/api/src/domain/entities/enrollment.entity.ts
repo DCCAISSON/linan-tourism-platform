@@ -8,12 +8,14 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from "typeorm"
+import { FamilyEntity } from "./family.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
 
 @Entity({ name: "enrollments" })
 @Index("uq_enrollments_org_code", ["organizationId", "code"], { unique: true })
 @Index("idx_enrollments_tour_session", ["tourSessionId"])
+@Index("idx_enrollments_family", ["familyId"])
 export class EnrollmentEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
@@ -34,11 +36,25 @@ export class EnrollmentEntity {
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
 
+  @ForeignKey(() => FamilyEntity, {
+    name: "fk_enrollments_family",
+    onDelete: "RESTRICT",
+    onUpdate: "CASCADE",
+  })
+  @Column({ name: "family_id", type: "varchar", length: 64, nullable: true })
+  familyId: string | null = null
+
   @Column({ type: "varchar", length: 64 })
   code = ""
 
   @Column({ name: "contact_name", type: "varchar", length: 120 })
   contactName = ""
+
+  @Column({ name: "emergency_contact_name", type: "varchar", length: 120, nullable: true })
+  emergencyContactName: string | null = null
+
+  @Column({ name: "emergency_contact_phone", type: "varchar", length: 32, nullable: true })
+  emergencyContactPhone: string | null = null
 
   @Column({ name: "participant_count", type: "int", unsigned: true })
   participantCount = 0

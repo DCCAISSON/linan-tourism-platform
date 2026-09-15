@@ -58,17 +58,17 @@ const miniProgram = await automator.launcher.connectTool({ wsEndpoint: "ws://127
 
 try {
   const page = await miniProgram.currentPage()
-  await page.waitFor(".status__text")
-  const status = await page.$(".status__text")
-  if (!status) throw new Error("Miniapp health status was not rendered.")
-  const text = await status.text()
+  await page.waitFor(".flow-title")
+  const title = await page.$(".flow-title")
+  if (!title) throw new Error("Miniapp enrollment flow title was not rendered.")
+  const text = await title.text()
 
   if (page.path !== "pages/index/index") {
     throw new Error(`Unexpected miniapp page: ${page.path}`)
   }
 
-  if (text !== "骨架已就绪") {
-    throw new Error(`Unexpected health status: ${text}`)
+  if (text !== "报名信息核对") {
+    throw new Error(`Unexpected enrollment flow title: ${text}`)
   }
 } finally {
   miniProgram.disconnect()

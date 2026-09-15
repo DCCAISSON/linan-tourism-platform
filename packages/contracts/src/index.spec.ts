@@ -53,10 +53,18 @@ describe("health contract", () => {
     expect(DOMAIN_ENTITY_KIND.enrollment).toBe("enrollment")
   })
 
-  it("publishes school grade and class entity contracts", () => {
+  it("publishes family member and enrollment participant entity contracts", () => {
     expect(DOMAIN_ENTITY_CONTRACTS.map(({ tableName }) => tableName)).toEqual(
-      expect.arrayContaining(["school_grades", "school_classes"]),
+      expect.arrayContaining([
+        "families",
+        "family_members",
+        "school_grades",
+        "school_classes",
+        "enrollment_participants",
+      ]),
     )
+    expect(DOMAIN_ENTITY_KIND.familyMember).toBe("family_member")
+    expect(DOMAIN_ENTITY_KIND.enrollmentParticipant).toBe("enrollment_participant")
   })
 
   it("returns a typed state error when a succeeded payment returns to pending", () => {

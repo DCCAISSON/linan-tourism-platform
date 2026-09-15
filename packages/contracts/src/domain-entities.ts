@@ -4,7 +4,10 @@ import type {
   CnyFen,
   ConsentRecordId,
   EnrollmentId,
+  EnrollmentParticipantId,
   EnrollmentStatus,
+  FamilyId,
+  FamilyMemberId,
   OrderId,
   OrderStatus,
   OrganizationId,
@@ -22,6 +25,25 @@ export type OrganizationContract = {
   readonly id: OrganizationId
   readonly code: string
   readonly name: string
+}
+
+export type FamilyContract = {
+  readonly id: FamilyId
+  readonly organizationId: OrganizationId
+  readonly code: string
+  readonly primaryContactName: string
+  readonly policyVersion: string
+}
+
+export type FamilyMemberContract = {
+  readonly id: FamilyMemberId
+  readonly organizationId: OrganizationId
+  readonly familyId: FamilyId
+  readonly code: string
+  readonly displayName: string
+  readonly gradeId: SchoolGradeId | null
+  readonly classId: SchoolClassId | null
+  readonly policyVersion: string
 }
 
 export type SchoolGradeContract = {
@@ -66,10 +88,25 @@ export type EnrollmentContract = {
   readonly id: EnrollmentId
   readonly organizationId: OrganizationId
   readonly tourSessionId: TourSessionId
+  readonly familyId: FamilyId | null
   readonly code: string
   readonly contactName: string
+  readonly emergencyContactName: string | null
+  readonly emergencyContactPhone: string | null
   readonly participantCount: number
   readonly status: EnrollmentStatus
+  readonly policyVersion: string
+}
+
+export type EnrollmentParticipantContract = {
+  readonly id: EnrollmentParticipantId
+  readonly organizationId: OrganizationId
+  readonly enrollmentId: EnrollmentId
+  readonly familyId: FamilyId
+  readonly familyMemberId: FamilyMemberId
+  readonly displayNameSnapshot: string
+  readonly gradeNameSnapshot: string | null
+  readonly classNameSnapshot: string | null
   readonly policyVersion: string
 }
 
@@ -113,6 +150,7 @@ export type RosterEntryContract = {
 export type ConsentRecordContract = {
   readonly id: ConsentRecordId
   readonly organizationId: OrganizationId
+  readonly familyId: FamilyId | null
   readonly subjectId: EnrollmentId
   readonly purpose: string
   readonly granted: boolean

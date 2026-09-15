@@ -16,6 +16,7 @@
     "@dcloudio/uni-app": "3.0.0-alpha-5020620260914001",
     "@dcloudio/uni-components": "3.0.0-alpha-5020620260914001",
     "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5020620260914001",
+    "@linan/contracts": "workspace:*",
     "vue": "3.4.21"
   },
   "devDependencies": {

@@ -1,33 +1,88 @@
 <script setup lang="ts">
-import { HEALTH_COPY } from "../../health"
+import EnrollmentForm from "./EnrollmentForm.vue"
+import EnrollmentReview from "./EnrollmentReview.vue"
+import EnrollmentStatePanel from "./EnrollmentStatePanel.vue"
+import { useEnrollmentPage } from "./useEnrollmentPage"
+
+const page = useEnrollmentPage()
+const {
+  FAMILY_ENROLLMENT_AGREEMENT_VERSION,
+  backToEdit,
+  canReview,
+  canSubmit,
+  enterReview,
+  errorMessage,
+  loadCatalog,
+  loadState,
+  loadStateLabel,
+  pageMode,
+  readiness,
+  submissionCode,
+  submitEnrollment,
+} = page
 </script>
 
 <template>
   <view class="page">
-    <view class="status" aria-label="运行状态">
-      <view class="status__mark" />
-      <text class="status__text">{{ HEALTH_COPY.status }}</text>
+    <view class="topbar">
+      <view class="state-pill">
+        <view class="state-pill__dot" />
+        <text class="state-pill__text">{{ loadStateLabel }}</text>
+      </view>
+      <text class="topbar__version">{{ FAMILY_ENROLLMENT_AGREEMENT_VERSION }}</text>
     </view>
 
     <view class="hero">
-      <text class="hero__eyebrow">家长端</text>
-      <text class="hero__title">{{ HEALTH_COPY.title }}</text>
-      <text class="hero__summary">{{ HEALTH_COPY.summary }}</text>
+      <text class="hero__eyebrow">家长小程序</text>
+      <text class="hero__title flow-title">报名信息核对</text>
+      <text class="hero__summary">选择家庭成员与学校班级，核对紧急联系人和协议版本后提交。</text>
     </view>
 
-    <view class="panel">
-      <text class="panel__title">启动检查</text>
-      <view class="checklist">
-        <view v-for="checkpoint in HEALTH_COPY.checkpoints" :key="checkpoint" class="checklist__item">
-          <view class="checklist__dot" />
-          <text class="checklist__text">{{ checkpoint }}</text>
-        </view>
+    <EnrollmentStatePanel v-if="loadState === 'loading'" kind="loading" />
+    <EnrollmentStatePanel v-else-if="loadState === 'empty'" kind="empty" @retry="loadCatalog" />
+    <EnrollmentStatePanel
+      v-else-if="loadState === 'error'"
+      kind="error"
+      :message="errorMessage"
+      @retry="loadCatalog"
+    />
+
+    <view v-else class="content">
+      <view v-if="errorMessage.length > 0" class="inline-error" aria-live="polite">
+        <text>{{ errorMessage }}</text>
       </view>
-    </view>
 
-    <view class="notice">
-      <text class="notice__label">下一步</text>
-      <text class="notice__body">等待 AppID、服务域名和支付参数后接入真实业务。</text>
+      <EnrollmentForm v-if="pageMode !== 'submitted'" :page="page" />
+      <EnrollmentReview v-if="pageMode === 'review' || pageMode === 'submitting'" :page="page" />
+      <EnrollmentStatePanel
+        v-if="pageMode === 'submitted'"
+        kind="success"
+        :submission-code="submissionCode"
+      />
+
+      <view v-if="pageMode !== 'submitted'" class="bottom-actions">
+        <button v-if="pageMode === 'review'" class="secondary-button" @tap="backToEdit">返回修改</button>
+        <button
+          v-if="pageMode === 'editing'"
+          class="primary-button"
+          :disabled="!canReview"
+          @tap="enterReview"
+        >
+          核对信息
+        </button>
+        <button
+          v-else
+          class="primary-button"
+          :disabled="!canSubmit || pageMode === 'submitting'"
+          @tap="submitEnrollment"
+        >
+          {{ pageMode === "submitting" ? "提交中" : "确认提交" }}
+        </button>
+      </view>
+
+      <view v-if="!readiness.ready && pageMode === 'editing'" class="readiness-line">
+        <text>{{ readiness.reason }}</text>
+      </view>
     </view>
   </view>
 </template>
@@ -36,37 +91,57 @@ import { HEALTH_COPY } from "../../health"
 .page {
   min-height: 100vh;
   box-sizing: border-box;
-  padding: 48px 16px 32px;
+  padding: 32px 16px 112px;
+  overflow-x: hidden;
   background: var(--surface-primary);
 }
 
-.status {
+.topbar,
+.bottom-actions {
+  display: flex;
+  align-items: center;
+}
+
+.topbar {
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.state-pill {
   display: flex;
   align-items: center;
   min-height: 44px;
   gap: 8px;
 }
 
-.status__mark {
+.state-pill__dot {
   width: 8px;
   height: 8px;
   border-radius: 8px;
   background: var(--status-success);
 }
 
-.status__text {
-  color: var(--accent-primary);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.5;
+.state-pill__text,
+.topbar__version,
+.readiness-line {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.topbar__version {
+  max-width: 180px;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .hero {
-  margin-top: 32px;
+  margin-top: 24px;
 }
 
-.hero__eyebrow,
-.notice__label {
+.hero__eyebrow {
   display: block;
   color: var(--accent-warm);
   font-size: 12px;
@@ -76,7 +151,7 @@ import { HEALTH_COPY } from "../../health"
 
 .hero__title {
   display: block;
-  margin-top: 12px;
+  margin-top: 8px;
   color: var(--text-primary);
   font-size: 32px;
   font-weight: 700;
@@ -85,61 +160,69 @@ import { HEALTH_COPY } from "../../health"
 
 .hero__summary {
   display: block;
-  margin-top: 16px;
+  margin-top: 12px;
   color: var(--text-secondary);
   font-size: 17px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
-.panel {
-  margin-top: 40px;
-  padding: 24px;
-  border-radius: 8px;
-  background: var(--surface-elevated);
+.content {
+  margin-top: 24px;
 }
 
-.panel__title {
-  display: block;
-  color: var(--text-primary);
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.checklist {
-  margin-top: 16px;
-}
-
-.checklist__item {
+.inline-error {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  width: 100%;
   min-height: 44px;
-  gap: 12px;
-}
-
-.checklist__dot {
-  width: 8px;
-  height: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-default);
   border-radius: 8px;
-  background: var(--accent-primary);
-}
-
-.checklist__text,
-.notice__body {
-  color: var(--text-secondary);
-  font-size: 16px;
-  line-height: 1.6;
-}
-
-.notice {
-  margin-top: 24px;
-  padding: 20px;
-  border-radius: 8px;
+  color: var(--status-error);
   background: var(--surface-secondary);
 }
 
-.notice__body {
-  display: block;
-  margin-top: 8px;
+.bottom-actions {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  box-sizing: border-box;
+  gap: 12px;
+  padding: 12px 16px 24px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+}
+
+.primary-button,
+.secondary-button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 44px;
+}
+
+.primary-button {
+  color: var(--surface-elevated);
+  background: var(--accent-primary);
+}
+
+.secondary-button {
+  color: var(--accent-primary);
+  background: var(--surface-secondary);
+}
+
+.primary-button[disabled],
+.secondary-button[disabled] {
+  opacity: 0.5;
+}
+
+.readiness-line {
+  margin-top: 12px;
 }
 </style>
