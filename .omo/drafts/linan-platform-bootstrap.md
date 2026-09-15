@@ -34,13 +34,13 @@ approach: Build a protected TypeScript monorepo around one vertical enrollment-t
 | testing | TDD for money, state and permissions; tests-after for CRUD/UI | protects irreversible business errors without over-testing scaffolding | yes |
 | UI direction | trustworthy nature-led service interface, not a clone | fits domain and avoids proprietary asset copying | yes, tokens can change tomorrow |
 | execution cadence | three continuous code lanes plus concurrent QA/review; target code-complete at T+24h, UAT at T+72h and a stable build at T+3–5 days | reflects Codex execution speed while retaining one authority for contracts, migrations and payment state | yes, pace yields to failed gates |
-| local storage | keep source, dependencies, Docker and the development database on C while at least 10GB remains free; use E only after repair as optional auxiliary storage | C was rechecked with 47.11GB free; E remains Dirty/Full Repair Needed | yes |
+| local storage | keep source, dependencies, Docker and the development database on C only when the live C-drive gate passes; use E only after repair as optional auxiliary storage | C's historical cleanup record reached 47.11GB free; the 2026-09-15 pre-install recheck was about 36.78GiB and dependency installation requires live `(Get-PSDrive -Name C).Free -ge 35GB`; E remains Dirty/Full Repair Needed | yes |
 
 ## Findings (cited - path:lines)
 
 - No existing source repository was present; the material workspace contained 65 files and about 375.89MB before this repository was created.
 - Local environment: Node 22.17.0, npm 10.9.2, Git 2.43.0, Docker installed but engine stopped, pnpm absent.
-- Disk evidence: `docs/开发存储与容量计划.md:9`; C was rechecked with about 47.11GB free. `docs/开发存储与容量计划.md:75` records E as Dirty/Full Repair Needed and non-blocking for C-based development.
+- Disk evidence: `docs/开发存储与容量计划.md:9`; C's historical cleanup record reached about 47.11GB free, while the 2026-09-15 pre-install recheck was about 36.78GiB and dependency installation requires live `(Get-PSDrive -Name C).Free -ge 35GB`. `docs/开发存储与容量计划.md:75` records E as Dirty/Full Repair Needed and non-blocking for C-based development.
 - Progress: repository/storage preparation is complete (2 of 16 plan todos); Todo 3 and all application code await explicit execution authorization.
 - The compressed execution schedule and contract milestones are recorded in `docs/项目计划与进度.md`.
 - Architecture and invariants: `docs/系统架构.md:17` and `docs/系统架构.md:42`.
