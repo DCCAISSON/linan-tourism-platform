@@ -162,7 +162,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, run `pnpm --filter @linan/api test -- src/modules/order` and `pnpm --filter @linan/api test:e2e -- test/mock-payment.e2e-spec.ts` to complete one multi-participant mock payment. Failure cases replay and reorder callbacks, repeat the idempotency key and tamper with price; assert one order, one terminal payment transition and one roster effect. Evidence `.omo/evidence/task-8-linan-platform-bootstrap.md`.
   Commit: Y | `feat(order): add idempotent mock payment flow`
 
-- [ ] 9. Implement paid roster, statistics and safe Excel export
+- [x] 9. Implement paid roster, statistics and safe Excel export
   What to do / Must NOT do: query enrollment/payment states by trip, school, grade and class; calculate paid headcount and amount; export a controlled column set. Do not count unpaid/refunded lines or expose sensitive columns to unauthorized roles.
   Parallelization: Wave 2 | Blocked by: 5–8 | Blocks: 14
   References: `docs/项目计划与进度.md:41`, `docs/系统架构.md:42`, `docs/开发保护与恢复规则.md:58`
