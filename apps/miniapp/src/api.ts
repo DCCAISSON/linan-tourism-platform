@@ -3,6 +3,8 @@ import {
   parseEnrollmentMember,
   parseEnrollmentSubmission,
   parseGrade,
+  parseMockPayment,
+  parseOrder,
   parseSchool,
   parseSchoolClass,
   parseTourSession,
@@ -13,6 +15,7 @@ import { ApiError } from "./api-error"
 import {
   DEV_FAMILY_IDENTITY_HEADER,
   FALLBACK_API_BASE_URL,
+  type CreateOrderPayload,
   type EnrollmentMemberPayload,
   type EnrollmentPayload,
   type MiniappApi,
@@ -29,6 +32,7 @@ export {
   FAMILY_ENROLLMENT_AGREEMENT_VERSION,
 } from "./api-types"
 export type {
+  CreateOrderPayload,
   EnrollmentAvailability,
   EnrollmentMember,
   EnrollmentMemberPayload,
@@ -39,6 +43,8 @@ export type {
   MiniappApiOptions,
   MiniappRequestOptions,
   MiniappRequestResult,
+  MockPayment,
+  Order,
   RequestTransport,
   School,
   SchoolClass,
@@ -95,6 +101,29 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
     submitEnrollment: async (payload: EnrollmentPayload) =>
       parseEnrollmentSubmission(
         await requestJson(request, baseUrl, "/enrollments", "POST", familyIdentityHeader, payload),
+      ),
+    createOrder: async (payload: CreateOrderPayload) =>
+      parseOrder(
+        await requestJson(request, baseUrl, "/orders", "POST", familyIdentityHeader, {
+          enrollmentId: payload.enrollmentId,
+          payerName: payload.payerName,
+          requestIdempotencyKey: payload.requestIdempotencyKey,
+        }),
+      ),
+    getOrder: async (orderId: string) =>
+      parseOrder(
+        await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}`, "GET", familyIdentityHeader),
+      ),
+    createMockPayment: async (orderId: string) =>
+      parseMockPayment(
+        await requestJson(
+          request,
+          baseUrl,
+          `/payments/mock/${encodeURIComponent(orderId)}`,
+          "POST",
+          familyIdentityHeader,
+          {},
+        ),
       ),
   }
 }

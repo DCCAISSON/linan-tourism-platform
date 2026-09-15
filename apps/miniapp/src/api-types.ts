@@ -1,5 +1,5 @@
 import { DOMAIN_SCHEMA_VERSION, FAMILY_ENROLLMENT_AGREEMENT_VERSION } from "@linan/contracts"
-import type { TourSessionStatus } from "@linan/contracts"
+import type { OrderStatus, PaymentStatus, TourSessionStatus } from "@linan/contracts"
 
 export type School = {
   readonly id: string
@@ -71,6 +71,32 @@ export type EnrollmentAvailability = {
   readonly at: string
 }
 
+export type CreateOrderPayload = {
+  readonly enrollmentId: string
+  readonly payerName: string
+  readonly requestIdempotencyKey: string
+}
+
+export type Order = {
+  readonly id: string
+  readonly code: string
+  readonly enrollmentId: string
+  readonly status: OrderStatus
+  readonly amountFen: number
+  readonly paidFen: number
+  readonly payerName: string
+  readonly participantCount: number
+}
+
+export type MockPayment = {
+  readonly id: string
+  readonly orderId: string
+  readonly paymentNo: string
+  readonly provider: "local_mock"
+  readonly status: PaymentStatus
+  readonly amountFen: number
+}
+
 export type MiniappRequestOptions = {
   readonly url: string
   readonly method: "GET" | "POST"
@@ -102,6 +128,9 @@ export type MiniappApi = {
   readonly submitEnrollment: (
     payload: EnrollmentPayload,
   ) => Promise<EnrollmentSubmission>
+  readonly createOrder: (payload: CreateOrderPayload) => Promise<Order>
+  readonly getOrder: (orderId: string) => Promise<Order>
+  readonly createMockPayment: (orderId: string) => Promise<MockPayment>
 }
 
 export type MiniappApiOptions = {

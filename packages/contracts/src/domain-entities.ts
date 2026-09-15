@@ -9,9 +9,11 @@ import type {
   FamilyId,
   FamilyMemberId,
   OrderId,
+  OrderLineId,
   OrderStatus,
   OrganizationId,
   PaymentId,
+  PaymentEventId,
   PaymentStatus,
   RosterEntryId,
   RosterStatus,
@@ -123,6 +125,18 @@ export type OrderContract = {
   readonly policyVersion: string
 }
 
+export type OrderLineContract = {
+  readonly id: OrderLineId
+  readonly organizationId: OrganizationId
+  readonly orderId: OrderId
+  readonly enrollmentParticipantId: EnrollmentParticipantId
+  readonly displayNameSnapshot: string
+  readonly gradeNameSnapshot: string | null
+  readonly classNameSnapshot: string | null
+  readonly amountFen: CnyFen
+  readonly policyVersion: string
+}
+
 export type PaymentContract = {
   readonly id: PaymentId
   readonly organizationId: OrganizationId
@@ -136,11 +150,24 @@ export type PaymentContract = {
   readonly policyVersion: string
 }
 
+export type PaymentEventContract = {
+  readonly id: PaymentEventId
+  readonly organizationId: OrganizationId
+  readonly paymentId: PaymentId
+  readonly provider: string
+  readonly providerEventId: string
+  readonly providerTransactionId: string | null
+  readonly status: PaymentStatus
+  readonly amountFen: CnyFen
+  readonly policyVersion: string
+}
+
 export type RosterEntryContract = {
   readonly id: RosterEntryId
   readonly organizationId: OrganizationId
   readonly tourSessionId: TourSessionId
   readonly enrollmentId: EnrollmentId
+  readonly enrollmentParticipantId?: EnrollmentParticipantId | null
   readonly displayName: string
   readonly credentialHash: string
   readonly status: RosterStatus

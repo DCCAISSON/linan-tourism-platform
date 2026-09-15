@@ -1,10 +1,12 @@
-import type { TourSessionStatus } from "@linan/contracts"
+import type { OrderStatus, PaymentStatus, TourSessionStatus } from "@linan/contracts"
 import { ApiError } from "./api-error"
 import type {
   EnrollmentAvailability,
   EnrollmentMember,
   EnrollmentSubmission,
   Grade,
+  MockPayment,
+  Order,
   School,
   SchoolClass,
   TourSession,
@@ -98,6 +100,37 @@ export function parseEnrollmentMember(value: unknown): EnrollmentMember {
   }
 }
 
+export function parseOrder(value: unknown): Order {
+  const record = readRecord(value)
+  return {
+    id: readString(record, "id"),
+    code: readString(record, "code"),
+    enrollmentId: readString(record, "enrollmentId"),
+    status: readOrderStatus(record),
+    amountFen: readNonNegativeInteger(record, "amountFen"),
+    paidFen: readNonNegativeInteger(record, "paidFen"),
+    payerName: readString(record, "payerName"),
+    participantCount: readPositiveInteger(record, "participantCount"),
+  }
+}
+
+export function parseMockPayment(value: unknown): MockPayment {
+  const record = readRecord(value)
+  const provider = readString(record, "provider")
+  if (provider !== "local_mock") {
+    throw new ApiError(0, "provider 响应格式不正确")
+  }
+
+  return {
+    id: readString(record, "id"),
+    orderId: readString(record, "orderId"),
+    paymentNo: readString(record, "paymentNo"),
+    provider,
+    status: readPaymentStatus(record),
+    amountFen: readNonNegativeInteger(record, "amountFen"),
+  }
+}
+
 export function readErrorMessage(value: unknown): string | undefined {
   if (!isRecord(value)) {
     return undefined
@@ -146,9 +179,45 @@ function readNumber(record: UnknownRecord, field: string): number {
   throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
+function readNonNegativeInteger(record: UnknownRecord, field: string): number {
+  const value = record[field]
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return value
+  }
+
+  throw new ApiError(0, `${field} 响应格式不正确`)
+}
+
+function readPositiveInteger(record: UnknownRecord, field: string): number {
+  const value = readNonNegativeInteger(record, field)
+  if (value > 0) {
+    return value
+  }
+
+  throw new ApiError(0, `${field} 响应格式不正确`)
+}
+
 function readTourSessionStatus(record: UnknownRecord): TourSessionStatus {
   const value = readString(record, "status")
   if (value === "draft" || value === "published" || value === "closed" || value === "cancelled") {
+    return value
+  }
+
+  throw new ApiError(0, "status 响应格式不正确")
+}
+
+function readOrderStatus(record: UnknownRecord): OrderStatus {
+  const value = readString(record, "status")
+  if (value === "pending_payment" || value === "paid" || value === "cancelled" || value === "refunded") {
+    return value
+  }
+
+  throw new ApiError(0, "status 响应格式不正确")
+}
+
+function readPaymentStatus(record: UnknownRecord): PaymentStatus {
+  const value = readString(record, "status")
+  if (value === "pending" || value === "succeeded" || value === "failed" || value === "refunded") {
     return value
   }
 

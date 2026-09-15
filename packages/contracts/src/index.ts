@@ -18,8 +18,10 @@ export type {
   FamilyContract,
   FamilyMemberContract,
   OrderContract,
+  OrderLineContract,
   OrganizationContract,
   PaymentContract,
+  PaymentEventContract,
   RosterEntryContract,
   SchoolClassContract,
   SchoolGradeContract,
@@ -41,7 +43,9 @@ export const DOMAIN_ENTITY_KIND = {
   tourSession: "tour_session",
   enrollment: "enrollment",
   order: "order",
+  orderLine: "order_line",
   payment: "payment",
+  paymentEvent: "payment_event",
   rosterEntry: "roster_entry",
   consentRecord: "consent_record",
   auditLog: "audit_log",
@@ -64,7 +68,9 @@ export type CatalogItemId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.catalogItem
 export type TourSessionId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.tourSession>
 export type EnrollmentId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.enrollment>
 export type OrderId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.order>
+export type OrderLineId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.orderLine>
 export type PaymentId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.payment>
+export type PaymentEventId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.paymentEvent>
 export type RosterEntryId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.rosterEntry>
 export type ConsentRecordId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.consentRecord>
 export type AuditLogId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.auditLog>
@@ -172,7 +178,13 @@ export const DOMAIN_ENTITY_CONTRACTS = [
   { kind: DOMAIN_ENTITY_KIND.tourSession, tableName: "tour_sessions", idPrefix: "session" },
   { kind: DOMAIN_ENTITY_KIND.enrollment, tableName: "enrollments", idPrefix: "enrollment" },
   { kind: DOMAIN_ENTITY_KIND.order, tableName: "orders", idPrefix: "order" },
+  { kind: DOMAIN_ENTITY_KIND.orderLine, tableName: "order_lines", idPrefix: "order-line" },
   { kind: DOMAIN_ENTITY_KIND.payment, tableName: "payments", idPrefix: "payment" },
+  {
+    kind: DOMAIN_ENTITY_KIND.paymentEvent,
+    tableName: "payment_events",
+    idPrefix: "payment-event",
+  },
   { kind: DOMAIN_ENTITY_KIND.rosterEntry, tableName: "roster_entries", idPrefix: "roster" },
   { kind: DOMAIN_ENTITY_KIND.consentRecord, tableName: "consent_records", idPrefix: "consent" },
   { kind: DOMAIN_ENTITY_KIND.auditLog, tableName: "audit_logs", idPrefix: "audit" },
@@ -235,6 +247,7 @@ export function transitionOrderStatus(
 const PAYMENT_STATUS_TRANSITIONS = [
   { from: PAYMENT_STATUS.pending, to: PAYMENT_STATUS.succeeded },
   { from: PAYMENT_STATUS.pending, to: PAYMENT_STATUS.failed },
+  { from: PAYMENT_STATUS.failed, to: PAYMENT_STATUS.succeeded },
   { from: PAYMENT_STATUS.succeeded, to: PAYMENT_STATUS.refunded },
 ] as const
 

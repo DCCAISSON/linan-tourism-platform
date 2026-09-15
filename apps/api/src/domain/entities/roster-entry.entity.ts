@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from "typeorm"
 import { EnrollmentEntity } from "./enrollment.entity.js"
+import { EnrollmentParticipantEntity } from "./enrollment-participant.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
 
@@ -18,6 +19,7 @@ import { TourSessionEntity } from "./tour-session.entity.js"
 })
 @Index("idx_roster_entries_enrollment", ["enrollmentId"])
 @Index("idx_roster_entries_organization", ["organizationId"])
+@Index("uq_roster_entries_enrollment_participant", ["enrollmentParticipantId"], { unique: true })
 export class RosterEntryEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
@@ -45,6 +47,14 @@ export class RosterEntryEntity {
   })
   @Column({ name: "enrollment_id", type: "varchar", length: 64 })
   enrollmentId = ""
+
+  @ForeignKey(() => EnrollmentParticipantEntity, {
+    name: "fk_roster_entries_enrollment_participant",
+    onDelete: "RESTRICT",
+    onUpdate: "CASCADE",
+  })
+  @Column({ name: "enrollment_participant_id", type: "varchar", length: 64, nullable: true })
+  enrollmentParticipantId: string | null = null
 
   @Column({ name: "display_name", type: "varchar", length: 120 })
   displayName = ""

@@ -67,6 +67,14 @@ describe("health contract", () => {
     expect(DOMAIN_ENTITY_KIND.enrollmentParticipant).toBe("enrollment_participant")
   })
 
+  it("publishes participant order line and payment event entity contracts", () => {
+    expect(DOMAIN_ENTITY_CONTRACTS.map(({ tableName }) => tableName)).toEqual(
+      expect.arrayContaining(["order_lines", "payment_events"]),
+    )
+    expect(DOMAIN_ENTITY_KIND.orderLine).toBe("order_line")
+    expect(DOMAIN_ENTITY_KIND.paymentEvent).toBe("payment_event")
+  })
+
   it("returns a typed state error when a succeeded payment returns to pending", () => {
     const result = transitionPaymentStatus(PAYMENT_STATUS.succeeded, PAYMENT_STATUS.pending)
 
@@ -78,5 +86,16 @@ describe("health contract", () => {
         policyVersion: DOMAIN_POLICY_VERSION,
       },
     })
+  })
+
+  it("allows a failed payment to recover when a later provider event succeeds", () => {
+    // Given
+    const current = PAYMENT_STATUS.failed
+
+    // When
+    const result = transitionPaymentStatus(current, PAYMENT_STATUS.succeeded)
+
+    // Then
+    expect(result).toEqual({ ok: true, value: PAYMENT_STATUS.succeeded })
   })
 })
