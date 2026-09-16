@@ -114,7 +114,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, save the PowerShell free-space result and `npm run repo:verify` PASS output; failure, if C is below 10GB free or E is Dirty/Full Repair Needed, abort the affected installation or migration without deleting user data, Docker volumes or unverified caches. Evidence `.omo/evidence/task-2-linan-platform-bootstrap.txt`.
   Commit: N | machine-local storage configuration
 
-- [ ] 3. Scaffold API, admin and miniapp from pinned permissive sources
+- [x] 3. Scaffold API, admin and miniapp from pinned permissive sources
   What to do / Must NOT do: upgrade the local runtime from Node 22.17.0 to the current Node 22 LTS patch 22.23.2 before invoking Nest 12 schematics, enforce the repository engine floor `>=22.22.3 <23`, keep `@types/node` on major 22, then enable Corepack and use `corepack use pnpm@12.4.1` so `packageManager` records the integrity hash. Create packages named `@linan/api`, `@linan/admin`, `@linan/miniapp` and `@linan/contracts`; add root `lint`, `typecheck`, `test`, `test:e2e` and `build` scripts. Generate the API with `@nestjs/cli@12.0.1`; do not copy the starter fixed tree. Import pure-admin-thin only through an isolated temporary directory. Build the minimal uni-app Vue 3 TypeScript shell from the Apache-2.0 `@dcloudio/uni-app` packages and official documentation; do not copy `dcloudio/uni-preset-vue` while its `vite-ts` source license remains unverified. Retain required notices, strip demos/default credentials and avoid whole-history/submodule nesting. Configure Playwright for admin e2e and `miniprogram-automator` for miniapp e2e; add no product features in this task.
   Parallelization: Wave 1 | Blocked by: 2 | Blocks: 5–10
   References: `docs/系统架构.md:19`, `docs/开源复用与界面调研.md:7`, `docs/开源复用与界面调研.md:74`, `third_party/README.md:3`, `package.json:1`
@@ -170,7 +170,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, run `pnpm --filter @linan/api test:e2e -- test/roster-export.e2e-spec.ts`; parse the streamed workbook and assert row count, cents total and participant identities against the paid lines. Failure, request the export from another school scope and assert 403 plus no file in `exports/`, `tmp/` or COS. Evidence `.omo/evidence/task-9-linan-platform-bootstrap.xlsx` plus sanitized assertion log.
   Commit: Y | `feat(roster): reconcile statistics and exports`
 
-- [ ] 10. Build the parent miniapp core flow from the design system
+- [x] 10. Build the parent miniapp core flow from the design system
   What to do / Must NOT do: implement trip entry/detail, participant stepper, review, order, payment result and order detail using design tokens and authorized local imagery. Use 6renyou only for the low-friction one-task structure. Do not copy its assets, wording, logo or exact composition.
   Parallelization: Wave 2 | Blocked by: 3, 5–8 | Blocks: 14
   References: `DESIGN.md:5`, `DESIGN.md:9`, `DESIGN.md:31`, `DESIGN.md:46`, `docs/开源复用与界面调研.md:40`
@@ -180,6 +180,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
 
 - [ ] 11. Integrate official app identity, cloud resources and filing outputs
   What to do / Must NOT do: receive only role-based access; configure official app name/AppID, dev/test domains, HTTPS, COS and deployment target; record filing/account status outside source secrets. Do not hardcode official values or accept shared master-account passwords.
+  Current external status (2026-09-15): `linantravel.cn` has been purchased and is in Tencent Cloud domain-name review; Shanghai production/test COS buckets now exist, the test CAM identity is bucket-scoped, and a real upload/read/delete check passes; miniapp certification and WeChat Pay applications remain under platform review. These inputs are in progress rather than unprovided; production integration remains gated until the corresponding approvals and secure configuration are complete.
   Parallelization: Wave 3 | Blocked by: external account inputs | Blocks: 12, 16
   References: `docs/需求方交接清单.md:3`, `docs/需求方交接清单.md:13`, `.env.example:1`, `docs/开发保护与恢复规则.md:34`
   Acceptance criteria: local/test configuration switches without code changes; health endpoint is reachable through HTTPS; COS test upload uses a short-lived least-privilege credential; repository secret scan remains clean.
@@ -202,7 +203,7 @@ Elapsed-time targets never weaken acceptance criteria. A failing money, roster, 
   QA scenarios: happy, run `pnpm --filter @linan/api test:e2e -- test/permission-matrix.e2e-spec.ts` against every allowed cell in the versioned role/data-scope matrix. Failure, run every denied cell including cross-family, cross-school, direct-ID and direct-download attempts and assert 403/no file plus an audit event without sensitive values. Evidence `.omo/evidence/task-13-linan-platform-bootstrap.md`.
   Commit: Y | `feat(iam): enforce data scopes and audit actions`
 
-- [ ] 14. Produce and harden the T+72-hour UAT candidate
+- [x] 14. Produce and harden the T+72-hour UAT candidate
   What to do / Must NOT do: run the full command suite, available miniapp surface journey, browser admin journey, deployment/rollback rehearsal and fictitious representative data; fix every blocker. Use real payment when Todo 12 has passed; otherwise use the mock provider and mark production payment/real enrollment blocked in the candidate evidence. Do not add post-core features, claim mock evidence is real payment or weaken failing tests to meet the date.
   Parallelization: Wave 3 | Blocked by: 6–10, 13 | Blocks: 16
   References: `docs/项目计划与进度.md:58`, `docs/项目计划与进度.md:82`, `docs/开发保护与恢复规则.md:58`
