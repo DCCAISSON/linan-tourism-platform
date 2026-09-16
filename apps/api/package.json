@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "nest build",
+    "cos:verify": "node --env-file=../../.env.platform.local node_modules/vitest/vitest.mjs run --config ./vitest.config.e2e.ts test/cos.e2e-spec.ts",
     "db:check": "node scripts/check-database-url.mjs",
     "db:migrate": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/domain-database.mjs migrate",
     "db:revert": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/domain-database.mjs revert",
@@ -22,6 +23,7 @@
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
+    "cos-nodejs-sdk-v5": "3.0.0",
     "exceljs": "^4.4.0",
     "mysql2": "^3.24.4",
     "reflect-metadata": "^0.2.2",
