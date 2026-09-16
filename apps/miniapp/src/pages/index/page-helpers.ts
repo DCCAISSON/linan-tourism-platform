@@ -2,6 +2,8 @@ import { ApiError } from "../../api"
 import type { LoadState, PageMode } from "../../enrollment-flow"
 import type { PickerChangeEvent } from "./useEnrollmentPage"
 
+export type StateTone = "success" | "warning" | "error" | "info"
+
 export function stateLabel(loadState: LoadState, pageMode: PageMode): string {
   if (loadState !== "ready") {
     switch (loadState) {
@@ -41,6 +43,30 @@ export function readableError(error: unknown, fallback: string): string {
   if (error instanceof ApiError) return error.message
   if (error instanceof Error && error.message.length > 0) return error.message
   return fallback
+}
+
+export function readStateTone(loadState: LoadState, pageMode: PageMode): StateTone {
+  switch (loadState) {
+    case "loading":
+    case "empty":
+      return "info"
+    case "error":
+      return "error"
+    case "ready":
+      switch (pageMode) {
+        case "review":
+        case "submitting":
+        case "paymentPending":
+          return "warning"
+        case "editing":
+        case "paid":
+          return "success"
+        default:
+          return assertNever(pageMode)
+      }
+    default:
+      return assertNever(loadState)
+  }
 }
 
 function assertNever(value: never): never {

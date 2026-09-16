@@ -7,7 +7,6 @@ const props = defineProps<{
 }>()
 
 const {
-  FAMILY_ENROLLMENT_AGREEMENT_VERSION,
   addMember,
   availableSessions,
   catalog,
@@ -107,7 +106,7 @@ const {
   <view class="section">
     <text class="section__title">协议版本确认</text>
     <button class="consent-button" :class="{ 'consent-button--on': draft.agreementAccepted }" @tap="draft.agreementAccepted = !draft.agreementAccepted">
-      {{ draft.agreementAccepted ? "已确认" : "点击确认" }} {{ FAMILY_ENROLLMENT_AGREEMENT_VERSION }}
+      {{ draft.agreementAccepted ? "已同意" : "阅读并同意" }}《研学报名服务协议》（第 1 版）
     </button>
   </view>
 </template>
@@ -251,7 +250,9 @@ const {
 
 .consent-button {
   margin-top: 12px;
+  padding: 12px;
   color: var(--text-secondary);
+  line-height: 1.6;
   text-align: left;
 }
 

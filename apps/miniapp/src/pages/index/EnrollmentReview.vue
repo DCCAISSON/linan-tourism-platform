@@ -8,7 +8,6 @@ const props = defineProps<{
 }>()
 
 const {
-  FAMILY_ENROLLMENT_AGREEMENT_VERSION,
   draft,
   selectedClass,
   selectedGrade,
@@ -32,10 +31,15 @@ const estimatedAmount = computed(() => {
     <text class="review-panel__item">班级：{{ selectedGrade?.name }} {{ selectedClass?.name }}</text>
     <text class="review-panel__item">团期：{{ selectedSession?.code }}</text>
     <text class="review-panel__item">成员：{{ selectedMembers.length }} 人</text>
+    <text v-for="(member, index) in selectedMembers" :key="member.id" class="review-panel__item">
+      成员 {{ index + 1 }}：{{ member.displayName }}（{{ member.code }}）
+    </text>
     <text class="review-panel__item">预计金额：{{ estimatedAmount }}</text>
     <text class="review-panel__item">联系人：{{ draft.contactName }}</text>
     <text class="review-panel__item">紧急联系人：{{ draft.emergencyContact.name }}</text>
-    <text class="review-panel__item">协议：{{ FAMILY_ENROLLMENT_AGREEMENT_VERSION }}</text>
+    <text class="review-panel__item">紧急联系电话：{{ draft.emergencyContact.phone }}</text>
+    <text class="review-panel__item">协议：研学报名服务协议</text>
+    <text class="review-panel__item">确认状态：已确认（第 1 版）</text>
   </view>
 </template>
 

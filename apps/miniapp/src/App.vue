@@ -16,7 +16,9 @@ page {
   --accent-hover: #185644;
   --accent-warm: #d5902f;
   --status-success: #247a4b;
+  --status-warning: #a96512;
   --status-error: #b53a3a;
+  --status-info: #2d67a3;
   min-height: 100%;
   background: var(--surface-primary);
   color: var(--text-primary);

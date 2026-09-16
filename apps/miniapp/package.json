@@ -10,7 +10,7 @@
     "lint": "oxlint src/ tests/ scripts/ vite.config.ts",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "test": "vitest run --config vitest.config.mjs",
-    "test:e2e": "corepack pnpm build:mp-weixin && node scripts/e2e.mjs"
+    "test:e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5020620260914001",

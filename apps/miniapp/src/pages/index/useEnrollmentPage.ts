@@ -1,6 +1,6 @@
 import { computed, onMounted, reactive, ref } from "vue"
 import {
-  FAMILY_ENROLLMENT_AGREEMENT_VERSION, createMiniappApi, type Grade, type MockPayment,
+  createMiniappApi, type Grade, type MockPayment,
   type Order, type School, type SchoolClass, type TourSession,
 } from "../../api"
 import {
@@ -12,7 +12,7 @@ import {
   readEnrollmentReadiness, selectedFamilyMembers, sessionOptionNames,
   type LoadState, type PageMode,
 } from "../../enrollment-flow"
-import { readableError, readPickerIndex, stateLabel } from "./page-helpers"
+import { readableError, readPickerIndex, readStateTone, stateLabel } from "./page-helpers"
 
 export type PickerChangeEvent = {
   readonly detail: {
@@ -54,14 +54,16 @@ export function useEnrollmentPage() {
   const selectedTripGate = computed(() => readTripGate(selectedSession.value, currentTimeIso.value))
   const selectedMembers = computed(() => selectedFamilyMembers(draft.familyMembers))
   const readiness = computed(() => {
-    const baseReadiness = readEnrollmentReadiness(draft)
-    if (!baseReadiness.ready) return baseReadiness
-    return selectedTripGate.value.open ? baseReadiness : { ready: false, reason: selectedTripGate.value.reason }
+    if (draft.selectedTourSessionId.length > 0 && !selectedTripGate.value.open) {
+      return { ready: false, reason: selectedTripGate.value.reason }
+    }
+    return readEnrollmentReadiness(draft)
   })
   const canReview = computed(() => loadState.value === "ready" && pageMode.value === "editing" && readiness.value.ready)
   const canSubmit = computed(() => pageMode.value === "review" && readiness.value.ready)
   const canRetryPayment = computed(() => canStartPayment(order.value) && pageMode.value === "paymentPending")
   const loadStateLabel = computed(() => stateLabel(loadState.value, pageMode.value))
+  const stateTone = computed(() => readStateTone(loadState.value, pageMode.value))
   const orderLabel = computed(() => orderStatusLabel(order.value))
 
   onMounted(() => {
@@ -227,7 +229,6 @@ export function useEnrollmentPage() {
   }
 
   return {
-    FAMILY_ENROLLMENT_AGREEMENT_VERSION,
     addMember,
     availableSessions,
     backToEdit,
@@ -261,6 +262,7 @@ export function useEnrollmentPage() {
     selectedSession,
     sessionNames,
     startPayment,
+    stateTone,
     submissionCode,
     submitEnrollment,
     toggleMember,

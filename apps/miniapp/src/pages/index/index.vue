@@ -7,7 +7,6 @@ import { useEnrollmentPage } from "./useEnrollmentPage"
 
 const page = useEnrollmentPage()
 const {
-  FAMILY_ENROLLMENT_AGREEMENT_VERSION,
   backToEdit,
   canReview,
   canSubmit,
@@ -18,6 +17,7 @@ const {
   loadStateLabel,
   pageMode,
   readiness,
+  stateTone,
   submitEnrollment,
 } = page
 </script>
@@ -26,10 +26,10 @@ const {
   <view class="page">
     <view class="topbar">
       <view class="state-pill">
-        <view class="state-pill__dot" />
+        <view class="state-pill__dot" :class="`state-pill__dot--${stateTone}`" />
         <text class="state-pill__text">{{ loadStateLabel }}</text>
       </view>
-      <text class="topbar__version">{{ FAMILY_ENROLLMENT_AGREEMENT_VERSION }}</text>
+      <text class="topbar__version">协议第 1 版</text>
     </view>
 
     <view class="hero">
@@ -126,7 +126,22 @@ const {
   width: 8px;
   height: 8px;
   border-radius: 8px;
+}
+
+.state-pill__dot--success {
   background: var(--status-success);
+}
+
+.state-pill__dot--warning {
+  background: var(--status-warning);
+}
+
+.state-pill__dot--error {
+  background: var(--status-error);
+}
+
+.state-pill__dot--info {
+  background: var(--status-info);
 }
 
 .state-pill__text,
