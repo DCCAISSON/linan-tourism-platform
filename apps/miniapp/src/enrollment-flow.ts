@@ -70,7 +70,8 @@ export function selectedFamilyMembers(
 }
 
 export function readEnrollmentReadiness(draft: EnrollmentDraft): EnrollmentReadiness {
-  if (draft.selectedSchoolId.length === 0 || draft.selectedGradeId.length === 0 || draft.selectedClassId.length === 0) {
+  const addsMember = selectedFamilyMembers(draft.familyMembers).some((member) => member.remoteMemberId === undefined)
+  if (draft.selectedSchoolId.length === 0 || (addsMember && (draft.selectedGradeId.length === 0 || draft.selectedClassId.length === 0))) {
     return { ready: false, reason: "请选择学校、年级和班级" }
   }
 

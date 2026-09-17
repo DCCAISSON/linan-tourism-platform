@@ -5,6 +5,8 @@ import path from "node:path"
 import process from "node:process"
 import { fileURLToPath } from "node:url"
 import { closeServer, createFixtureServer, listen } from "./e2e-fixture.mjs"
+import { runDiscoveryAfter, runDiscoveryBefore } from "./discovery-journey.mjs"
+import { assertIncludes, assertNoHorizontalOverflow, evidenceDir, required, screenshot } from "./e2e-ui.mjs"
 
 const cliPath = process.env.WECHAT_DEVTOOLS_CLI
 if (!cliPath) fail("E2E blocked: WECHAT_DEVTOOLS_CLI is not set; WeChat DevTools automation was not run.")
@@ -15,7 +17,6 @@ if (!path.isAbsolute(cliPath) || path.extname(cliPath).toLowerCase() !== ".bat" 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(currentDir, "..")
 const projectPath = path.resolve(appDir, "dist/build/mp-weixin")
-const evidenceDir = path.resolve(currentDir, "../../../.omo/evidence/task-10-linan-platform-bootstrap/miniapp-e2e")
 const fixturePort = 3310
 const fixtureBaseUrl = `http://127.0.0.1:${fixturePort}`
 const automationEndpoint = "ws://127.0.0.1:9421"
@@ -24,53 +25,62 @@ const automator = require("miniprogram-automator")
 const { fixture, server } = createFixtureServer(fixtureBaseUrl)
 
 let miniProgram
+let serverStarted = false
+let projectOpened = false
 try {
   await listen(server, fixturePort)
+  serverStarted = true
   fs.mkdirSync(evidenceDir, { recursive: true })
-  for (const name of fs.readdirSync(evidenceDir)) if (name.endsWith(".png")) fs.unlinkSync(path.join(evidenceDir, name))
   await buildMiniapp()
   await runCli(["close", "--project", projectPath], 15_000)
   await runCli(["auto", "--project", projectPath, "--auto-port", "9421", "--trust-project"], 45_000)
+  projectOpened = true
   miniProgram = await connectWhenReady(60_000)
+  await runDiscoveryBefore(miniProgram, fixture)
   await runJourney(miniProgram)
-  console.log(JSON.stringify({ screenshots: 9, members: 2, amountFen: 25_600, status: "paid" }))
+  await runDiscoveryAfter(miniProgram)
+  console.log(JSON.stringify({ screenshots: 22, members: 2, amountFen: 25_600, status: "paid", localMock: true }))
 } finally {
   miniProgram?.disconnect()
-  await runCli(["close", "--project", projectPath], 15_000).catch(() => undefined)
-  await closeServer(server)
+  if (projectOpened) await runCli(["close", "--project", projectPath], 15_000)
+  if (serverStarted) {
+    fixture.catalogBlocked = false
+    server.closeAllConnections()
+    await closeServer(server)
+  }
 }
 
 async function runJourney(program) {
+  await program.reLaunch("/pages/enrollment/index")
   let page = await program.currentPage()
   await page.waitFor(".flow-title")
-  if (page.path !== "pages/index/index") throw new Error(`miniapp page: ${page.path}`)
-  assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--info", "loading state tone")
-  await screenshot(program, "01-loading.png")
+  if (page.path !== "pages/enrollment/index") throw new Error(`miniapp page: ${page.path}`)
+  await screenshot(program, "10-signup.png")
   fixture.catalogBlocked = false
   await page.waitFor(500)
   const topbar = await required(page, ".topbar")
   assertIncludes(await topbar.text(), "协议第 1 版", "friendly agreement label")
   if ((await topbar.text()).includes("family-enrollment-agreement-v1")) throw new Error("Internal agreement identifier is visible")
   assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--success", "ready state tone")
-  await screenshot(program, "02-entry.png")
+  await screenshot(program, "11-signup-entry.png")
 
   fixture.emptyCatalog = true
-  await program.reLaunch("/pages/index/index")
+  await program.reLaunch("/pages/enrollment/index")
   page = await program.currentPage()
   await page.waitFor(300)
   let component = await required(page, "[u-i]")
   assertIncludes(await component.text(), "暂无可报名团期", "empty catalog state")
-  await screenshot(program, "03-empty.png")
+  await screenshot(program, "12-signup-empty.png")
   fixture.emptyCatalog = false
 
   fixture.failCatalog = true
-  await program.reLaunch("/pages/index/index")
+  await program.reLaunch("/pages/enrollment/index")
   page = await program.currentPage()
   await page.waitFor(300)
   component = await required(page, "[u-i]")
   assertIncludes(await component.text(), "加载失败", "load failure state")
   assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--error", "error state tone")
-  await screenshot(program, "04-load-error.png")
+  await screenshot(program, "13-signup-error.png")
   fixture.failCatalog = false
   await (await required(component, ".secondary-button")).tap()
   await page.waitFor(300)
@@ -90,7 +100,7 @@ async function runJourney(program) {
   await page.waitFor(100)
   assertIncludes(await (await required(page, ".readiness-line")).text(), "报名已关闭", "closed registration state")
   await program.pageScrollTo(10_000)
-  await screenshot(program, "05-registration-closed.png")
+  await screenshot(program, "14-registration-closed.png")
   await program.pageScrollTo(0)
 
   component = await required(page, "[u-i]")
@@ -112,7 +122,7 @@ async function runJourney(program) {
   await page.waitFor(100)
   await assertNoHorizontalOverflow(program, page)
   await program.pageScrollTo(10_000)
-  await screenshot(program, "06-filled.png")
+  await screenshot(program, "15-filled.png")
   await program.pageScrollTo(0)
 
   await (await required(page, ".primary-button")).tap()
@@ -124,7 +134,7 @@ async function runJourney(program) {
   assertIncludes(await component.text(), "紧急联系电话：13900000008", "emergency phone review")
   assertIncludes(await component.text(), "预计金额：¥256.00", "review amount")
   await program.pageScrollTo(10_000)
-  await screenshot(program, "07-review.png")
+  await screenshot(program, "16-review.png")
   await program.pageScrollTo(0)
 
   await (await required(page, ".primary-button")).tap()
@@ -135,7 +145,7 @@ async function runJourney(program) {
   assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--warning", "pending state tone")
   const orderRequest = fixture.requests.find((entry) => entry.method === "POST" && entry.path === "/orders")
   if (orderRequest?.body.amountFen !== undefined) throw new Error("Client sent an authoritative amount")
-  await screenshot(program, "08-payment-pending.png")
+  await screenshot(program, "17-payment-pending.png")
 
   fixture.orderPaid = true
   await (await required(component, ".primary-button")).tap()
@@ -145,7 +155,7 @@ async function runJourney(program) {
   assertIncludes(await component.text(), "已付金额：¥256.00", "paid amount")
   assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--success", "paid state tone")
   await assertNoHorizontalOverflow(program, page)
-  await screenshot(program, "09-paid.png")
+  await screenshot(program, "18-paid.png")
 }
 
 async function buildMiniapp() {
@@ -191,24 +201,5 @@ async function connectWhenReady(timeout) {
   }
   throw lastError ?? new Error(`WeChat DevTools automation was not ready at ${automationEndpoint}.`)
 }
-
-async function assertNoHorizontalOverflow(program, page) {
-  const size = await page.size()
-  const system = await program.systemInfo()
-  if (Number(size.width) > Number(system.windowWidth)) throw new Error(`Horizontal overflow: ${size.width} > ${system.windowWidth}`)
-}
-
-async function screenshot(program, name) { await program.screenshot({ path: path.join(evidenceDir, name) }) }
-
-async function required(owner, selector) {
-  const element = await owner.$(selector)
-  if (element === null) throw new Error(`Required element was not rendered: ${selector}`)
-  return element
-}
-
-function assertIncludes(actual, expected, label) {
-  if (!actual.includes(expected)) throw new Error(`${label}: expected ${expected}`)
-}
-
 
 function fail(message) { console.error(message); process.exit(1) }

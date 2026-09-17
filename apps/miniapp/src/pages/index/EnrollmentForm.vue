@@ -32,7 +32,7 @@ const {
   <view class="section">
     <view class="section__header">
       <text class="section__title">学校与班级</text>
-      <text class="section__hint">先选学校，再选年级和班级。</text>
+      <text class="section__hint">先选学校；年级、班级用于新增成员，已有成员保留原班级。</text>
     </view>
 
     <picker mode="selector" :range="schoolNames" @change="onSchoolChange">
@@ -72,8 +72,8 @@ const {
 
     <view v-for="member in draft.familyMembers" :key="member.id" class="member-row">
       <view class="member-row__fields">
-        <input v-model="member.code" class="text-input" maxlength="64" placeholder="成员编号" placeholder-class="input-placeholder" />
-        <input v-model="member.displayName" class="text-input" maxlength="120" placeholder="成员称呼" placeholder-class="input-placeholder" />
+        <input v-model="member.code" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="64" placeholder="成员编号" placeholder-class="input-placeholder" />
+        <input v-model="member.displayName" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="120" placeholder="成员称呼" placeholder-class="input-placeholder" />
       </view>
       <button class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
         {{ member.selected ? "已选择" : "未选择" }}
@@ -98,7 +98,7 @@ const {
     </picker>
     <view v-if="selectedSession" class="trip-detail">
       <text class="trip-line">日期：{{ formatDateLabel(selectedSession.startsAt) }} 至 {{ formatDateLabel(selectedSession.endsAt) }}</text>
-      <text class="trip-line">单价：{{ formatFen(selectedSession.priceFen) }}，容量：{{ selectedSession.capacity }} 人</text>
+      <text class="trip-line">学校单价：{{ formatFen(selectedSession.priceFen) }}，人数上限：{{ selectedSession.capacity }} 人</text>
       <text class="trip-line">报名：{{ formatDateLabel(selectedSession.enrollmentOpensAt) }} 至 {{ formatDateLabel(selectedSession.enrollmentClosesAt) }}</text>
     </view>
   </view>

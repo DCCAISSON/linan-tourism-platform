@@ -22,13 +22,16 @@ const estimatedAmount = computed(() => {
   }
   return formatFen(selectedSession.value.priceFen * selectedMembers.value.length)
 })
+const hasSavedMembers = computed(() => selectedMembers.value.some((member) => member.remoteMemberId !== undefined))
+const hasNewMembers = computed(() => selectedMembers.value.some((member) => member.remoteMemberId === undefined))
 </script>
 
 <template>
   <view class="review-panel">
     <text class="review-panel__title">提交前核对</text>
     <text class="review-panel__item">学校：{{ selectedSchool?.name }}</text>
-    <text class="review-panel__item">班级：{{ selectedGrade?.name }} {{ selectedClass?.name }}</text>
+    <text v-if="hasNewMembers" class="review-panel__item">新增成员班级：{{ selectedGrade?.name }} {{ selectedClass?.name }}</text>
+    <text v-if="hasSavedMembers" class="review-panel__item">已有成员按家庭中心保存的年级、班级报名。</text>
     <text class="review-panel__item">团期：{{ selectedSession?.code }}</text>
     <text class="review-panel__item">成员：{{ selectedMembers.length }} 人</text>
     <text v-for="(member, index) in selectedMembers" :key="member.id" class="review-panel__item">

@@ -1,7 +1,8 @@
 import { computed, onMounted, reactive, ref } from "vue"
+import { onLoad } from "@dcloudio/uni-app"
 import {
   createMiniappApi, type Grade, type MockPayment,
-  type Order, type School, type SchoolClass, type TourSession,
+  type Order, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession,
 } from "../../api"
 import {
   buildCreateOrderPayload, canStartPayment, createOrderRequestKey,
@@ -29,6 +30,9 @@ export function useEnrollmentPage() {
   const currentTimeIso = ref(new Date().toISOString())
   const order = ref<Order | null>(null)
   const payment = ref<MockPayment | null>(null)
+  const wantedSessionId = ref("")
+  const savedMembers = ref<readonly SavedEnrollmentMember[]>([])
+  onLoad((query) => { wantedSessionId.value = query?.["sessionId"] ?? "" })
   const draft = reactive({
     ...createEmptyDraft(),
     familyMembers: [] as { id: string; code: string; displayName: string; selected: boolean; remoteMemberId?: string }[],
@@ -76,7 +80,8 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
     resetCheckout()
     try {
-      const [schools, sessions] = await Promise.all([api.listSchools(), api.listTourSessions()])
+      const [schools, sessions, members] = await Promise.all([api.listSchools(), api.listTourSessions(), api.listEnrollmentMembers()])
+      savedMembers.value = members
       catalog.schools = [...schools]
       catalog.sessions = [...sessions]
       catalog.grades = []
@@ -87,6 +92,9 @@ export function useEnrollmentPage() {
       draft.selectedTourSessionId = ""
       currentTimeIso.value = new Date().toISOString()
       loadState.value = catalog.schools.length === 0 || catalog.sessions.length === 0 ? "empty" : "ready"
+      const wantedSession = sessions.find((session) => session.id === wantedSessionId.value)
+      const schoolIndex = schools.findIndex((school) => school.id === wantedSession?.organizationId)
+      if (schoolIndex >= 0) await onSchoolChange({ detail: { value: schoolIndex } })
     } catch (error) {
       loadState.value = "error"
       errorMessage.value = readableError(error, "目录加载失败，请稍后重试")
@@ -99,7 +107,8 @@ export function useEnrollmentPage() {
     draft.selectedSchoolId = school.id
     draft.selectedGradeId = ""
     draft.selectedClassId = ""
-    draft.selectedTourSessionId = ""
+    draft.selectedTourSessionId = catalog.sessions.find((session) => session.id === wantedSessionId.value && session.organizationId === school.id)?.id ?? ""
+    draft.familyMembers = savedMembers.value.filter((member) => member.schoolId === school.id).map((member) => ({ id: member.id, code: member.code, displayName: member.displayName, remoteMemberId: member.id, selected: false }))
     catalog.grades = []
     catalog.classes = []
     resetCheckout()

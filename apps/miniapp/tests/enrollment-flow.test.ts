@@ -38,6 +38,24 @@ const catalog: CatalogState = {
 }
 
 describe("enrollment flow state", () => {
+  it("reuses existing family members without asking to reassign their class", async () => {
+    // Given
+    const draft: EnrollmentDraft = {
+      ...createEmptyDraft(), selectedSchoolId: "org-school-1", selectedTourSessionId: "session-1",
+      contactName: "演示家长", emergencyContact: { name: "演示联系人", phone: "10000000000" }, agreementAccepted: true,
+      familyMembers: [
+        { id: "member-a", remoteMemberId: "member-a", code: "child-a", displayName: "演示甲", selected: true },
+        { id: "member-b", remoteMemberId: "member-b", code: "child-b", displayName: "演示乙", selected: true },
+      ],
+    }
+    let createCalls = 0
+    // When
+    const ids = await prepareSelectedMembersForSubmit(draft, async () => { createCalls += 1; return { id: "unexpected-new-member" } })
+    // Then
+    expect(ids).toEqual(["member-a", "member-b"])
+    expect(createCalls).toBe(0)
+  })
+
   it("keeps review disabled when required family enrollment fields are incomplete", () => {
     const draft = createEmptyDraft()
 

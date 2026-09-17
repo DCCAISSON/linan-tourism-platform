@@ -16,13 +16,14 @@ const {
   startPayment,
   submissionCode,
 } = props.page
+function openOrders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
 </script>
 
 <template>
   <view class="order-panel" aria-live="polite">
-    <text class="order-panel__title">{{ orderLabel }}</text>
+    <text class="order-panel__title">{{ orderLabel }}（本地模拟）</text>
     <text class="order-panel__body">
-      {{ order?.status === "paid" ? "报名已确认，订单信息如下。" : "支付结果以订单刷新结果为准。" }}
+      {{ order?.status === "paid" ? "本地模拟支付已确认，订单信息如下。" : "本地模拟支付不产生真实扣款，结果以订单刷新状态为准。" }}
     </text>
 
     <view class="order-detail">
@@ -45,10 +46,11 @@ const {
         class="secondary-button"
         @tap="startPayment"
       >
-        重新发起支付
+        再次模拟支付
       </button>
       <button class="primary-button" @tap="refreshOrder">刷新订单状态</button>
     </view>
+    <button class="secondary-button own-orders-entry" @tap="openOrders">查看我的订单</button>
   </view>
 </template>
 
@@ -119,6 +121,7 @@ const {
   font-size: 16px;
   line-height: 44px;
 }
+.own-orders-entry { width: 100%; margin-top: 16px; }
 
 .primary-button {
   color: var(--surface-elevated);
