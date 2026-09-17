@@ -12,6 +12,7 @@ import {
   readErrorMessage,
 } from "./api-parsers"
 import { ApiError } from "./api-error"
+import { parseCatalogItem, parseOrderDetail, parseOrderHistoryItem, parseSavedEnrollmentMember } from "./family-center-parsers"
 import {
   DEV_FAMILY_IDENTITY_HEADER,
   FALLBACK_API_BASE_URL,
@@ -32,6 +33,10 @@ export {
   FAMILY_ENROLLMENT_AGREEMENT_VERSION,
 } from "./api-types"
 export type {
+  CatalogItem,
+  OrderHistoryItem,
+  OrderDetail,
+  SavedEnrollmentMember,
   CreateOrderPayload,
   EnrollmentAvailability,
   EnrollmentMember,
@@ -71,6 +76,10 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
   const request = options.request ?? requestWithUni
 
   return {
+    listCatalogItems: async () => readCollection(await requestJson(request, baseUrl, "/catalog-items", "GET", familyIdentityHeader), parseCatalogItem),
+    listEnrollmentMembers: async () => readCollection(await requestJson(request, baseUrl, "/enrollment/members", "GET", familyIdentityHeader), parseSavedEnrollmentMember),
+    listOrders: async () => readCollection(await requestJson(request, baseUrl, "/orders", "GET", familyIdentityHeader), parseOrderHistoryItem),
+    getOrderDetail: async (orderId: string) => parseOrderDetail(await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}/detail`, "GET", familyIdentityHeader)),
     listSchools: async () => readCollection(await requestJson(request, baseUrl, "/schools", "GET", familyIdentityHeader), parseSchool),
     listGrades: async (schoolId: string) =>
       readCollection(

@@ -60,6 +60,48 @@ export type EnrollmentMember = {
   readonly displayName: string
 }
 
+export type SavedEnrollmentMember = EnrollmentMember & {
+  readonly schoolId: string
+  readonly gradeId: string | null
+  readonly classId: string | null
+}
+
+export type CatalogItem = {
+  readonly id: string
+  readonly organizationId: string
+  readonly code: string
+  readonly title: string
+  readonly status: string
+  readonly policyVersion: string
+  readonly description: string
+  readonly coverImageUrl: string
+}
+
+export type OrderHistoryItem = Order & {
+  readonly tourSessionId: string
+  readonly activityTitle: string
+  readonly schoolName: string
+  readonly startsAt: string
+  readonly endsAt: string
+  readonly createdAt: string
+}
+
+export type OrderParticipant = {
+  readonly id: string
+  readonly enrollmentParticipantId: string
+  readonly displayName: string
+  readonly gradeName: string | null
+  readonly className: string | null
+  readonly amountFen: number
+}
+
+export type OrderDetail = OrderHistoryItem & {
+  readonly contactName: string
+  readonly emergencyContactName: string | null
+  readonly emergencyContactPhone: string | null
+  readonly participants: readonly OrderParticipant[]
+}
+
 export type EnrollmentSubmission = {
   readonly id: string
   readonly status: string
@@ -114,6 +156,10 @@ export type RequestTransport = (
 ) => Promise<MiniappRequestResult>
 
 export type MiniappApi = {
+  readonly listCatalogItems: () => Promise<readonly CatalogItem[]>
+  readonly listEnrollmentMembers: () => Promise<readonly SavedEnrollmentMember[]>
+  readonly listOrders: () => Promise<readonly OrderHistoryItem[]>
+  readonly getOrderDetail: (orderId: string) => Promise<OrderDetail>
   readonly listSchools: () => Promise<readonly School[]>
   readonly listGrades: (schoolId: string) => Promise<readonly Grade[]>
   readonly listClasses: (gradeId: string) => Promise<readonly SchoolClass[]>

@@ -18,6 +18,31 @@ export type OrderResponse = {
   readonly participantCount: number
 }
 
+export type OrderHistoryItem = OrderResponse & {
+  readonly tourSessionId: string
+  readonly activityTitle: string
+  readonly schoolName: string
+  readonly startsAt: string
+  readonly endsAt: string
+  readonly createdAt: string
+}
+
+export type OrderParticipant = {
+  readonly id: string
+  readonly enrollmentParticipantId: string
+  readonly displayName: string
+  readonly gradeName: string | null
+  readonly className: string | null
+  readonly amountFen: number
+}
+
+export type OrderDetailResponse = OrderHistoryItem & {
+  readonly contactName: string
+  readonly emergencyContactName: string | null
+  readonly emergencyContactPhone: string | null
+  readonly participants: readonly OrderParticipant[]
+}
+
 export type MockPaymentEventStatus = "succeeded" | "failed"
 
 export type MockPaymentEvent = {

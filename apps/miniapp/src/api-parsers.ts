@@ -140,7 +140,7 @@ export function readErrorMessage(value: unknown): string | undefined {
   return typeof message === "string" ? message : undefined
 }
 
-function readRecord(value: unknown): UnknownRecord {
+export function readRecord(value: unknown): UnknownRecord {
   if (isRecord(value)) {
     return value
   }
@@ -152,7 +152,7 @@ function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function readString(record: UnknownRecord, field: string): string {
+export function readString(record: UnknownRecord, field: string): string {
   const value = record[field]
   if (typeof value === "string" && value.length > 0) {
     return value
@@ -161,7 +161,7 @@ function readString(record: UnknownRecord, field: string): string {
   throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
-function readIsoString(record: UnknownRecord, field: string): string {
+export function readIsoString(record: UnknownRecord, field: string): string {
   const value = readString(record, field)
   if (!Number.isNaN(new Date(value).getTime())) {
     return value
@@ -179,7 +179,7 @@ function readNumber(record: UnknownRecord, field: string): number {
   throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
-function readNonNegativeInteger(record: UnknownRecord, field: string): number {
+export function readNonNegativeInteger(record: UnknownRecord, field: string): number {
   const value = record[field]
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
     return value
