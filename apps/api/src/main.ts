@@ -16,7 +16,12 @@ async function bootstrap(): Promise<void> {
     origin: process.env["ADMIN_WEB_ORIGIN"] ?? DEFAULT_ADMIN_ORIGIN,
     credentials: false,
   })
-  await app.listen(process.env["PORT"] ?? DEFAULT_PORT)
+  const host = process.env["HOST"]
+  if (host === undefined) {
+    await app.listen(process.env["PORT"] ?? DEFAULT_PORT)
+  } else {
+    await app.listen(process.env["PORT"] ?? DEFAULT_PORT, host)
+  }
 }
 
 await bootstrap()
