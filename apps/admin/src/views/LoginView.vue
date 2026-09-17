@@ -5,7 +5,7 @@
         <p class="login-copy__eyebrow">临安文旅数字化平台</p>
         <h1 id="login-title">管理后台登录</h1>
         <p>
-          认证服务接入后启用正式登录。当前页面仅作为后台骨架入口，不包含预置登录信息。
+          正式账号认证接入后开放登录。当前可进入本地演示，查看活动配置、工作台和名单。
         </p>
       </div>
 
@@ -17,7 +17,7 @@
           <el-input disabled placeholder="等待角色会话接入" />
         </el-form-item>
         <el-button class="login-form__button" type="primary" @click="enterShell">
-          进入后台骨架
+          进入本地演示
         </el-button>
       </el-form>
     </section>

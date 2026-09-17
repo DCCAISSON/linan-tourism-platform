@@ -10,8 +10,8 @@
       </div>
 
       <nav class="admin-nav" aria-label="主要菜单">
-        <router-link class="admin-nav__item" to="/home">首页</router-link>
-        <router-link class="admin-nav__item" to="/configuration">配置</router-link>
+        <router-link class="admin-nav__item" to="/home">工作台</router-link>
+        <router-link class="admin-nav__item" to="/configuration">活动配置</router-link>
         <router-link class="admin-nav__item" to="/roster">名单统计</router-link>
       </nav>
     </aside>
@@ -22,7 +22,7 @@
           <p class="admin-header__eyebrow">PC 管理后台</p>
           <h1>研学出行服务台</h1>
         </div>
-        <router-link class="admin-header__link" to="/login">登录壳</router-link>
+        <router-link class="admin-header__link" to="/login">本地演示入口</router-link>
       </header>
 
       <main class="admin-content">

@@ -5,6 +5,8 @@ import { parseRosterFilters } from "./roster.parser.js"
 import { RosterService } from "./roster.service.js"
 import type { PaymentSummary, RosterSummary } from "./roster.types.js"
 import { createRosterWorkbook } from "./roster.workbook.js"
+import { WorkbenchService } from "./workbench.service.js"
+import type { WorkbenchSummary } from "./workbench.types.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -13,7 +15,13 @@ export class RosterController {
   constructor(
     @Inject(RosterService) private readonly roster: RosterService,
     @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
+    @Inject(WorkbenchService) private readonly workbench: WorkbenchService,
   ) {}
+
+  @Get("workbench")
+  async workbenchSummary(@Headers() headers: RequestHeaders): Promise<WorkbenchSummary> {
+    return this.workbench.summarize(this.staffAccess.resolve(headers))
+  }
 
   @Get("summary")
   async summary(@Headers() headers: RequestHeaders, @Query() query: unknown): Promise<RosterSummary> {
