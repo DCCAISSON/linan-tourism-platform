@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test"
+import { installRosterOptions } from "./roster-options"
 
 const apiBase = "http://127.0.0.1:3000"
 
 test("queries roster summary and downloads the export", async ({ page }) => {
+  await installRosterOptions(page)
   await page.route(`${apiBase}/roster/summary?**`, async route => {
     const request = route.request()
     const url = new URL(request.url())
@@ -63,8 +65,8 @@ test("queries roster summary and downloads the export", async ({ page }) => {
   await expect(page.getByRole("button", { name: "查询名单" })).toBeDisabled()
   await expect(page.getByRole("button", { name: "导出 Excel" })).toBeDisabled()
 
-  await page.getByLabel("团期 ID").fill("session-1")
-  await page.getByLabel("学校 ID").fill("school-1")
+  await page.getByLabel("团期", { exact: true }).selectOption("session-1")
+  await page.getByLabel("学校", { exact: true }).selectOption("school-1")
   await page.getByRole("button", { name: "查询名单" }).click()
 
   await expect(page.getByText("已支付人数")).toBeVisible()
@@ -79,6 +81,7 @@ test("queries roster summary and downloads the export", async ({ page }) => {
 })
 
 test("shows roster query errors", async ({ page }) => {
+  await installRosterOptions(page)
   await page.route(`${apiBase}/roster/summary?**`, async route => {
     await route.fulfill({
       contentType: "application/json",
@@ -88,9 +91,24 @@ test("shows roster query errors", async ({ page }) => {
   })
 
   await page.goto("/roster")
-  await page.getByLabel("团期 ID").fill("session-2")
+  await page.getByLabel("团期", { exact: true }).selectOption("session-2")
   await page.getByRole("button", { name: "查询名单" }).click()
 
   await expect(page.getByText("名单服务暂不可用")).toBeVisible()
   await expect(page.getByText("暂无名单数据，请调整筛选条件后查询。")).toBeHidden()
+})
+
+test("clears grade and class when the selected school changes", async ({ page }) => {
+  // Given: name-based options belong to separate schools.
+  await installRosterOptions(page)
+  await page.goto("/roster")
+  await page.getByLabel("学校", { exact: true }).selectOption("school-1")
+  await page.getByLabel("年级", { exact: true }).selectOption("grade-1")
+  await page.getByLabel("班级", { exact: true }).selectOption("class-1")
+  // When: the upstream school changes.
+  await page.getByLabel("学校", { exact: true }).selectOption("school-2")
+  // Then: incompatible downstream IDs cannot remain in the query.
+  await expect(page.getByLabel("年级", { exact: true })).toHaveValue("")
+  await expect(page.getByLabel("班级", { exact: true })).toHaveValue("")
+  await expect(page.getByLabel("班级", { exact: true })).toBeDisabled()
 })

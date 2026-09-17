@@ -69,7 +69,7 @@
   min-width: 0;
 }
 
-.roster-filter label, .roster-filter input, .roster-filter button, .roster-state, .roster-table th, .roster-table td {
+.roster-filter label, .roster-filter select, .roster-filter button, .roster-state, .roster-table th, .roster-table td {
   font-size: 14px;
   line-height: 1.5;
 }
@@ -78,10 +78,10 @@
   color: var(--text-secondary);
 }
 
-.roster-filter input {
+.roster-filter select {
   width: 100%;
   min-height: 44px;
-  padding: 10px 12px;
+  padding: var(--space-2) var(--space-3);
   color: var(--text-primary);
   background: var(--surface-primary);
   border: 1px solid var(--border-default);
@@ -89,12 +89,12 @@
   font: inherit;
 }
 
-.roster-filter input:focus {
+.roster-filter select:focus {
   border-color: var(--accent-primary);
   outline: 2px solid var(--border-subtle);
 }
 
-.roster-filter fieldset:disabled input {
+.roster-filter select:disabled {
   color: var(--text-tertiary);
   cursor: not-allowed;
 }
@@ -154,6 +154,20 @@
 .roster-state--error {
   color: var(--status-error);
 }
+.roster-state button {
+  min-height: var(--size-touch-target);
+  padding: var(--space-2) var(--space-3);
+  color: var(--accent-primary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  font: inherit;
+  cursor: pointer;
+}
+.roster-state button:hover { background: var(--accent-soft); }
+.roster-state button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 4px; }
+.roster-table td.roster-money { white-space: nowrap; }
+.roster-selection-label { margin: 0; font-size: var(--font-body-sm); line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
 
 .roster-stat-grid {
   display: grid;
@@ -167,7 +181,6 @@
   min-width: 0;
   padding: 24px;
   background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
   border-radius: 8px;
 }
 
@@ -237,6 +250,10 @@
   .roster-filter fieldset {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+@media (min-width: 641px) {
+  .roster-table { min-width: var(--layout-table-min-width); }
+  .roster-table th, .roster-table td:not(:last-child) { white-space: nowrap; }
 }
 
 @media (max-width: 768px) {
