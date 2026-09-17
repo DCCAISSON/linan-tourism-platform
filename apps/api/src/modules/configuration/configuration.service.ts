@@ -183,6 +183,12 @@ export class ConfigurationService {
     if (input.title !== undefined) {
       item.title = input.title
     }
+    if (input.description !== undefined) {
+      item.description = input.description
+    }
+    if (input.coverImageUrl !== undefined) {
+      item.coverImageUrl = input.coverImageUrl
+    }
     if (input.status !== undefined) {
       item.status = input.status
     }

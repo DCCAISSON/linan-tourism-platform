@@ -44,6 +44,8 @@ export function parseCatalogItem(value: unknown): CatalogItem {
     organizationId: readString(record, "organizationId"),
     code: readString(record, "code"),
     title: readString(record, "title"),
+    description: readString(record, "description"),
+    coverImageUrl: readString(record, "coverImageUrl"),
     status: readString(record, "status", "active"),
     policyVersion: readString(record, "policyVersion"),
   }

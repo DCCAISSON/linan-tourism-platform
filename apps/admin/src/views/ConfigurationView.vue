@@ -5,7 +5,7 @@
         <p class="configuration-heading__eyebrow">基础配置</p>
         <h2 id="configuration-title">学校、课程与团期配置</h2>
       </div>
-      <p>维护学校、年级、班级、课程与团期，团期价格以元展示，提交给接口时仍使用整数分。</p>
+      <p>维护学校、年级、班级与活动安排，按团期设置学校价格和报名时间。</p>
     </header>
 
     <div class="configuration-grid">
@@ -50,6 +50,7 @@
         :schools="schools"
         :submitting="catalogSubmitting"
         @create="submitCatalogItem"
+        @update="updateCatalog"
         @delete="removeCatalogItem"
       />
       <SessionPanel
@@ -127,6 +128,7 @@ const {
   submitTourSession,
   tourSessions,
   updateSession,
+  updateCatalog,
 } = useCatalogSessions()
 
 onMounted(() => {

@@ -25,6 +25,8 @@ export type CatalogItemResponse = {
   readonly organizationId: string
   readonly code: string
   readonly title: string
+  readonly description: string
+  readonly coverImageUrl: string
   readonly status: string
   readonly policyVersion: string
 }
@@ -71,6 +73,8 @@ export type NewCatalogItem = {
   readonly organizationId: string
   readonly code: string
   readonly title: string
+  readonly description: string
+  readonly coverImageUrl: string
   readonly status: string
 }
 
@@ -105,6 +109,8 @@ export type UpdateClass = {
 export type UpdateCatalogItem = {
   readonly code: string | undefined
   readonly title: string | undefined
+  readonly description: string | undefined
+  readonly coverImageUrl: string | undefined
   readonly status: string | undefined
 }
 

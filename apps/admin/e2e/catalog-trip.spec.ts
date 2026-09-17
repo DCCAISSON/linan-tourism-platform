@@ -93,6 +93,8 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
         code: "catalog-2",
         title: "博物馆水系课程",
         status: "active",
+        description: "沿水系观察地形与人文，完成研学记录。",
+        coverImageUrl: "https://example.com/authorized-course.webp",
       })
       await route.fulfill({
         contentType: "application/json",
@@ -170,7 +172,7 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
   await expect(page.getByRole("heading", { name: "学校、课程与团期配置" })).toBeVisible()
   await expect(page.getByRole("region", { name: "学校", exact: true }).getByText("临安实验小学")).toBeVisible()
   await expect(page.getByText("暂无班级，请先新增班级。")).toBeVisible()
-  await expect(page.getByRole("region", { name: "课程", exact: true }).getByText("天目山自然观察")).toBeVisible()
+  await expect(page.getByRole("region", { name: "课程", exact: true }).locator(".record-list strong").filter({ hasText: "天目山自然观察" })).toBeVisible()
   await expect(page.getByText("团期服务暂不可用")).toBeVisible()
   await page.getByRole("region", { name: "课程", exact: true }).getByRole("button", { name: "删除" }).click()
   await expect(page.getByText("课程已有团期，不能删除")).toBeVisible()
@@ -189,8 +191,10 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
   await page.getByLabel("课程学校").selectOption("school-1")
   await page.getByLabel("课程编码").fill("catalog-2")
   await page.getByLabel("课程名称").fill("博物馆水系课程")
+  await page.getByLabel("课程介绍", { exact: true }).fill("沿水系观察地形与人文，完成研学记录。")
+  await page.getByLabel("封面链接", { exact: true }).fill("https://example.com/authorized-course.webp")
   await page.getByRole("button", { name: "新增课程" }).click()
-  await expect(page.getByRole("region", { name: "课程", exact: true }).getByText("博物馆水系课程")).toBeVisible()
+  await expect(page.getByRole("region", { name: "课程", exact: true }).locator(".record-list strong").filter({ hasText: "博物馆水系课程" })).toBeVisible()
   await page.getByLabel("所属年级").selectOption("grade-1")
   await page.getByLabel("班级编码").fill("class-2")
   await page.getByLabel("班级名称").fill("二班")

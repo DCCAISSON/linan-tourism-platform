@@ -3,6 +3,7 @@ import { ref } from "vue"
 import {
   type CatalogItem,
   type CatalogItemPayload,
+  type CatalogContentPayload,
   type TourSession,
   type TourSessionPayload,
   type TourSessionUpdatePayload,
@@ -14,6 +15,7 @@ import {
   listTourSessions,
   readableApiError,
   updateTourSession,
+  updateCatalogContent,
 } from "@/api/configuration"
 
 export function useCatalogSessions() {
@@ -77,6 +79,19 @@ export function useCatalogSessions() {
     }
   }
 
+  async function updateCatalog(change: { readonly id: string; readonly payload: CatalogContentPayload }): Promise<void> {
+    catalogSubmitting.value = true
+    catalogFormError.value = ""
+    try {
+      const updated = await updateCatalogContent(change.id, change.payload)
+      catalogItems.value = catalogItems.value.map(item => item.id === updated.id ? updated : item)
+    } catch (caught) {
+      catalogFormError.value = readableApiError(caught)
+    } finally {
+      catalogSubmitting.value = false
+    }
+  }
+
   async function removeCatalogItem(id: string): Promise<void> {
     catalogSubmitting.value = true
     catalogFormError.value = ""
@@ -134,5 +149,6 @@ export function useCatalogSessions() {
     submitTourSession,
     tourSessions,
     updateSession,
+    updateCatalog,
   }
 }

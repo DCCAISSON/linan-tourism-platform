@@ -8,6 +8,7 @@ import {
 } from "./configuration.parsers"
 import type {
   CatalogItem,
+  CatalogContentPayload,
   CatalogItemPayload,
   ClassPayload,
   Grade,
@@ -23,6 +24,7 @@ import type {
 export { ApiError, readableApiError }
 export type {
   CatalogItem,
+  CatalogContentPayload,
   CatalogItemPayload,
   ClassPayload,
   Grade,
@@ -69,6 +71,10 @@ export async function listCatalogItems(): Promise<readonly CatalogItem[]> {
 
 export async function createCatalogItem(payload: CatalogItemPayload): Promise<CatalogItem> {
   return await createResource("/catalog-items", payload, parseCatalogItem)
+}
+
+export async function updateCatalogContent(id: string, payload: CatalogContentPayload): Promise<CatalogItem> {
+  return await patchResource(`/catalog-items/${encodeURIComponent(id)}`, payload, parseCatalogItem)
 }
 
 export async function listTourSessions(): Promise<readonly TourSession[]> {

@@ -30,6 +30,12 @@ export class CatalogItemEntity {
   @Column({ type: "varchar", length: 160 })
   title = ""
 
+  @Column({ type: "varchar", length: 4000, default: "" })
+  description = ""
+
+  @Column({ name: "cover_image_url", type: "varchar", length: 2048, default: "" })
+  coverImageUrl = ""
+
   @Column({ type: "varchar", length: 32 })
   status = "active"
 

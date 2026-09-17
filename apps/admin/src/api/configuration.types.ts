@@ -28,6 +28,8 @@ export type CatalogItem = {
   readonly title: string
   readonly status: string
   readonly policyVersion: string
+  readonly description: string
+  readonly coverImageUrl: string
 }
 
 export type TourSession = {
@@ -65,6 +67,13 @@ export type CatalogItemPayload = {
   readonly code: string
   readonly title: string
   readonly status: string
+  readonly description?: string
+  readonly coverImageUrl?: string
+}
+
+export type CatalogContentPayload = {
+  readonly description: string
+  readonly coverImageUrl: string
 }
 
 export type TourSessionPayload = {

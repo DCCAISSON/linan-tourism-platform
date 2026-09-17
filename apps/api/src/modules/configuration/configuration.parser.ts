@@ -36,6 +36,26 @@ function readOptionalString(body: UnknownRecord, field: string): string | undefi
   return readString(body, field)
 }
 
+function readCatalogContent(body: UnknownRecord, field: "description" | "coverImageUrl"): string | undefined {
+  if (!(field in body)) return undefined
+  const value = body[field]
+  const limit = field === "description" ? 4000 : 2048
+  if (typeof value !== "string" || value.length > limit) {
+    throw malformedInput(`${field} must be a string of at most ${limit} characters`)
+  }
+  if (field === "coverImageUrl" && value !== "") {
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch (error) {
+      if (error instanceof TypeError) throw malformedInput("coverImageUrl must be a valid HTTPS URL")
+      throw error
+    }
+    if (url.protocol !== "https:") throw malformedInput("coverImageUrl must be a valid HTTPS URL")
+  }
+  return value
+}
+
 function readInteger(body: UnknownRecord, field: string): number {
   const value = body[field]
   if (typeof value !== "number" || !Number.isInteger(value)) {
@@ -140,6 +160,8 @@ export function parseCatalogItem(body: unknown): NewCatalogItem {
     organizationId: readString(record, "organizationId"),
     code: readString(record, "code"),
     title: readString(record, "title"),
+    description: readCatalogContent(record, "description") ?? "",
+    coverImageUrl: readCatalogContent(record, "coverImageUrl") ?? "",
     status: readString(record, "status"),
   }
 }
@@ -220,6 +242,8 @@ export function parseCatalogItemPatch(body: unknown): UpdateCatalogItem {
   return {
     code: readOptionalString(record, "code"),
     title: readOptionalString(record, "title"),
+    description: readCatalogContent(record, "description"),
+    coverImageUrl: readCatalogContent(record, "coverImageUrl"),
     status: readOptionalString(record, "status"),
   }
 }

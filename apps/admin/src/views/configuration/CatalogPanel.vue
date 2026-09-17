@@ -35,10 +35,38 @@
               <option value="draft">草稿</option>
             </select>
           </div>
+          <div class="field configuration-content-field">
+            <label for="catalog-description">课程介绍</label>
+            <textarea id="catalog-description" v-model.trim="description" maxlength="4000" rows="3" placeholder="可选，填写课程内容与参加说明" />
+          </div>
+          <div class="field configuration-content-field">
+            <label for="catalog-cover">封面链接</label>
+            <input id="catalog-cover" v-model.trim="coverImageUrl" maxlength="2048" placeholder="可选，使用自有或授权图片的 HTTPS 链接" />
+          </div>
           <p v-if="visibleError" class="form-error">{{ visibleError }}</p>
           <button type="submit" :disabled="submitting || schools.length === 0">
             {{ submitting ? "提交中..." : "新增课程" }}
           </button>
+        </fieldset>
+      </form>
+      <form v-if="catalogItems.length > 0" class="configuration-form configuration-form--grid" @submit.prevent="saveContent">
+        <fieldset :disabled="submitting">
+          <div class="field">
+            <label for="catalog-edit">编辑课程内容</label>
+            <select id="catalog-edit" v-model="editingId">
+              <option value="">请选择课程</option>
+              <option v-for="item in catalogItems" :key="item.id" :value="item.id">{{ item.title }}</option>
+            </select>
+          </div>
+          <div class="field configuration-content-field">
+            <label for="catalog-edit-description">修改课程介绍</label>
+            <textarea id="catalog-edit-description" v-model.trim="editingDescription" maxlength="4000" rows="3" :disabled="!editingId" />
+          </div>
+          <div class="field configuration-content-field">
+            <label for="catalog-edit-cover">修改封面链接</label>
+            <input id="catalog-edit-cover" v-model.trim="editingCover" maxlength="2048" :disabled="!editingId" />
+          </div>
+          <button type="submit" :disabled="!editingId || submitting">{{ submitting ? "保存中..." : "保存课程内容" }}</button>
         </fieldset>
       </form>
     </template>
@@ -59,7 +87,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 
-import type { CatalogItem, CatalogItemPayload, School } from "@/api/configuration"
+import type { CatalogItem, CatalogItemPayload, CatalogContentPayload, School } from "@/api/configuration"
 import ConfigurationCard from "./ConfigurationCard.vue"
 import { statusText } from "./format"
 
@@ -75,6 +103,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   create: [payload: CatalogItemPayload]
   delete: [id: string]
+  update: [change: { readonly id: string; readonly payload: CatalogContentPayload }]
 }>()
 
 const code = ref("")
@@ -82,6 +111,17 @@ const localError = ref("")
 const organizationId = ref("")
 const status = ref("active")
 const title = ref("")
+const description = ref("")
+const coverImageUrl = ref("")
+const editingId = ref("")
+const editingDescription = ref("")
+const editingCover = ref("")
+watch([editingId, () => props.catalogItems], () => {
+  const item = props.catalogItems.find(item => item.id === editingId.value)
+  if (!item) editingId.value = ""
+  editingDescription.value = item?.description ?? ""
+  editingCover.value = item?.coverImageUrl ?? ""
+})
 
 const visibleError = computed(() => localError.value || props.formError)
 
@@ -108,7 +148,13 @@ function submit(): void {
     code: code.value,
     title: title.value,
     status: status.value,
+    description: description.value,
+    coverImageUrl: coverImageUrl.value,
   })
+}
+
+function saveContent(): void {
+  if (editingId.value !== "") emit("update", { id: editingId.value, payload: { description: editingDescription.value, coverImageUrl: editingCover.value } })
 }
 
 function schoolNameById(schoolId: string): string {
