@@ -22,25 +22,29 @@
         :tour-sessions="tourSessions"
         @update="emit('update', $event)"
       />
-      <form class="inline-form" @submit.prevent="createNotice">
-        <label>
-          <span>告知书团期</span>
-          <select v-model="noticeSessionId" required>
-            <option value="">请选择团期</option>
-            <option v-for="session in tourSessions" :key="session.id" :value="session.id">
-              {{ session.code }} · {{ catalogTitleById(session.catalogItemId) }}
-            </option>
-          </select>
-        </label>
-        <label>
-          <span>版本号</span>
-          <input v-model="noticeVersion" required maxlength="64" placeholder="v1" />
-        </label>
-        <label>
-          <span>标题</span>
-          <input v-model="noticeTitle" required maxlength="255" />
-        </label>
-        <button type="submit" :disabled="submitting">创建演示告知书</button>
+      <form class="configuration-form configuration-form--grid configuration-form--notice" @submit.prevent="createNotice">
+        <fieldset :disabled="submitting || tourSessions.length === 0">
+          <legend class="configuration-form__legend">家长告知书版本</legend>
+          <div class="field">
+            <label for="notice-session">告知书团期</label>
+            <select id="notice-session" v-model="noticeSessionId" required>
+              <option value="">请选择团期</option>
+              <option v-for="session in tourSessions" :key="session.id" :value="session.id">
+                {{ session.code }} ? {{ catalogTitleById(session.catalogItemId) }}
+              </option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="notice-version">版本号</label>
+            <input id="notice-version" v-model="noticeVersion" required maxlength="64" placeholder="v1" />
+          </div>
+          <div class="field">
+            <label for="notice-title">标题</label>
+            <input id="notice-title" v-model="noticeTitle" required maxlength="255" />
+          </div>
+          <p v-if="formError" class="form-error">{{ formError }}</p>
+          <button type="submit" :disabled="submitting || tourSessions.length === 0">创建演示告知书</button>
+        </fieldset>
       </form>
     </template>
     <ul class="record-list record-list--columns">
