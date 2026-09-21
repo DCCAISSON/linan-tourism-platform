@@ -32,6 +32,24 @@ const catalog: CatalogState = {
       endsAt: "2026-10-03T09:00:00.000Z",
       enrollmentOpensAt: "2026-09-20T01:00:00.000Z",
       enrollmentClosesAt: "2026-10-01T09:00:00.000Z",
+      activeNoticeId: "notice-1",
+      activeNotice: {
+        id: "notice-1",
+        organizationId: "org-school-1",
+        tourSessionId: "session-1",
+        version: "v1",
+        title: "[演示]大明山地质研学告知书 v1",
+        createdAt: "2026-09-22T00:00:00.000Z",
+        contentJson: {
+          destination: "[演示]大明山地质研学",
+          departurePlace: "[演示]临安旅游集散中心门口",
+          mealNote: "[演示]含午餐，特殊餐食由家长提前备注",
+          itinerary: ["[演示]1", "[演示]2", "[演示]3", "[演示]4", "[演示]5", "[演示]6", "[演示]7"],
+          unitPrices: ["[演示]学生195元/人", "[演示]成人195元/人"],
+          packageExamples: ["[演示]1名学生+1名成人390元"],
+          reminders: ["[演示]请携带身份证件"],
+        },
+      },
       policyVersion: DOMAIN_POLICY_VERSION,
     },
   ],
@@ -115,6 +133,8 @@ describe("enrollment flow state", () => {
       emergencyContactPhone: "10000000000",
       agreementVersion: FAMILY_ENROLLMENT_AGREEMENT_VERSION,
       schemaVersion: DOMAIN_SCHEMA_VERSION,
+      noticeVersionId: "notice-1",
+      noticeVersion: "v1",
     })
   })
 

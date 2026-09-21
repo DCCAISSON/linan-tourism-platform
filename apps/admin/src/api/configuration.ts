@@ -3,6 +3,7 @@ import {
   parseCatalogItem,
   parseClass,
   parseGrade,
+  parseNoticeVersion,
   parseSchool,
   parseTourSession,
 } from "./configuration.parsers"
@@ -13,6 +14,9 @@ import type {
   ClassPayload,
   Grade,
   GradePayload,
+  NoticeContent,
+  NoticeVersion,
+  NoticeVersionPayload,
   School,
   SchoolClass,
   SchoolPayload,
@@ -29,6 +33,9 @@ export type {
   ClassPayload,
   Grade,
   GradePayload,
+  NoticeContent,
+  NoticeVersion,
+  NoticeVersionPayload,
   School,
   SchoolClass,
   SchoolPayload,
@@ -86,6 +93,18 @@ export async function createTourSession(payload: TourSessionPayload): Promise<To
 
 export async function updateTourSession(id: string, payload: TourSessionUpdatePayload): Promise<TourSession> {
   return await patchResource(`/tour-sessions/${encodeURIComponent(id)}`, payload, parseTourSession)
+}
+
+export async function createNoticeVersion(tourSessionId: string, payload: NoticeVersionPayload): Promise<NoticeVersion> {
+  return await createResource(`/tour-sessions/${encodeURIComponent(tourSessionId)}/notices`, payload, parseNoticeVersion)
+}
+
+export async function listNoticeVersions(tourSessionId: string): Promise<readonly NoticeVersion[]> {
+  return await readCollection(`/tour-sessions/${encodeURIComponent(tourSessionId)}/notices`, "告知书", parseNoticeVersion)
+}
+
+export async function activateNoticeVersion(tourSessionId: string, noticeVersionId: string): Promise<TourSession> {
+  return await createResource(`/tour-sessions/${encodeURIComponent(tourSessionId)}/notices/${encodeURIComponent(noticeVersionId)}/activate`, {}, parseTourSession)
 }
 
 export async function deleteSchool(id: string): Promise<void> {

@@ -21,6 +21,26 @@ export type SchoolClass = {
   readonly name: string
 }
 
+export type NoticeContent = {
+  readonly destination: string
+  readonly departurePlace: string
+  readonly mealNote: string
+  readonly itinerary: readonly string[]
+  readonly unitPrices: readonly string[]
+  readonly packageExamples: readonly string[]
+  readonly reminders: readonly string[]
+}
+
+export type NoticeVersion = {
+  readonly id: string
+  readonly organizationId: string
+  readonly tourSessionId: string
+  readonly version: string
+  readonly title: string
+  readonly contentJson: NoticeContent
+  readonly createdAt: string
+}
+
 export type TourSession = {
   readonly id: string
   readonly organizationId: string
@@ -33,6 +53,8 @@ export type TourSession = {
   readonly endsAt: string
   readonly enrollmentOpensAt: string
   readonly enrollmentClosesAt: string
+  readonly activeNoticeId: string | null
+  readonly activeNotice: NoticeVersion | null
   readonly policyVersion: string
 }
 
@@ -44,6 +66,8 @@ export type EnrollmentPayload = {
   readonly emergencyContactPhone: string
   readonly agreementVersion: typeof FAMILY_ENROLLMENT_AGREEMENT_VERSION
   readonly schemaVersion: typeof DOMAIN_SCHEMA_VERSION
+  readonly noticeVersionId: string
+  readonly noticeVersion: string
 }
 
 export type EnrollmentMemberPayload = {

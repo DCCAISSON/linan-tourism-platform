@@ -11,6 +11,8 @@ export type CatalogFixture = {
   readonly gradeId: string
   readonly classId: string
   readonly tourSessionId: string
+  readonly noticeVersionId: string
+  readonly noticeVersion: string
 }
 
 export type VirtualIdentityFixture = {
@@ -22,6 +24,7 @@ export type VirtualIdentityFixture = {
 type EnrollmentWindow = {
   readonly enrollmentOpensAt: string
   readonly enrollmentClosesAt: string
+  readonly withNotice?: boolean
 }
 
 export async function createCatalog(
@@ -73,13 +76,53 @@ export async function createCatalog(
       enrollmentClosesAt: window.enrollmentClosesAt,
     })
     .expect(201)
+  const notice = window.withNotice === false ? null : await createDemoNotice(app, tourSession.body.id, "v1")
 
   return {
     schoolId: school.body.id,
     gradeId: grade.body.id,
     classId: schoolClass.body.id,
     tourSessionId: tourSession.body.id,
+    noticeVersionId: notice?.id ?? "notice-missing",
+    noticeVersion: notice?.version ?? "missing",
   }
+}
+
+export function demoNoticeContent() {
+  return {
+    destination: "[演示]大明山地质研学",
+    departurePlace: "[演示]临安旅游集散中心集合点",
+    mealNote: "[演示]含研学简餐，过敏情况请提前备注。",
+    itinerary: [
+      "[演示]1. 集合签到与安全说明",
+      "[演示]2. 地质课堂导入",
+      "[演示]3. 大明山岩层观察",
+      "[演示]4. 小组任务记录",
+      "[演示]5. 午餐与休整",
+      "[演示]6. 成果分享",
+      "[演示]7. 返程交接",
+    ],
+    unitPrices: ["[演示]学生：195元/人", "[演示]成人：195元/人"],
+    packageExamples: ["[演示]1名学生：195元", "[演示]1名成人：195元", "[演示]1名学生+1名成人：390元"],
+    reminders: ["[演示]请穿舒适鞋服。", "[演示]本数据仅用于开发验收，不代表实时团期。"],
+  }
+}
+
+export async function createDemoNotice(app: INestApplication, tourSessionId: string, version: string) {
+  const created = await request(app.getHttpServer())
+    .post(`/tour-sessions/${tourSessionId}/notices`)
+    .set(DEV_ADMIN_HEADERS)
+    .send({
+      version,
+      title: `[演示]大明山地质研学告家长书 ${version}`,
+      contentJson: demoNoticeContent(),
+    })
+    .expect(201)
+  await request(app.getHttpServer())
+    .post(`/tour-sessions/${tourSessionId}/notices/${created.body.id}/activate`)
+    .set(DEV_ADMIN_HEADERS)
+    .expect(201)
+  return { id: created.body.id as string, version: created.body.version as string }
 }
 
 export async function createMember(
@@ -161,6 +204,8 @@ export function enrollmentBody(input: {
     emergencyContactPhone: input.emergencyContactPhone,
     agreementVersion: input.withConsent === false ? undefined : AGREEMENT_VERSION,
     schemaVersion: input.withConsent === false ? undefined : DOMAIN_SCHEMA_VERSION,
+    noticeVersionId: input.withConsent === false ? undefined : input.catalog.noticeVersionId,
+    noticeVersion: input.withConsent === false ? undefined : input.catalog.noticeVersion,
   }
 }
 
@@ -241,6 +286,14 @@ export async function resetEnrollmentConsentData(scope: string): Promise<void> {
   )
   await dataSource.query("delete from family_members where code like ?", [`member-${scope}%`])
   await dataSource.query("delete from families where code like ?", [`family-${scope}%`])
+  await dataSource.query(
+    "update tour_sessions set active_notice_id = null where code like ?",
+    [`session-${scope}%`],
+  )
+  await dataSource.query(
+    "delete nv from notice_versions nv join tour_sessions ts on ts.id = nv.tour_session_id where ts.code like ?",
+    [`session-${scope}%`],
+  )
   await dataSource.query("delete from tour_sessions where code like ?", [`session-${scope}%`])
   await dataSource.query("delete from catalog_items where code like ?", [`catalog-${scope}%`])
   await dataSource.query("delete from school_classes where code like ?", [`class-${scope}%`])

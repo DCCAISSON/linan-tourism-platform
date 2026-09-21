@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common"
 import { DOMAIN_POLICY_VERSION, TOUR_SESSION_STATUS } from "@linan/contracts"
+import { In } from "typeorm"
 import {
   CatalogItemEntity,
+  NoticeVersionEntity,
   OrganizationEntity,
   SchoolClassEntity,
   SchoolGradeEntity,
@@ -23,6 +25,7 @@ import {
   ensureCatalogBelongsToSchool,
   ensureTourSessionDates,
   requireEnrollmentWindow,
+  toNoticeVersionResponse,
 } from "./configuration.tour-session.js"
 import type {
   CatalogItemResponse,
@@ -31,6 +34,8 @@ import type {
   GradeResponse,
   NewCatalogItem,
   NewClass,
+  NewNoticeVersion,
+  NoticeVersionResponse,
   NewGrade,
   NewSchool,
   NewTourSession,
@@ -228,7 +233,57 @@ export class ConfigurationService {
       .andWhere("tour_session.enrollment_closes_at is not null")
       .orderBy("tour_session.code", "ASC")
       .getMany()
-    return sessions.map(requireEnrollmentWindow)
+    const activeNotices = await this.findActiveNoticeMap(sessions)
+    return sessions.map((session) => requireEnrollmentWindow(session, activeNotices.get(session.activeNoticeId ?? "") ?? null))
+  }
+
+  async createNoticeVersion(tourSessionId: string, input: NewNoticeVersion): Promise<NoticeVersionResponse> {
+    const dataSource = await this.database.getDataSource()
+    const session = await findTourSessionEntity(dataSource, tourSessionId)
+    try {
+      const notice = await dataSource.getRepository(NoticeVersionEntity).save({
+        id: makeId("notice"),
+        organizationId: session.organizationId,
+        tourSessionId: session.id,
+        version: input.version,
+        title: input.title,
+        contentJson: input.contentJson,
+      })
+      return toNoticeVersionResponse(notice)
+    } catch (error) {
+      throwWriteConflict(error)
+    }
+  }
+
+  async listNoticeVersions(tourSessionId: string): Promise<readonly NoticeVersionResponse[]> {
+    const dataSource = await this.database.getDataSource()
+    await findTourSessionEntity(dataSource, tourSessionId)
+    const notices = await dataSource.getRepository(NoticeVersionEntity).find({
+      where: { tourSessionId },
+      order: { createdAt: "DESC" },
+    })
+    return notices.map(toNoticeVersionResponse)
+  }
+
+  async activateNoticeVersion(tourSessionId: string, noticeVersionId: string): Promise<TourSessionResponse> {
+    const dataSource = await this.database.getDataSource()
+    try {
+      return await dataSource.transaction(async (manager) => {
+        const session = await manager.findOneBy(TourSessionEntity, { id: tourSessionId })
+        if (session === null) {
+          throw new BadRequestException({ code: "not_found", message: "tour session was not found" })
+        }
+        const notice = await manager.findOneBy(NoticeVersionEntity, { id: noticeVersionId })
+        if (notice === null || notice.tourSessionId !== session.id || notice.organizationId !== session.organizationId) {
+          throw new BadRequestException({ code: "not_found", message: "notice version was not found" })
+        }
+        session.activeNoticeId = notice.id
+        await manager.save(TourSessionEntity, session)
+        return requireEnrollmentWindow(session, notice)
+      })
+    } catch (error) {
+      throwWriteConflict(error)
+    }
   }
 
   async updateTourSession(id: string, input: UpdateTourSession): Promise<TourSessionResponse> {
@@ -238,7 +293,7 @@ export class ConfigurationService {
     ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, session.catalogItemId), session.organizationId)
     ensureTourSessionDates(session)
     try {
-      return requireEnrollmentWindow(await dataSource.getRepository(TourSessionEntity).save(session))
+      return this.withActiveNotice(await dataSource.getRepository(TourSessionEntity).save(session))
     } catch (error) {
       throwWriteConflict(error)
     }
@@ -267,6 +322,25 @@ export class ConfigurationService {
 
   private async findTourSession(id: string): Promise<TourSessionResponse> {
     const dataSource = await this.database.getDataSource()
-    return requireEnrollmentWindow(await findTourSessionEntity(dataSource, id))
+    return this.withActiveNotice(await findTourSessionEntity(dataSource, id))
+  }
+
+  private async withActiveNotice(session: TourSessionEntity): Promise<TourSessionResponse> {
+    const dataSource = await this.database.getDataSource()
+    if (session.activeNoticeId === null) {
+      return requireEnrollmentWindow(session)
+    }
+    const notice = await dataSource.getRepository(NoticeVersionEntity).findOneBy({ id: session.activeNoticeId })
+    return requireEnrollmentWindow(session, notice)
+  }
+
+  private async findActiveNoticeMap(sessions: readonly TourSessionEntity[]): Promise<ReadonlyMap<string, NoticeVersionEntity>> {
+    const ids = [...new Set(sessions.map((session) => session.activeNoticeId).filter((id): id is string => id !== null))]
+    if (ids.length === 0) {
+      return new Map()
+    }
+    const dataSource = await this.database.getDataSource()
+    const notices = await dataSource.getRepository(NoticeVersionEntity).findBy({ id: In(ids) })
+    return new Map(notices.map((notice) => [notice.id, notice]))
   }
 }

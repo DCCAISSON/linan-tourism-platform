@@ -64,6 +64,8 @@ export function parseEnrollmentSubmission(body: unknown): NewEnrollmentSubmissio
     emergencyContactPhone: readString(record, "emergencyContactPhone", 32),
     agreementVersion,
     schemaVersion,
+    noticeVersionId: readString(record, "noticeVersionId", 64),
+    noticeVersion: readString(record, "noticeVersion", 64),
   }
 }
 

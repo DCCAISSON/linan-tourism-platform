@@ -8,6 +8,7 @@ import {
   createScope,
   dataSource,
   databaseUrl,
+  DEV_ADMIN_HEADERS,
   initializeCatalogTripDatabase,
 } from "./catalog-trip-fixture.js"
 import {
@@ -15,7 +16,9 @@ import {
   adultIdentityMemberBody,
   createCapturingLogger,
   createCatalog,
+  createDemoNotice,
   createMember,
+  demoNoticeContent,
   enrollmentBody,
   familyHeader,
   memberBody,
@@ -105,11 +108,13 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         policyVersion: expect.any(String),
         agreementVersion: AGREEMENT_VERSION,
         schemaVersion: DOMAIN_SCHEMA_VERSION,
+        noticeVersionId: catalog.noticeVersionId,
+        noticeVersion: catalog.noticeVersion,
       }),
     )
     await expect(
       dataSource.query(
-        "select purpose, agreement_version, schema_version from consent_records where subject_id = ?",
+        "select purpose, agreement_version, schema_version, notice_version_id, notice_version from consent_records where subject_id = ?",
         [enrollment.body.id],
       ),
     ).resolves.toEqual([
@@ -117,9 +122,117 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         purpose: "enrollment_submission",
         agreement_version: AGREEMENT_VERSION,
         schema_version: DOMAIN_SCHEMA_VERSION,
+        notice_version_id: catalog.noticeVersionId,
+        notice_version: catalog.noticeVersion,
       }),
     ])
   })
+
+
+  it("creates immutable notice versions, activates history, and rejects non-demo notice seed", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const v2 = await request(app.getHttpServer())
+      .post(`/tour-sessions/${catalog.tourSessionId}/notices`)
+      .set(DEV_ADMIN_HEADERS)
+      .send({
+        version: "v2",
+        title: "[演示]大明山地质研学告家长书 v2",
+        contentJson: { ...demoNoticeContent(), mealNote: "[演示]第二版研学简餐说明。" },
+      })
+      .expect(201)
+
+    // When
+    const activated = await request(app.getHttpServer())
+      .post(`/tour-sessions/${catalog.tourSessionId}/notices/${v2.body.id}/activate`)
+      .set(DEV_ADMIN_HEADERS)
+      .expect(201)
+    const notices = await request(app.getHttpServer())
+      .get(`/tour-sessions/${catalog.tourSessionId}/notices`)
+      .expect(200)
+    const liveSeed = await request(app.getHttpServer())
+      .post(`/tour-sessions/${catalog.tourSessionId}/notices`)
+      .set(DEV_ADMIN_HEADERS)
+      .send({
+        version: "live-v1",
+        title: "真实团期告知书",
+        contentJson: { ...demoNoticeContent(), destination: "真实目的地" },
+      })
+      .expect(400)
+
+    // Then
+    expect(activated.body).toEqual(expect.objectContaining({ activeNoticeId: v2.body.id }))
+    expect(notices.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: catalog.noticeVersionId, version: "v1", contentJson: expect.objectContaining({ mealNote: "[演示]含研学简餐，过敏情况请提前备注。" }) }),
+      expect.objectContaining({ id: v2.body.id, version: "v2", contentJson: expect.objectContaining({ mealNote: "[演示]第二版研学简餐说明。" }) }),
+    ]))
+    expect(liveSeed.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
+  })
+
+  it("rejects enrollment without an active notice or with a stale notice version", async () => {
+    // Given
+    const noNoticeScope = `${scope.slice(0, 36)}-nn`
+    const staleScope = `${scope.slice(0, 36)}-st`
+    const noNoticeCatalog = await createCatalog(app, noNoticeScope, {
+      enrollmentOpensAt: "2026-01-01T00:00:00.000Z",
+      enrollmentClosesAt: "2027-01-01T00:00:00.000Z",
+      withNotice: false,
+    })
+    const noNoticeMember = await createMember({
+      app,
+      scope: noNoticeScope,
+      headers: familyHeader(noNoticeScope, "n"),
+      catalog: noNoticeCatalog,
+      displayName: "No Notice Child",
+      codeSuffix: "n",
+    })
+    const staleCatalog = await createCatalog(app, staleScope)
+    const staleMember = await createMember({
+      app,
+      scope: staleScope,
+      headers: familyHeader(staleScope, "s"),
+      catalog: staleCatalog,
+      displayName: "Stale Notice Child",
+      codeSuffix: "s",
+    })
+    const oldNotice = { id: staleCatalog.noticeVersionId, version: staleCatalog.noticeVersion }
+    await createDemoNotice(app, staleCatalog.tourSessionId, "v2")
+
+    // When
+    const noActive = await request(app.getHttpServer())
+      .post("/enrollments")
+      .set(familyHeader(noNoticeScope, "n"))
+      .send(enrollmentBody({
+        catalog: noNoticeCatalog,
+        memberIds: [noNoticeMember.id],
+        contactName: "No Notice Parent",
+        emergencyContactName: "No Notice Emergency",
+        emergencyContactPhone: virtualPhone("2001"),
+      }))
+      .expect(400)
+    const stale = await request(app.getHttpServer())
+      .post("/enrollments")
+      .set(familyHeader(staleScope, "s"))
+      .send({
+        ...enrollmentBody({
+          catalog: staleCatalog,
+          memberIds: [staleMember.id],
+          contactName: "Stale Parent",
+          emergencyContactName: "Stale Emergency",
+          emergencyContactPhone: virtualPhone("2002"),
+        }),
+        noticeVersionId: oldNotice.id,
+        noticeVersion: oldNotice.version,
+      })
+      .expect(400)
+
+    // Then
+    expect(noActive.body).toEqual(expect.objectContaining({ code: "stale_state" }))
+    expect(stale.body).toEqual(expect.objectContaining({ code: "stale_state" }))
+    await resetEnrollmentConsentData(noNoticeScope)
+    await resetEnrollmentConsentData(staleScope)
+  }, 20_000)
+
 
   it("submits one enrollment for a single child", async () => {
     // Given

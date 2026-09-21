@@ -39,7 +39,7 @@ try {
   await runDiscoveryBefore(miniProgram, fixture)
   const journeyEvidence = await runJourney(miniProgram)
   await runDiscoveryAfter(miniProgram)
-  console.log(JSON.stringify({ screenshots: 23, members: 2, amountFen: 25_600, status: "paid", localMock: true, ...journeyEvidence }))
+  console.log(JSON.stringify({ screenshots: 24, members: 2, amountFen: 25_600, status: "paid", localMock: true, ...journeyEvidence }))
 } finally {
   miniProgram?.disconnect()
   if (projectOpened) await runCli(["close", "--project", projectPath], 15_000)

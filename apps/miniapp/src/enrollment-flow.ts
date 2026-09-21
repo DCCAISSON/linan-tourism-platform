@@ -129,6 +129,11 @@ export function buildEnrollmentPayload(
     throw new Error("请选择有效团期")
   }
 
+  const activeNotice = selectedSession.activeNotice
+  if (activeNotice === null) {
+    throw new Error("请先配置家长告知书")
+  }
+
   return {
     tourSessionId: selectedSession.id,
     memberIds,
@@ -137,6 +142,8 @@ export function buildEnrollmentPayload(
     emergencyContactPhone: draft.emergencyContact.phone.trim(),
     agreementVersion: FAMILY_ENROLLMENT_AGREEMENT_VERSION,
     schemaVersion: DOMAIN_SCHEMA_VERSION,
+    noticeVersionId: activeNotice.id,
+    noticeVersion: activeNotice.version,
   }
 }
 

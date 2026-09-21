@@ -32,6 +32,28 @@ function enroll(): void {
         <text class="detail-line">人数上限：{{ trip.session.capacity }} 人</text>
       </view>
       <view class="info-card"><text class="card-title">课程介绍</text><text class="detail-line introduction">{{ trip.activity.description || '课程介绍暂未提供。' }}</text></view>
+
+      <view v-if="trip.session.activeNotice" class="info-card parent-notice-card">
+        <text class="card-title">家长告知书：{{ trip.session.activeNotice.title }}</text>
+        <text class="detail-line">版本：{{ trip.session.activeNotice.version }}</text>
+        <text class="detail-line">目的地：{{ trip.session.activeNotice.contentJson.destination }}</text>
+        <text class="detail-line">集合地点：{{ trip.session.activeNotice.contentJson.departurePlace }}</text>
+        <text class="detail-line">用餐说明：{{ trip.session.activeNotice.contentJson.mealNote }}</text>
+        <view class="notice-block">
+          <text class="notice-heading">行程安排</text>
+          <text v-for="item in trip.session.activeNotice.contentJson.itinerary" :key="item" class="detail-line">{{ item }}</text>
+        </view>
+        <view class="notice-block">
+          <text class="notice-heading">费用说明</text>
+          <text v-for="item in trip.session.activeNotice.contentJson.unitPrices" :key="item" class="detail-line">{{ item }}</text>
+          <text v-for="item in trip.session.activeNotice.contentJson.packageExamples" :key="item" class="detail-line">{{ item }}</text>
+        </view>
+        <view class="notice-block">
+          <text class="notice-heading">温馨提醒</text>
+          <text v-for="item in trip.session.activeNotice.contentJson.reminders" :key="item" class="detail-line">{{ item }}</text>
+        </view>
+      </view>
+      <view v-else class="info-card parent-notice-card"><text class="card-title">家长告知书</text><text class="detail-line">该团期尚未配置家长告知书，暂不可提交报名。</text></view>
       <text class="test-notice">当前用于本地流程验证。模拟支付不产生真实扣款。</text>
       <view class="detail-cta"><button class="button-primary enrollment-entry" :disabled="!trip.canEnroll" @tap="enroll">{{ trip.canEnroll ? '立即报名' : trip.registrationLabel }}</button></view>
     </view>
@@ -44,5 +66,8 @@ function enroll(): void {
 .detail-cover { border-radius: var(--radius-banner); }
 .activity-detail-title { margin-top: var(--space-3); font-size: var(--font-h2); }
 .introduction { white-space: pre-wrap; }
+.parent-notice-card { gap: var(--space-2); }
+.notice-block { display: flex; flex-direction: column; gap: var(--space-1); }
+.notice-heading { font-weight: 700; color: var(--text-strong); }
 .detail-cta { position: fixed; right: 0; bottom: 0; left: 0; padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom)); background: var(--surface-elevated); }
 </style>

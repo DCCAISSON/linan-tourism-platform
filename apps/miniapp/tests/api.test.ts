@@ -53,6 +53,8 @@ describe("miniapp API client", () => {
       emergencyContactPhone: "10000000000",
       agreementVersion: FAMILY_ENROLLMENT_AGREEMENT_VERSION,
       schemaVersion: "provisional-domain-schema-v1",
+      noticeVersionId: "notice-1",
+      noticeVersion: "v1",
     }
 
     const result = await api.submitEnrollment(payload)

@@ -60,10 +60,13 @@
         :loading="sessionLoading"
         :schools="schools"
         :submitting="sessionSubmitting"
+        :notice-versions="noticeVersions"
         :tour-sessions="tourSessions"
         @create="submitTourSession"
         @delete="removeTourSession"
         @update="updateSession"
+        @create-notice="createNotice"
+        @activate-notice="activateNotice"
       />
     </div>
   </section>
@@ -120,6 +123,9 @@ const {
   loadSessionList,
   removeCatalogItem,
   removeTourSession,
+  noticeVersions,
+  createNotice,
+  activateNotice,
   sessionError,
   sessionFormError,
   sessionLoading,

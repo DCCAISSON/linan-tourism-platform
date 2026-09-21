@@ -5,6 +5,7 @@ import { EnrollmentEntity } from "./enrollment.entity.js"
 import { EnrollmentParticipantEntity } from "./enrollment-participant.entity.js"
 import { FamilyEntity } from "./family.entity.js"
 import { FamilyMemberEntity } from "./family-member.entity.js"
+import { NoticeVersionEntity } from "./notice-version.entity.js"
 import { OrderEntity } from "./order.entity.js"
 import { OrderLineEntity } from "./order-line.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
@@ -29,6 +30,7 @@ export { EnrollmentEntity } from "./enrollment.entity.js"
 export { EnrollmentParticipantEntity } from "./enrollment-participant.entity.js"
 export { FamilyEntity } from "./family.entity.js"
 export { FamilyMemberEntity } from "./family-member.entity.js"
+export { NoticeVersionEntity } from "./notice-version.entity.js"
 export { OrderEntity } from "./order.entity.js"
 export { OrderLineEntity } from "./order-line.entity.js"
 export { OrganizationEntity } from "./organization.entity.js"
@@ -56,6 +58,7 @@ export const DOMAIN_ENTITIES = [
   TourSessionEntity,
   EnrollmentEntity,
   EnrollmentParticipantEntity,
+  NoticeVersionEntity,
   OrderEntity,
   OrderLineEntity,
   PaymentEntity,

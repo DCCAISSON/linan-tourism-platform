@@ -12,6 +12,7 @@ import {
   parseGradePatch,
   parseSchool,
   parseSchoolPatch,
+  parseNoticeVersion,
   parseTourSession,
   parseTourSessionPatch,
 } from "./configuration.parser.js"
@@ -20,6 +21,7 @@ import type {
   ClassResponse,
   EnrollmentAvailabilityResponse,
   GradeResponse,
+  NoticeVersionResponse,
   SchoolResponse,
   TourSessionResponse,
 } from "./configuration.types.js"
@@ -144,6 +146,31 @@ export class ConfigurationController {
   @Get("tour-sessions")
   async listTourSessions(): Promise<readonly TourSessionResponse[]> {
     return this.configuration.listTourSessions()
+  }
+
+  @Post("tour-sessions/:id/notices")
+  async createNoticeVersion(
+    @Headers() headers: RequestHeaders,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<NoticeVersionResponse> {
+    await this.assertWrite(headers)
+    return this.configuration.createNoticeVersion(id, parseNoticeVersion(body))
+  }
+
+  @Get("tour-sessions/:id/notices")
+  async listNoticeVersions(@Param("id") id: string): Promise<readonly NoticeVersionResponse[]> {
+    return this.configuration.listNoticeVersions(id)
+  }
+
+  @Post("tour-sessions/:id/notices/:noticeId/activate")
+  async activateNoticeVersion(
+    @Headers() headers: RequestHeaders,
+    @Param("id") id: string,
+    @Param("noticeId") noticeId: string,
+  ): Promise<TourSessionResponse> {
+    await this.assertWrite(headers)
+    return this.configuration.activateNoticeVersion(id, noticeId)
   }
 
   @Patch("tour-sessions/:id")

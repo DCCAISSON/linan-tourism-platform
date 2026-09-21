@@ -1,10 +1,11 @@
-import { BadRequestException } from "@nestjs/common"
+﻿import { BadRequestException } from "@nestjs/common"
 import { TOUR_SESSION_STATUS, type TourSessionStatus } from "@linan/contracts"
 import type {
   NewCatalogItem,
   NewClass,
   NewGrade,
   NewSchool,
+  NewNoticeVersion,
   NewTourSession,
   UpdateCatalogItem,
   UpdateClass,
@@ -265,5 +266,63 @@ export function parseTourSessionPatch(body: unknown): UpdateTourSession {
     endsAt: readOptionalDate(record, "endsAt"),
     enrollmentOpensAt: readOptionalDate(record, "enrollmentOpensAt"),
     enrollmentClosesAt: readOptionalDate(record, "enrollmentClosesAt"),
+  }
+}
+
+
+export function parseNoticeVersion(body: unknown): NewNoticeVersion {
+  const record = parseBody(body)
+  const title = readString(record, "title")
+  const version = readString(record, "version")
+  const content = readNoticeContent(record["contentJson"])
+  ensureDemoNotice(title, content)
+  return { version, title, contentJson: content }
+}
+
+function readNoticeContent(value: unknown): NewNoticeVersion["contentJson"] {
+  if (!isRecord(value)) {
+    throw malformedInput("contentJson must be an object")
+  }
+  const content = {
+    destination: readString(value, "destination"),
+    departurePlace: readString(value, "departurePlace"),
+    mealNote: readString(value, "mealNote"),
+    itinerary: readStringList(value, "itinerary"),
+    unitPrices: readStringList(value, "unitPrices"),
+    packageExamples: readStringList(value, "packageExamples"),
+    reminders: readStringList(value, "reminders"),
+  }
+  if (content.itinerary.length !== 7) {
+    throw malformedInput("itinerary must contain exactly seven items")
+  }
+  return content
+}
+
+function readStringList(record: UnknownRecord, field: string): readonly string[] {
+  const value = record[field]
+  if (!Array.isArray(value) || value.length === 0) {
+    throw malformedInput(`${field} must be a non-empty string array`)
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || item.trim().length === 0 || item.length > 400) {
+      throw malformedInput(`${field} must be a non-empty string array`)
+    }
+    return item.trim()
+  })
+}
+
+function ensureDemoNotice(title: string, content: NewNoticeVersion["contentJson"]): void {
+  const text = [
+    title,
+    content.destination,
+    content.departurePlace,
+    content.mealNote,
+    ...content.itinerary,
+    ...content.unitPrices,
+    ...content.packageExamples,
+    ...content.reminders,
+  ].join("\n")
+  if (!text.includes("[演示]大明山地质研学")) {
+    throw malformedInput("notice content must use the [演示]大明山地质研学 demo data")
   }
 }

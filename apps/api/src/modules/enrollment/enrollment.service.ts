@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common"
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { DOMAIN_POLICY_VERSION, ENROLLMENT_STATUS } from "@linan/contracts"
 import { In } from "typeorm"
 import type { EntityManager } from "typeorm"
@@ -8,6 +8,7 @@ import {
   EnrollmentParticipantEntity,
   FamilyEntity,
   FamilyMemberEntity,
+  NoticeVersionEntity,
   SchoolClassEntity,
   SchoolGradeEntity,
   TourSessionEntity,
@@ -135,6 +136,7 @@ export class EnrollmentService {
         if (session === null) {
           throw new NotFoundException({ code: "not_found", message: "tour session was not found" })
         }
+        const notice = await this.requireActiveNotice(manager, session, input)
         const family = await findFamilyByCode(manager, identity.familyCode, session.organizationId)
         if (family === null) {
           throw memberNotFound()
@@ -166,6 +168,8 @@ export class EnrollmentService {
           granted: true,
           agreementVersion: input.agreementVersion,
           schemaVersion: input.schemaVersion,
+          noticeVersionId: notice.id,
+          noticeVersion: notice.version,
           acceptedAt: new Date(),
           policyVersion: DOMAIN_POLICY_VERSION,
         })
@@ -187,11 +191,31 @@ export class EnrollmentService {
           policyVersion: enrollment.policyVersion,
           agreementVersion: input.agreementVersion,
           schemaVersion: input.schemaVersion,
+          noticeVersionId: notice.id,
+          noticeVersion: notice.version,
         }
       })
     } catch (error) {
       throwWriteConflict(error)
     }
+  }
+
+  private async requireActiveNotice(
+    manager: EntityManager,
+    session: TourSessionEntity,
+    input: NewEnrollmentSubmission,
+  ): Promise<NoticeVersionEntity> {
+    if (session.activeNoticeId === null) {
+      throw new BadRequestException({ code: "stale_state", message: "tour session has no active parent notice" })
+    }
+    const notice = await manager.findOneBy(NoticeVersionEntity, { id: session.activeNoticeId })
+    if (notice === null || notice.tourSessionId !== session.id || notice.organizationId !== session.organizationId) {
+      throw new BadRequestException({ code: "stale_state", message: "active parent notice was not found" })
+    }
+    if (input.noticeVersionId !== notice.id || input.noticeVersion !== notice.version) {
+      throw new BadRequestException({ code: "stale_state", message: "parent notice version is no longer active" })
+    }
+    return notice
   }
 
   private async createParticipants(

@@ -62,6 +62,9 @@ export class TourSessionEntity {
   @Column({ name: "enrollment_closes_at", type: "datetime", precision: 6, nullable: true })
   enrollmentClosesAt: Date | null = null
 
+  @Column({ name: "active_notice_id", type: "varchar", length: 64, nullable: true })
+  activeNoticeId: string | null = null
+
   @Column({ name: "policy_version", type: "varchar", length: 64 })
   policyVersion = DOMAIN_POLICY_VERSION
 

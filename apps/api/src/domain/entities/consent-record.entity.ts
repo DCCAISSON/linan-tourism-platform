@@ -52,6 +52,12 @@ export class ConsentRecordEntity {
   @Column({ name: "schema_version", type: "varchar", length: 64 })
   schemaVersion = ""
 
+  @Column({ name: "notice_version_id", type: "varchar", length: 64, nullable: true })
+  noticeVersionId: string | null = null
+
+  @Column({ name: "notice_version", type: "varchar", length: 64, nullable: true })
+  noticeVersion: string | null = null
+
   @Column({ name: "accepted_at", type: "datetime", precision: 6 })
   acceptedAt = new Date(0)
 

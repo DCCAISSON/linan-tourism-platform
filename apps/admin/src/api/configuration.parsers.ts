@@ -1,5 +1,5 @@
 import { ApiError } from "./configuration.errors"
-import type { CatalogItem, Grade, School, SchoolClass, TourSession } from "./configuration.types"
+import type { CatalogItem, Grade, NoticeContent, NoticeVersion, School, SchoolClass, TourSession } from "./configuration.types"
 
 export function parseSchool(value: unknown): School {
   const record = readRecord(value, "学校")
@@ -66,8 +66,51 @@ export function parseTourSession(value: unknown): TourSession {
     status: readString(record, "status", "draft"),
     priceFen: readNumber(record, "priceFen"),
     capacity: readNumber(record, "capacity"),
+    activeNoticeId: readNullableString(record, "activeNoticeId"),
+    activeNotice: parseNullableNoticeVersion(record["activeNotice"]),
     policyVersion: readString(record, "policyVersion"),
   }
+}
+
+export function parseNoticeVersion(value: unknown): NoticeVersion {
+  const record = readRecord(value, "告知书")
+  return {
+    id: readString(record, "id"),
+    organizationId: readString(record, "organizationId"),
+    tourSessionId: readString(record, "tourSessionId"),
+    version: readString(record, "version"),
+    title: readString(record, "title"),
+    contentJson: parseNoticeContent(record["contentJson"]),
+    createdAt: readString(record, "createdAt"),
+  }
+}
+
+function parseNullableNoticeVersion(value: unknown): NoticeVersion | null {
+  if (value === null || value === undefined) return null
+  return parseNoticeVersion(value)
+}
+
+function parseNoticeContent(value: unknown): NoticeContent {
+  const record = readRecord(value, "告知书内容")
+  return {
+    destination: readString(record, "destination"),
+    departurePlace: readString(record, "departurePlace"),
+    mealNote: readString(record, "mealNote"),
+    itinerary: readStringArray(record, "itinerary"),
+    unitPrices: readStringArray(record, "unitPrices"),
+    packageExamples: readStringArray(record, "packageExamples"),
+    reminders: readStringArray(record, "reminders"),
+  }
+}
+
+function readStringArray(record: Record<string, unknown>, key: string): readonly string[] {
+  const value = record[key]
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+}
+
+function readNullableString(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key]
+  return typeof value === "string" ? value : null
 }
 
 function readRecord(value: unknown, itemName: string): Record<string, unknown> {

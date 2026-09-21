@@ -31,6 +31,26 @@ export type CatalogItemResponse = {
   readonly policyVersion: string
 }
 
+export type NoticeContent = {
+  readonly destination: string
+  readonly departurePlace: string
+  readonly mealNote: string
+  readonly itinerary: readonly string[]
+  readonly unitPrices: readonly string[]
+  readonly packageExamples: readonly string[]
+  readonly reminders: readonly string[]
+}
+
+export type NoticeVersionResponse = {
+  readonly id: string
+  readonly organizationId: string
+  readonly tourSessionId: string
+  readonly version: string
+  readonly title: string
+  readonly contentJson: NoticeContent
+  readonly createdAt: Date
+}
+
 export type TourSessionResponse = {
   readonly id: string
   readonly organizationId: string
@@ -43,7 +63,15 @@ export type TourSessionResponse = {
   readonly endsAt: Date
   readonly enrollmentOpensAt: Date
   readonly enrollmentClosesAt: Date
+  readonly activeNoticeId: string | null
+  readonly activeNotice: NoticeVersionResponse | null
   readonly policyVersion: string
+}
+
+export type NewNoticeVersion = {
+  readonly version: string
+  readonly title: string
+  readonly contentJson: NoticeContent
 }
 
 export type EnrollmentAvailabilityResponse = {

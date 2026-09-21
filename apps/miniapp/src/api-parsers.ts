@@ -9,6 +9,8 @@ import type {
   Order,
   School,
   SchoolClass,
+  NoticeContent,
+  NoticeVersion,
   TourSession,
 } from "./api-types"
 
@@ -65,8 +67,52 @@ export function parseTourSession(value: unknown): TourSession {
     endsAt: readIsoString(record, "endsAt"),
     enrollmentOpensAt: readIsoString(record, "enrollmentOpensAt"),
     enrollmentClosesAt: readIsoString(record, "enrollmentClosesAt"),
+    activeNoticeId: readOptionalNullableString(record, "activeNoticeId") ?? null,
+    activeNotice: parseNullableNoticeVersion(record["activeNotice"]),
     policyVersion: readString(record, "policyVersion"),
   }
+}
+
+function parseNullableNoticeVersion(value: unknown): NoticeVersion | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+  const record = readRecord(value)
+  return {
+    id: readString(record, "id"),
+    organizationId: readString(record, "organizationId"),
+    tourSessionId: readString(record, "tourSessionId"),
+    version: readString(record, "version"),
+    title: readString(record, "title"),
+    contentJson: parseNoticeContent(record["contentJson"]),
+    createdAt: readIsoString(record, "createdAt"),
+  }
+}
+
+function parseNoticeContent(value: unknown): NoticeContent {
+  const record = readRecord(value)
+  return {
+    destination: readString(record, "destination"),
+    departurePlace: readString(record, "departurePlace"),
+    mealNote: readString(record, "mealNote"),
+    itinerary: readStringList(record, "itinerary"),
+    unitPrices: readStringList(record, "unitPrices"),
+    packageExamples: readStringList(record, "packageExamples"),
+    reminders: readStringList(record, "reminders"),
+  }
+}
+
+function readStringList(record: UnknownRecord, field: string): readonly string[] {
+  const value = record[field]
+  if (!Array.isArray(value)) {
+    throw new ApiError(0, `${field} 响应格式不正确`)
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || item.length === 0) {
+      throw new ApiError(0, `${field} 响应格式不正确`)
+    }
+    return item
+  })
 }
 
 export function parseEnrollmentAvailability(value: unknown): EnrollmentAvailability {
@@ -164,7 +210,7 @@ export function readString(record: UnknownRecord, field: string): string {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
 function readOptionalNullableString(record: UnknownRecord, field: string): string | null | undefined {
@@ -179,7 +225,7 @@ function readOptionalNullableString(record: UnknownRecord, field: string): strin
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
 function readOptionalParticipantKind(record: UnknownRecord): "student" | "adult" | undefined {
@@ -200,7 +246,7 @@ export function readIsoString(record: UnknownRecord, field: string): string {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
 function readNumber(record: UnknownRecord, field: string): number {
@@ -209,7 +255,7 @@ function readNumber(record: UnknownRecord, field: string): number {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
 export function readNonNegativeInteger(record: UnknownRecord, field: string): number {
@@ -218,7 +264,7 @@ export function readNonNegativeInteger(record: UnknownRecord, field: string): nu
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
 function readPositiveInteger(record: UnknownRecord, field: string): number {
@@ -227,7 +273,7 @@ function readPositiveInteger(record: UnknownRecord, field: string): number {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, `${field} 响应格式不正确`)
 }
 
 function readTourSessionStatus(record: UnknownRecord): TourSessionStatus {

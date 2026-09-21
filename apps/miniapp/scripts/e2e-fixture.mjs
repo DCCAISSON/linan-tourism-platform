@@ -3,6 +3,23 @@ import http from "node:http"
 const school = { id: "school-e2e", code: "school-e2e", name: "临安研学演示学校" }
 const grade = { id: "grade-e2e", organizationId: school.id, code: "grade-e2e", name: "五年级" }
 const schoolClass = { id: "class-e2e", gradeId: grade.id, code: "class-e2e", name: "二班" }
+const activeNotice = {
+  id: "notice-e2e-v1",
+  organizationId: school.id,
+  tourSessionId: "session-open-e2e",
+  version: "v1",
+  title: "[演示]大明山地质研学告知书 v1",
+  createdAt: "2026-09-22T00:00:00.000Z",
+  contentJson: {
+    destination: "[演示]大明山地质研学",
+    departurePlace: "[演示]临安旅游集散中心门口",
+    mealNote: "[演示]含午餐，特殊餐食由家长提前备注",
+    itinerary: ["[演示]1. 集合签到与安全提醒", "[演示]2. 乘车前往大明山", "[演示]3. 地质地貌观察", "[演示]4. 午餐与休整", "[演示]5. 研学任务记录", "[演示]6. 分享总结", "[演示]7. 返程交接"],
+    unitPrices: ["[演示]学生195元/人", "[演示]成人195元/人"],
+    packageExamples: ["[演示]1名学生195元", "[演示]1名成人195元", "[演示]1名学生+1名成人390元"],
+    reminders: ["[演示]请携带身份证件", "[演示]本内容仅用于开发演示，非实时活动安排"],
+  },
+}
 const sessionBase = {
   organizationId: school.id,
   catalogItemId: "catalog-e2e",
@@ -15,8 +32,8 @@ const sessionBase = {
   policyVersion: "provisional-domain-policy-v1",
 }
 const sessions = [
-  { ...sessionBase, id: "session-open-e2e", code: "2026-11-open", status: "published" },
-  { ...sessionBase, id: "session-closed-e2e", code: "2026-11-closed", status: "closed" },
+  { ...sessionBase, id: "session-open-e2e", code: "2026-11-open", status: "published", activeNoticeId: activeNotice.id, activeNotice },
+  { ...sessionBase, id: "session-closed-e2e", code: "2026-11-closed", status: "closed", activeNoticeId: null, activeNotice: null },
 ]
 
 export function createFixtureServer(baseUrl) {
@@ -55,6 +72,7 @@ export function createFixtureServer(baseUrl) {
       return json(response, 201, member)
     }
     if (request.method === "POST" && url.pathname === "/enrollments") {
+      fixture.enrollmentBody = body
       return json(response, 201, { id: "enrollment-e2e", status: "confirmed" })
     }
     if (request.method === "POST" && url.pathname === "/orders") { fixture.orderCreated = true; return json(response, 201, orderResponse(fixture)) }

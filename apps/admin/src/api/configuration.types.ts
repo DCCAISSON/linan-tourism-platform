@@ -32,6 +32,26 @@ export type CatalogItem = {
   readonly coverImageUrl: string
 }
 
+export type NoticeContent = {
+  readonly destination: string
+  readonly departurePlace: string
+  readonly mealNote: string
+  readonly itinerary: readonly string[]
+  readonly unitPrices: readonly string[]
+  readonly packageExamples: readonly string[]
+  readonly reminders: readonly string[]
+}
+
+export type NoticeVersion = {
+  readonly id: string
+  readonly organizationId: string
+  readonly tourSessionId: string
+  readonly version: string
+  readonly title: string
+  readonly contentJson: NoticeContent
+  readonly createdAt: string
+}
+
 export type TourSession = {
   readonly id: string
   readonly organizationId: string
@@ -44,6 +64,8 @@ export type TourSession = {
   readonly status: string
   readonly priceFen: number
   readonly capacity: number
+  readonly activeNoticeId: string | null
+  readonly activeNotice: NoticeVersion | null
   readonly policyVersion: string
 }
 
@@ -90,3 +112,9 @@ export type TourSessionPayload = {
 }
 
 export type TourSessionUpdatePayload = Partial<TourSessionPayload>
+
+export type NoticeVersionPayload = {
+  readonly version: string
+  readonly title: string
+  readonly contentJson: NoticeContent
+}

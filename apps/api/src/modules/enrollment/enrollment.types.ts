@@ -50,6 +50,8 @@ export type NewEnrollmentSubmission = {
   readonly emergencyContactPhone: string
   readonly agreementVersion: typeof FAMILY_ENROLLMENT_AGREEMENT_VERSION
   readonly schemaVersion: string
+  readonly noticeVersionId: string
+  readonly noticeVersion: string
 }
 
 export type EnrollmentSubmissionResponse = {
@@ -63,4 +65,6 @@ export type EnrollmentSubmissionResponse = {
   readonly policyVersion: string
   readonly agreementVersion: string
   readonly schemaVersion: string
+  readonly noticeVersionId: string
+  readonly noticeVersion: string
 }
