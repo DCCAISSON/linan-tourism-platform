@@ -14,6 +14,7 @@
         <router-link class="admin-nav__item" to="/configuration">活动配置</router-link>
         <router-link class="admin-nav__item" to="/roster">名单统计</router-link>
         <router-link class="admin-nav__item" to="/orders">订单管理</router-link>
+        <router-link class="admin-nav__item" to="/staff-accounts">账号权限</router-link>
       </nav>
     </aside>
 
@@ -23,7 +24,7 @@
           <p class="admin-header__eyebrow">PC 管理后台</p>
           <h1>研学出行服务台</h1>
         </div>
-        <router-link class="admin-header__link" to="/login">本地演示入口</router-link>
+        <button class="admin-header__link" type="button" @click="logout">退出登录</button>
       </header>
 
       <main class="admin-content">
@@ -32,3 +33,17 @@
     </section>
   </div>
 </template>
+
+<script setup lang="ts">
+import { useRouter } from "vue-router"
+
+import { logoutStaff } from "@/api/auth"
+import { routeNames } from "@/router/routes"
+
+const router = useRouter()
+
+async function logout(): Promise<void> {
+  await logoutStaff()
+  await router.push({ name: routeNames.login })
+}
+</script>

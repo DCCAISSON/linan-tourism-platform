@@ -21,11 +21,10 @@ export type WorkbenchSummary = {
   readonly upcomingSessions: readonly WorkbenchSession[]
 }
 const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
-const devStaffId = import.meta.env["VITE_DEV_STAFF_ID"] ?? "dev-admin"
 
 export async function getWorkbenchSummary(): Promise<WorkbenchSummary> {
   const response = await fetch(`${apiBaseUrl}/roster/workbench`, {
-    headers: { "x-linan-dev-staff-id": devStaffId, "x-linan-dev-staff-role": "administrator" },
+    credentials: "include",
   })
   const value: unknown = await response.json()
   if (!response.ok) {

@@ -33,7 +33,7 @@ export class ConfigurationController {
 
   @Post("schools")
   async createSchool(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<SchoolResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.createSchool(parseSchool(body))
   }
 
@@ -44,13 +44,13 @@ export class ConfigurationController {
 
   @Patch("schools/:id")
   async updateSchool(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<SchoolResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.updateSchool(id, parseSchoolPatch(body))
   }
 
   @Delete("schools/:id")
   async deleteSchool(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     await this.configuration.deleteSchool(id)
   }
 
@@ -60,7 +60,7 @@ export class ConfigurationController {
     @Param("schoolId") schoolId: string,
     @Body() body: unknown,
   ): Promise<GradeResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.createGrade(parseGrade(body, schoolId))
   }
 
@@ -71,13 +71,13 @@ export class ConfigurationController {
 
   @Patch("grades/:id")
   async updateGrade(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<GradeResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.updateGrade(id, parseGradePatch(body))
   }
 
   @Delete("grades/:id")
   async deleteGrade(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     await this.configuration.deleteGrade(id)
   }
 
@@ -87,7 +87,7 @@ export class ConfigurationController {
     @Param("gradeId") gradeId: string,
     @Body() body: unknown,
   ): Promise<ClassResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.createClass(parseClass(body, gradeId))
   }
 
@@ -98,19 +98,19 @@ export class ConfigurationController {
 
   @Patch("classes/:id")
   async updateClass(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<ClassResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.updateClass(id, parseClassPatch(body))
   }
 
   @Delete("classes/:id")
   async deleteClass(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     await this.configuration.deleteClass(id)
   }
 
   @Post("catalog-items")
   async createCatalogItem(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<CatalogItemResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.createCatalogItem(parseCatalogItem(body))
   }
 
@@ -125,19 +125,19 @@ export class ConfigurationController {
     @Param("id") id: string,
     @Body() body: unknown,
   ): Promise<CatalogItemResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.updateCatalogItem(id, parseCatalogItemPatch(body))
   }
 
   @Delete("catalog-items/:id")
   async deleteCatalogItem(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     await this.configuration.deleteCatalogItem(id)
   }
 
   @Post("tour-sessions")
   async createTourSession(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<TourSessionResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.createTourSession(parseTourSession(body))
   }
 
@@ -152,13 +152,13 @@ export class ConfigurationController {
     @Param("id") id: string,
     @Body() body: unknown,
   ): Promise<TourSessionResponse> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     return this.configuration.updateTourSession(id, parseTourSessionPatch(body))
   }
 
   @Delete("tour-sessions/:id")
   async deleteTourSession(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<void> {
-    this.assertWrite(headers)
+    await this.assertWrite(headers)
     await this.configuration.deleteTourSession(id)
   }
 
@@ -174,8 +174,9 @@ export class ConfigurationController {
     return this.configuration.checkEnrollmentAvailability(id, parseAvailabilityTime(at))
   }
 
-  private assertWrite(headers: RequestHeaders): void {
-    this.staffAccess.assertConfigurationWrite(this.staffAccess.resolve(headers))
+  private async assertWrite(headers: RequestHeaders): Promise<void> {
+    this.staffAccess.assertUnsafeOrigin(headers)
+    this.staffAccess.assertConfigurationWrite(await this.staffAccess.resolve(headers))
   }
 }
 

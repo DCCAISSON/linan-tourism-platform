@@ -8,7 +8,7 @@ describe("roster API", () => {
     vi.unstubAllGlobals()
   })
 
-  it("requests summary with development staff headers and parses the response", async () => {
+  it("requests summary with staff session cookies and parses the response", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () =>
         new Response(
@@ -30,10 +30,8 @@ describe("roster API", () => {
     if (call === undefined) {
       throw new Error("fetch was not called")
     }
-    const headers = new Headers(call[1]?.headers)
     expect(call[0]).toBe("http://127.0.0.1:3000/roster/summary?tourSessionId=session-1&schoolId=school-1")
-    expect(headers.get("x-linan-dev-staff-id")).toBe("dev-admin")
-    expect(headers.get("x-linan-dev-staff-role")).toBe("administrator")
+    expect(call[1]?.credentials).toBe("include")
     expect(summary.paidHeadcount).toBe(1)
   })
 
@@ -50,7 +48,7 @@ describe("roster API", () => {
     await expect(getRosterSummary({ tourSessionId: "session-1" })).rejects.toThrow("名单服务暂不可用")
   })
 
-  it("downloads the export file with the same query and headers", async () => {
+  it("downloads the export file with the same query and staff session cookies", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () =>
         new Response("xlsx", {
@@ -90,9 +88,8 @@ describe("roster API", () => {
     if (call === undefined) {
       throw new Error("fetch was not called")
     }
-    const headers = new Headers(call[1]?.headers)
     expect(call[0]).toBe("http://127.0.0.1:3000/roster/export.xlsx?tourSessionId=session-1&classId=class-1")
-    expect(headers.get("x-linan-dev-staff-role")).toBe("administrator")
+    expect(call[1]?.credentials).toBe("include")
     expect(createObjectURL).toHaveBeenCalledOnce()
     expect(downloadedFileName).toBe("名单统计-session-1.xlsx")
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:roster")

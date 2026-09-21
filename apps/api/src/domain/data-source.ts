@@ -6,6 +6,7 @@ import { AddSchoolCatalogSchema1765900800000 } from "../migrations/1765900800000
 import { AddFamilyEnrollmentSchema1765904400000 } from "../migrations/1765904400000-AddFamilyEnrollmentSchema.js"
 import { AddOrderPaymentSchema1765908000000 } from "../migrations/1765908000000-AddOrderPaymentSchema.js"
 import { AddCatalogContent1765911600000 } from "../migrations/1765911600000-AddCatalogContent.js"
+import { AddStaffIam1765915200000 } from "../migrations/1765915200000-AddStaffIam.js"
 
 export const DOMAIN_DATA_SOURCE_OPTIONS = {
   type: "mysql",
@@ -21,6 +22,7 @@ export const DOMAIN_DATA_SOURCE_OPTIONS = {
     AddFamilyEnrollmentSchema1765904400000,
     AddOrderPaymentSchema1765908000000,
     AddCatalogContent1765911600000,
+    AddStaffIam1765915200000,
   ],
 } satisfies DataSourceOptions
 

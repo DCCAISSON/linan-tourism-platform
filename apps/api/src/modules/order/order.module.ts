@@ -7,12 +7,11 @@ import { LocalRefundController } from "./local-refund.controller.js"
 import { LocalRefundService } from "./local-refund.service.js"
 import { MockPaymentController, OrderController } from "./order.controller.js"
 import { OrderService } from "./order.service.js"
-import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import { StaffOrderController } from "./staff-order.controller.js"
 import { StaffOrderService } from "./staff-order.service.js"
 
 @Module({
   controllers: [OrderController, MockPaymentController, LocalRefundController, StaffOrderController],
-  providers: [ConfigurationDatabaseService, EnrollmentIdentityService, DevStaffAccessService, OrderService, MockPaymentService, FamilyOrderService, LocalRefundService, StaffOrderService],
+  providers: [ConfigurationDatabaseService, EnrollmentIdentityService, OrderService, MockPaymentService, FamilyOrderService, LocalRefundService, StaffOrderService],
 })
 export class OrderModule {}

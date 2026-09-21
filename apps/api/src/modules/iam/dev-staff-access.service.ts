@@ -1,17 +1,23 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common"
+import { ForbiddenException, Inject, Injectable, UnauthorizedException } from "@nestjs/common"
+import {
+  StaffAccountEntity,
+  StaffAccountPermissionEntity,
+  StaffAccountScopeEntity,
+  StaffSessionEntity,
+} from "../../domain/entities/index.js"
+import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
+import { hasDevStaffHeader, resolveDevelopmentStaff } from "./dev-staff-access.development.js"
+import type { StaffPermissionKey, StaffScope } from "./staff-permissions.js"
+import { hashToken, STAFF_SESSION_COOKIE } from "./staff-session-token.js"
 
-type RequestHeaders = Record<string, string | readonly string[] | undefined>
+export type StaffAccessRequestHeaders = Record<string, string | readonly string[] | undefined>
 
-const STAFF_ROLE_HEADER = "x-linan-dev-staff-role"
-const STAFF_ID_HEADER = "x-linan-dev-staff-id"
-const STAFF_SCHOOL_HEADER = "x-linan-dev-staff-school-id"
-const GUIDE_TOUR_SESSION_HEADER = "x-linan-dev-guide-tour-session-id"
-
-export type StaffAccess =
-  | { readonly kind: "administrator"; readonly actorId: string }
-  | { readonly kind: "school"; readonly actorId: string; readonly schoolId: string }
-  | { readonly kind: "guide"; readonly actorId: string; readonly tourSessionId: string }
-  | { readonly kind: "finance"; readonly actorId: string }
+export type StaffAccess = {
+  readonly kind: "administrator" | "school" | "guide" | "finance"
+  readonly actorId: string
+  readonly permissionKeys: ReadonlySet<StaffPermissionKey>
+  readonly scopes: readonly StaffScope[]
+}
 
 export type StaffRosterScope = {
   readonly schoolId: string
@@ -21,100 +27,180 @@ export type StaffRosterScope = {
 
 @Injectable()
 export class DevStaffAccessService {
-  resolve(headers: RequestHeaders): StaffAccess {
-    if (process.env["NODE_ENV"] === "production") {
-      throw new UnauthorizedException({
-        code: "staff_identity_unavailable",
-        message: "staff identity provider is not configured yet",
-      })
+  constructor(@Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService) {}
+
+  async resolve(headers: StaffAccessRequestHeaders): Promise<StaffAccess> {
+    const token = readCookie(headers, STAFF_SESSION_COOKIE)
+    if (token !== undefined) {
+      return await this.resolveSession(token)
     }
 
-    const role = readHeader(headers, STAFF_ROLE_HEADER)
-    const actorId = requireHeader(headers, STAFF_ID_HEADER)
-    if (role === "administrator") {
-      return { kind: "administrator", actorId }
+    if (hasDevStaffHeader(headers)) {
+      if (process.env["NODE_ENV"] === "production") {
+        throw identityRequired("staff session cookie is required")
+      }
+      return resolveDevelopmentStaff(headers)
     }
-    if (role === "school") {
-      return { kind: "school", actorId, schoolId: requireHeader(headers, STAFF_SCHOOL_HEADER) }
-    }
-    if (role === "guide") {
-      return { kind: "guide", actorId, tourSessionId: requireHeader(headers, GUIDE_TOUR_SESSION_HEADER) }
-    }
-    if (role === "finance") {
-      return { kind: "finance", actorId }
-    }
-    throw identityRequired()
+
+    throw identityRequired("staff identity is required")
   }
 
   assertConfigurationWrite(access: StaffAccess): void {
-    if (access.kind !== "administrator") {
-      throw scopeForbidden("staff identity cannot change configuration")
-    }
+    requirePermission(access, "configuration.write", "staff identity cannot change configuration")
   }
 
   assertRosterSummaryScope(access: StaffAccess, scope: StaffRosterScope): void {
-    if (access.kind === "administrator") {
-      return
-    }
-    if (access.kind === "school" && schoolMatches(access.schoolId, scope)) {
-      return
-    }
-    if (access.kind === "guide" && access.tourSessionId === scope.tourSessionId && requestedSchoolMatches(scope)) {
+    requirePermission(access, "roster.read", "staff identity cannot access this roster")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "summary"))) {
       return
     }
     throw scopeForbidden("staff identity cannot access this roster")
   }
 
   assertRosterExportScope(access: StaffAccess, scope: StaffRosterScope): void {
-    if (access.kind === "administrator" || access.kind === "school" && schoolMatches(access.schoolId, scope)) {
+    requirePermission(access, "roster.export", "staff identity cannot export this roster")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "export"))) {
       return
     }
     throw scopeForbidden("staff identity cannot export this roster")
   }
 
   assertPaymentSummaryScope(access: StaffAccess): void {
-    if (access.kind === "administrator" || access.kind === "finance") {
+    if (access.permissionKeys.has("orders.read") || access.permissionKeys.has("workbench.read")) {
       return
     }
     throw scopeForbidden("staff identity cannot access payment totals")
   }
 
-  assertOrderManagementScope(access: StaffAccess): void {
-    if (access.kind === "administrator") {
+  assertWorkbenchScope(access: StaffAccess): void {
+    requirePermission(access, "workbench.read", "staff identity cannot access operator workbench")
+  }
+
+  assertOrderReadScope(access: StaffAccess): void {
+    requirePermission(access, "orders.read", "staff identity cannot access orders")
+  }
+
+  assertRefundPreviewScope(access: StaffAccess): void {
+    requirePermission(access, "refunds.preview", "staff identity cannot preview refunds")
+  }
+
+  assertRefundSimulationScope(access: StaffAccess): void {
+    requirePermission(access, "refunds.simulate", "staff identity cannot simulate refunds")
+  }
+
+  assertStaffAccountManagement(access: StaffAccess): void {
+    requirePermission(access, "staff_accounts.manage", "staff identity cannot manage staff accounts")
+  }
+
+  assertUnsafeOrigin(headers: StaffAccessRequestHeaders): void {
+    const configuredOrigin = process.env["ADMIN_WEB_ORIGIN"]
+    const origin = readHeader(headers, "origin")
+    if (configuredOrigin === undefined || configuredOrigin.length === 0) {
+      if (process.env["NODE_ENV"] === "production") {
+        throw new ForbiddenException({ code: "staff_origin_unconfigured", message: "admin web origin is not configured" })
+      }
       return
     }
-    throw scopeForbidden("staff identity cannot access orders")
+    if (origin !== undefined && origin !== configuredOrigin) {
+      throw new ForbiddenException({ code: "staff_origin_forbidden", message: "admin origin is not allowed" })
+    }
+  }
+
+  private async resolveSession(token: string): Promise<StaffAccess> {
+    const dataSource = await this.database.getDataSource()
+    const session = await dataSource.getRepository(StaffSessionEntity).findOneBy({ tokenHash: hashToken(token) })
+    const now = new Date()
+    if (session === null || session.revokedAt !== null || session.expiresAt.getTime() <= now.getTime()) {
+      throw identityRequired("staff session is expired")
+    }
+
+    const account = await dataSource.getRepository(StaffAccountEntity).findOneBy({ id: session.staffAccountId })
+    if (
+      account === null ||
+      account.status !== "active" ||
+      account.permissionsVersion !== session.permissionsVersion ||
+      account.forcePasswordChange ||
+      (account.expiresAt !== null && account.expiresAt.getTime() <= now.getTime())
+    ) {
+      throw identityRequired("staff account is not available")
+    }
+
+    const [permissionRows, scopeRows] = await Promise.all([
+      dataSource.getRepository(StaffAccountPermissionEntity).findBy({ staffAccountId: account.id }),
+      dataSource.getRepository(StaffAccountScopeEntity).findBy({ staffAccountId: account.id }),
+    ])
+    const permissionKeys = new Set(permissionRows.map((row) => row.permissionKey as StaffPermissionKey))
+    const scopes = scopeRows.map((row) => ({ kind: row.scopeKind as StaffScope["kind"], id: row.scopeId }))
+    return {
+      actorId: account.id,
+      kind: deriveKind(permissionKeys, scopes),
+      permissionKeys,
+      scopes,
+    }
   }
 }
 
-function readHeader(headers: RequestHeaders, name: string): string | undefined {
-  const value = headers[name]
-  return typeof value === "string" ? value : undefined
-}
-
-function requireHeader(headers: RequestHeaders, name: string): string {
-  const value = readHeader(headers, name)?.trim()
-  if (value === undefined || value.length === 0 || value.length > 64) {
-    throw identityRequired()
+function deriveKind(permissionKeys: ReadonlySet<StaffPermissionKey>, scopes: readonly StaffScope[]): StaffAccess["kind"] {
+  if (scopes.some((scope) => scope.kind === "all")) {
+    return "administrator"
   }
-  return value
+  if (scopes.some((scope) => scope.kind === "tour_session")) {
+    return "guide"
+  }
+  if (scopes.some((scope) => scope.kind === "school" || scope.kind === "organization")) {
+    return "school"
+  }
+  return permissionKeys.has("orders.read") ? "finance" : "school"
 }
 
-function schoolMatches(schoolId: string, scope: StaffRosterScope): boolean {
-  return scope.schoolId === schoolId && (scope.requestedSchoolId === null || scope.requestedSchoolId === schoolId)
+function requirePermission(access: StaffAccess, permissionKey: StaffPermissionKey, message: string): void {
+  if (!access.permissionKeys.has(permissionKey)) {
+    throw scopeForbidden(message)
+  }
+}
+
+function scopeMatches(scope: StaffScope, rosterScope: StaffRosterScope, mode: "summary" | "export"): boolean {
+  if (scope.kind === "all") {
+    return true
+  }
+  if ((scope.kind === "school" || scope.kind === "organization") && scope.id === rosterScope.schoolId) {
+    return rosterScope.requestedSchoolId === null || rosterScope.requestedSchoolId === scope.id
+  }
+  return mode === "summary" && scope.kind === "tour_session" && scope.id === rosterScope.tourSessionId && requestedSchoolMatches(rosterScope)
 }
 
 function requestedSchoolMatches(scope: StaffRosterScope): boolean {
   return scope.requestedSchoolId === null || scope.requestedSchoolId === scope.schoolId
 }
 
+function readCookie(headers: StaffAccessRequestHeaders, name: string): string | undefined {
+  const cookie = readHeader(headers, "cookie")
+  if (cookie === undefined) {
+    return undefined
+  }
+  const parts = cookie.split(";")
+  for (const part of parts) {
+    const [rawName, ...rawValue] = part.trim().split("=")
+    if (rawName === name) {
+      const value = rawValue.join("=")
+      return value.length > 0 ? decodeURIComponent(value) : undefined
+    }
+  }
+  return undefined
+}
+
+function readHeader(headers: StaffAccessRequestHeaders, name: string): string | undefined {
+  const value = headers[name]
+  if (typeof value === "string") {
+    return value
+  }
+  return Array.isArray(value) ? value[0] : undefined
+}
+
 function scopeForbidden(message: string): ForbiddenException {
   return new ForbiddenException({ code: "staff_scope_forbidden", message })
 }
 
-function identityRequired(): UnauthorizedException {
-  return new UnauthorizedException({
-    code: "staff_identity_required",
-    message: "staff identity is required",
-  })
+function identityRequired(message: string): UnauthorizedException {
+  return new UnauthorizedException({ code: "staff_identity_required", message })
 }

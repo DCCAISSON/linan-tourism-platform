@@ -1,5 +1,5 @@
 <template>
-  <el-config-provider namespace="linan">
+  <el-config-provider>
     <router-view />
   </el-config-provider>
 </template>

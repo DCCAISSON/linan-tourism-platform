@@ -20,22 +20,22 @@ export class RosterController {
 
   @Get("workbench")
   async workbenchSummary(@Headers() headers: RequestHeaders): Promise<WorkbenchSummary> {
-    return this.workbench.summarize(this.staffAccess.resolve(headers))
+    return this.workbench.summarize(await this.staffAccess.resolve(headers))
   }
 
   @Get("summary")
   async summary(@Headers() headers: RequestHeaders, @Query() query: unknown): Promise<RosterSummary> {
-    return this.roster.summarize(this.staffAccess.resolve(headers), parseRosterFilters(query))
+    return this.roster.summarize(await this.staffAccess.resolve(headers), parseRosterFilters(query))
   }
 
   @Get("payment-summary")
   async paymentSummary(@Headers() headers: RequestHeaders, @Query() query: unknown): Promise<PaymentSummary> {
-    return this.roster.paymentSummary(this.staffAccess.resolve(headers), parseRosterFilters(query))
+    return this.roster.paymentSummary(await this.staffAccess.resolve(headers), parseRosterFilters(query))
   }
 
   @Get("export.xlsx")
   async export(@Headers() headers: RequestHeaders, @Query() query: unknown, @Res() response: Response): Promise<void> {
-    const access = this.staffAccess.resolve(headers)
+    const access = await this.staffAccess.resolve(headers)
     const rows = await this.roster.listExportRows(access, parseRosterFilters(query))
     const workbook = await createRosterWorkbook(rows)
     response

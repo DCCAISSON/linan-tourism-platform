@@ -13,6 +13,10 @@ import { PaymentEventEntity } from "./payment-event.entity.js"
 import { RosterEntryEntity } from "./roster-entry.entity.js"
 import { SchoolClassEntity } from "./school-class.entity.js"
 import { SchoolGradeEntity } from "./school-grade.entity.js"
+import { StaffAccountEntity } from "./staff-account.entity.js"
+import { StaffAccountPermissionEntity } from "./staff-account-permission.entity.js"
+import { StaffAccountScopeEntity } from "./staff-account-scope.entity.js"
+import { StaffSessionEntity } from "./staff-session.entity.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
 
 export { AuditLogEntity } from "./audit-log.entity.js"
@@ -30,6 +34,10 @@ export { PaymentEventEntity } from "./payment-event.entity.js"
 export { RosterEntryEntity } from "./roster-entry.entity.js"
 export { SchoolClassEntity } from "./school-class.entity.js"
 export { SchoolGradeEntity } from "./school-grade.entity.js"
+export { StaffAccountEntity } from "./staff-account.entity.js"
+export { StaffAccountPermissionEntity } from "./staff-account-permission.entity.js"
+export { StaffAccountScopeEntity } from "./staff-account-scope.entity.js"
+export { StaffSessionEntity } from "./staff-session.entity.js"
 export { TourSessionEntity } from "./tour-session.entity.js"
 
 export const DOMAIN_ENTITIES = [
@@ -49,4 +57,8 @@ export const DOMAIN_ENTITIES = [
   RosterEntryEntity,
   ConsentRecordEntity,
   AuditLogEntity,
+  StaffAccountEntity,
+  StaffAccountPermissionEntity,
+  StaffAccountScopeEntity,
+  StaffSessionEntity,
 ]

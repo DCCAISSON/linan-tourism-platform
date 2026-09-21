@@ -7,8 +7,6 @@ export type { RosterFilters, RosterQuery, RosterRow, RosterSummary } from "./ros
 
 const fallbackApiBaseUrl = "http://127.0.0.1:3000"
 const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
-const devStaffId = import.meta.env["VITE_DEV_STAFF_ID"] ?? "dev-admin"
-const devStaffSchoolId = import.meta.env["VITE_DEV_STAFF_SCHOOL_ID"]
 
 export async function getRosterSummary(query: RosterQuery): Promise<RosterSummary> {
   const value = await requestJson(`/roster/summary?${buildQueryString(query)}`)
@@ -18,7 +16,7 @@ export async function getRosterSummary(query: RosterQuery): Promise<RosterSummar
 export async function downloadRosterExport(query: RosterQuery): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/roster/export.xlsx?${buildQueryString(query)}`, {
     method: "GET",
-    headers: buildStaffHeaders(),
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -39,7 +37,7 @@ export async function downloadRosterExport(query: RosterQuery): Promise<void> {
 async function requestJson(path: string): Promise<unknown> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "GET",
-    headers: buildStaffHeaders(),
+    credentials: "include",
   })
   const value = await readJson(response)
 
@@ -48,18 +46,6 @@ async function requestJson(path: string): Promise<unknown> {
   }
 
   return value
-}
-
-function buildStaffHeaders(): Headers {
-  const headers = new Headers()
-  headers.set("x-linan-dev-staff-id", devStaffId)
-  headers.set("x-linan-dev-staff-role", "administrator")
-
-  if (devStaffSchoolId !== undefined && devStaffSchoolId.length > 0) {
-    headers.set("x-linan-dev-staff-school-id", devStaffSchoolId)
-  }
-
-  return headers
 }
 
 function buildQueryString(query: RosterQuery): string {

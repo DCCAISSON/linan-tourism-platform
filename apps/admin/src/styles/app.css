@@ -138,6 +138,10 @@ a:active {
   min-height: 44px;
 }
 
+.login-form__alert {
+  margin-bottom: 16px;
+}
+
 .linan-button--primary {
   --linan-button-bg-color: var(--accent-primary);
   --linan-button-border-color: var(--accent-primary);
@@ -283,6 +287,32 @@ a:active {
   line-height: 1.4;
 }
 
+.staff-page {
+  display: grid;
+  gap: 16px;
+}
+
+.staff-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+  background: var(--surface-elevated);
+  border-radius: 8px;
+}
+
+.staff-page__header h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.staff-page__table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 @media (max-width: 768px) {
   .login-panel,
   .admin-shell,
@@ -307,5 +337,10 @@ a:active {
 
   .admin-content {
     padding: 16px;
+  }
+
+  .staff-page__header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

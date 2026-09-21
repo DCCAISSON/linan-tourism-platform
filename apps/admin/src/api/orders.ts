@@ -39,8 +39,6 @@ export type RefundPreview = {
 }
 
 const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
-const devStaffId = import.meta.env["VITE_DEV_STAFF_ID"] ?? "dev-admin"
-const headers = { "x-linan-dev-staff-id": devStaffId, "x-linan-dev-staff-role": "administrator" } as const
 
 export async function listStaffOrders(keyword: string, status: string, page: number): Promise<StaffOrderList> {
   const params = new URLSearchParams({ keyword, status, page: String(page) })
@@ -74,10 +72,16 @@ export async function simulateRefund(id: string, lineIds: readonly string[], out
 }
 
 async function request(path: string, body?: object): Promise<unknown> {
+  const init: RequestInit = body === undefined
+    ? { method: "GET", credentials: "include" }
+    : {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      }
   const response = await fetch(`${apiBaseUrl}${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: body === undefined ? headers : { ...headers, "Content-Type": "application/json" },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    ...init,
   })
   let value: unknown
   try { value = await response.json() }

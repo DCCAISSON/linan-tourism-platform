@@ -1,8 +1,8 @@
 import { ORDER_STATUS, PAYMENT_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
-import { ForbiddenException, Inject, Injectable } from "@nestjs/common"
+import { Inject, Injectable } from "@nestjs/common"
 import { CatalogItemEntity, OrganizationEntity, TourSessionEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
-import type { StaffAccess } from "../iam/dev-staff-access.service.js"
+import { DevStaffAccessService, type StaffAccess } from "../iam/dev-staff-access.service.js"
 import type { WorkbenchSession, WorkbenchSummary } from "./workbench.types.js"
 
 type SessionRecord = Omit<WorkbenchSession, "startsAt" | "endsAt"> & {
@@ -13,12 +13,13 @@ type PaidTotals = { readonly paidHeadcount: number | string; readonly paidAmount
 
 @Injectable()
 export class WorkbenchService {
-  constructor(@Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService) {}
+  constructor(
+    @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
+    @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
+  ) {}
 
   async summarize(access: StaffAccess): Promise<WorkbenchSummary> {
-    if (access.kind !== "administrator") {
-      throw new ForbiddenException({ code: "staff_scope_forbidden", message: "staff identity cannot access operator workbench" })
-    }
+    this.staffAccess.assertWorkbenchScope(access)
     const from = new Date()
     const until = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000)
     const dataSource = await this.database.getDataSource()

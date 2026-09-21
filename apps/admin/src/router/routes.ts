@@ -6,6 +6,7 @@ import HomeView from "@/views/HomeView.vue"
 import LoginView from "@/views/LoginView.vue"
 import RosterView from "@/views/RosterView.vue"
 import OrdersView from "@/views/OrdersView.vue"
+import StaffAccountsView from "@/views/StaffAccountsView.vue"
 
 export const routeNames = {
   configuration: "configuration",
@@ -13,6 +14,7 @@ export const routeNames = {
   login: "login",
   roster: "roster",
   orders: "orders",
+  staffAccounts: "staff-accounts",
 } as const
 
 export const routes: RouteRecordRaw[] = [
@@ -58,6 +60,12 @@ export const routes: RouteRecordRaw[] = [
         name: routeNames.orders,
         component: OrdersView,
         meta: { title: "订单管理" },
+      },
+      {
+        path: "staff-accounts",
+        name: routeNames.staffAccounts,
+        component: StaffAccountsView,
+        meta: { title: "账号权限" },
       },
     ],
   },
