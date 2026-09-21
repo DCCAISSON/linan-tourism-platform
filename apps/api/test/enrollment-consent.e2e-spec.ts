@@ -212,14 +212,14 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
     expect(order.amountFen).toBe(39_000)
     const orderLines: readonly {
       readonly amount_fen: number
-      readonly participant_kind: string
+      readonly participant_kind_snapshot: string
     }[] = await dataSource.query(
-      "select participant_kind, amount_fen from order_lines where order_id = ? order by participant_kind",
+      "select participant_kind_snapshot, amount_fen from order_lines where order_id = ? order by participant_kind_snapshot",
       [order.id],
     )
     expect(orderLines).toEqual([
-      { participant_kind: "adult", amount_fen: 19_500 },
-      { participant_kind: "student", amount_fen: 19_500 },
+      { participant_kind_snapshot: "adult", amount_fen: 19_500 },
+      { participant_kind_snapshot: "student", amount_fen: 19_500 },
     ])
     const stored: readonly {
       readonly identity_ciphertext: string | null

@@ -136,7 +136,11 @@ async function runJourney(program) {
     emergencyPhone,
   ]
   for (const [index, value] of values.entries()) await inputs[index].input(value)
-  await program.pageScrollTo(700)
+  assertIncludes(await component.text(), "成员编号", "member code label")
+  assertIncludes(await component.text(), "证件号码", "identity label")
+  assertIncludes(await component.text(), "联系电话", "member phone label")
+  assertIncludes(await component.text(), "家长联系人", "contact label")
+  await program.pageScrollTo(900)
   await screenshot(program, "15-adult-member.png")
   await program.pageScrollTo(0)
   await (await required(component, ".consent-button")).tap()
@@ -152,6 +156,7 @@ async function runJourney(program) {
   assertIncludes(await component.text(), "成员：2 人", "two-participant review")
   assertIncludes(await component.text(), "演示学生甲（child-e2e-1）", "first participant review")
   assertIncludes(await component.text(), "演示成人乙（child-e2e-2）", "second participant review")
+  assertIncludes(await component.text(), "成人 · 无需年级班级", "adult review placement")
   assertIncludes(await component.text(), `紧急联系电话：${emergencyPhone}`, "emergency phone review")
   assertIncludes(await component.text(), "预计金额：¥256.00", "review amount")
   await program.pageScrollTo(10_000)

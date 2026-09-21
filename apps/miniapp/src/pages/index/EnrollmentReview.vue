@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { formatFen } from "../../enrollment-flow"
+import { formatFen, type FamilyMember } from "../../enrollment-flow"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
 const props = defineProps<{
@@ -23,19 +23,26 @@ const estimatedAmount = computed(() => {
   return formatFen(selectedSession.value.priceFen * selectedMembers.value.length)
 })
 const hasSavedMembers = computed(() => selectedMembers.value.some((member) => member.remoteMemberId !== undefined))
-const hasNewMembers = computed(() => selectedMembers.value.some((member) => member.remoteMemberId === undefined))
+function memberPlacement(member: FamilyMember): string {
+  if (member.participantKind === "adult") {
+    return "成人 · 无需年级班级"
+  }
+  if (member.remoteMemberId !== undefined) {
+    return "学生 · 按家庭中心保存班级"
+  }
+  return `学生 · ${selectedGrade.value?.name ?? "年级待确认"} ${selectedClass.value?.name ?? "班级待确认"}`
+}
 </script>
 
 <template>
   <view class="review-panel">
     <text class="review-panel__title">提交前核对</text>
     <text class="review-panel__item">学校：{{ selectedSchool?.name }}</text>
-    <text v-if="hasNewMembers" class="review-panel__item">新增成员班级：{{ selectedGrade?.name }} {{ selectedClass?.name }}</text>
     <text v-if="hasSavedMembers" class="review-panel__item">已有成员按家庭中心保存的年级、班级报名。</text>
     <text class="review-panel__item">团期：{{ selectedSession?.code }}</text>
     <text class="review-panel__item">成员：{{ selectedMembers.length }} 人</text>
     <text v-for="(member, index) in selectedMembers" :key="member.id" class="review-panel__item">
-      成员 {{ index + 1 }}：{{ member.displayName }}（{{ member.code }}）
+      成员 {{ index + 1 }}：{{ member.displayName }}（{{ member.code }}）｜{{ memberPlacement(member) }}
     </text>
     <text class="review-panel__item">预计金额：{{ estimatedAmount }}</text>
     <text class="review-panel__item">联系人：{{ draft.contactName }}</text>

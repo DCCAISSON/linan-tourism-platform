@@ -74,6 +74,7 @@ export async function runDiscoveryAfter(program) {
   const people = await page.$$(".participant-snapshot")
   if (people.length !== 2) throw new Error(`Expected two historical participants, received ${people.length}`)
   assertIncludes(await people[0].text(), "演示学生甲", "historical first participant")
+  assertIncludes(await people[1].text(), "成人 · 无需年级班级", "historical adult placement")
   await screenshot(program, "20-order-detail.png")
   await program.pageScrollTo(10_000)
   await screenshot(program, "21-order-participants.png")

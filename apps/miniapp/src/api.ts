@@ -50,6 +50,7 @@ export type {
   MiniappRequestResult,
   MockPayment,
   Order,
+  OrderParticipant,
   RequestTransport,
   School,
   SchoolClass,

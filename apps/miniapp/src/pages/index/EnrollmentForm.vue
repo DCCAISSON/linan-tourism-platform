@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { formatDateLabel, formatFen } from "../../enrollment-flow"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
@@ -76,9 +76,13 @@ const {
           <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': (member.participantKind ?? 'student') === 'student' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'student'">学生</button>
           <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': member.participantKind === 'adult' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'adult'">成人</button>
         </view>
+        <view class="input-label">成员编号</view>
         <input v-model="member.code" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="64" placeholder="成员编号" placeholder-class="input-placeholder" />
+        <view class="input-label">成员称呼</view>
         <input v-model="member.displayName" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="120" placeholder="成员称呼" placeholder-class="input-placeholder" />
+        <view class="input-label">证件号码</view>
         <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="证件号码" placeholder-class="input-placeholder" />
+        <view class="input-label">联系电话</view>
         <input v-model="member.phone" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="11" type="number" placeholder="联系电话" placeholder-class="input-placeholder" />
         <text v-if="member.participantKind === 'adult'" class="member-row__hint">成人参与人无需选择年级和班级</text>
       </view>
@@ -90,8 +94,11 @@ const {
 
   <view class="section">
     <text class="section__title">联系人</text>
+    <view class="input-label input-label--block">家长联系人</view>
     <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="家长联系人" placeholder-class="input-placeholder" />
+    <view class="input-label input-label--block">紧急联系人姓名</view>
     <input v-model="draft.emergencyContact.name" class="text-input text-input--block" maxlength="120" placeholder="紧急联系人姓名" placeholder-class="input-placeholder" />
+    <view class="input-label input-label--block">紧急联系人电话</view>
     <input v-model="draft.emergencyContact.phone" class="text-input text-input--block" maxlength="32" type="number" placeholder="紧急联系人电话" placeholder-class="input-placeholder" />
   </view>
 
@@ -196,6 +203,19 @@ const {
   overflow-wrap: anywhere;
 }
 
+
+.input-label {
+  display: block;
+  margin: 10px 0 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.input-label--block {
+  margin-top: 12px;
+}
+
 .text-input {
   display: block;
   padding: 0 12px;
@@ -219,10 +239,9 @@ const {
   min-width: 0;
 }
 
-.member-row__fields .text-input + .text-input {
+.member-row__fields .text-input + .input-label {
   margin-top: 8px;
 }
-
 .kind-toggle {
   display: flex;
   gap: 8px;

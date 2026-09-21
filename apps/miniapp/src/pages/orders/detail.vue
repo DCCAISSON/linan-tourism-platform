@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
-import { createMiniappApi, type OrderDetail } from "../../api"
+import { createMiniappApi, type OrderDetail, type OrderParticipant } from "../../api"
 import DiscoveryState from "../../components/DiscoveryState.vue"
 import { formatDateLabel, formatFen, type LoadState } from "../../enrollment-flow"
 import { orderStatusLabel } from "../../checkout-flow"
@@ -25,6 +25,12 @@ async function pay(): Promise<void> {
   catch (cause) { error.value = readableError(cause, "模拟支付发起失败，请重试") }
   finally { paying.value = false }
 }
+function participantPlacement(person: OrderParticipant): string {
+  if (person.participantKind === "adult") {
+    return "成人 · 无需年级班级"
+  }
+  return `${person.gradeName ?? "年级未记录"} · ${person.className ?? "班级未记录"}`
+}
 </script>
 
 <template>
@@ -41,7 +47,7 @@ async function pay(): Promise<void> {
         <text class="detail-line">应付金额：{{ formatFen(order.amountFen) }}</text><text class="detail-line">已付金额：{{ formatFen(order.paidFen) }}</text>
       </view>
       <text class="section-heading">参加人员（{{ order.participantCount }} 人）</text>
-      <view v-for="person in order.participants" :key="person.id" class="info-card participant-snapshot"><text class="card-title">{{ person.displayName }}</text><text class="body-secondary">{{ person.gradeName ?? '年级未记录' }} · {{ person.className ?? '班级未记录' }}</text><text class="detail-line">报名金额：{{ formatFen(person.amountFen) }}</text></view>
+      <view v-for="person in order.participants" :key="person.id" class="info-card participant-snapshot"><text class="card-title">{{ person.displayName }}</text><text class="body-secondary">{{ participantPlacement(person) }}</text><text class="detail-line">报名金额：{{ formatFen(person.amountFen) }}</text></view>
       <text class="test-notice">人员和金额按报名时的记录展示。本地模拟支付不产生真实扣款。</text>
       <text v-if="error" class="test-notice">{{ error }}</text>
       <button v-if="order.status === 'pending_payment'" class="button-primary action-gap" :disabled="paying" @tap="pay">{{ paying ? '模拟支付发起中' : '发起本地模拟支付' }}</button>

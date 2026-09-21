@@ -16,8 +16,8 @@ describe("family center API", () => {
     const detail = {
       ...history, contactName: "演示家长", emergencyContactName: null, emergencyContactPhone: null,
       participants: [
-        { id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", gradeName: "五年级", className: "二班", amountFen: 12_800 },
-        { id: "line-b", enrollmentParticipantId: "person-b", displayName: "演示乙", gradeName: null, className: null, amountFen: 12_800 },
+        { id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 12_800 },
+        { id: "line-b", enrollmentParticipantId: "person-b", displayName: "演示乙", participantKind: "adult", gradeName: null, className: null, amountFen: 12_800 },
       ],
     }
     const api = createMiniappApi({
@@ -63,7 +63,7 @@ describe("family center API", () => {
     // Given
     const api = createMiniappApi({ request: async () => ({ statusCode: 200, data: {
       ...history, contactName: "演示家长", emergencyContactName: null, emergencyContactPhone: null,
-      participants: [{ id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", gradeName: null, className: null, amountFen: 128.5 }],
+      participants: [{ id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", participantKind: "student", gradeName: null, className: null, amountFen: 128.5 }],
     } }) })
     // When / Then
     await expect(api.getOrderDetail("order-a")).rejects.toEqual(new ApiError(0, "amountFen 响应格式不正确"))

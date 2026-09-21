@@ -31,6 +31,7 @@ export type OrderParticipant = {
   readonly id: string
   readonly enrollmentParticipantId: string
   readonly displayName: string
+  readonly participantKind: "student" | "adult"
   readonly gradeName: string | null
   readonly className: string | null
   readonly amountFen: number

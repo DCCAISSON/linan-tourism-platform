@@ -43,7 +43,8 @@ export async function toOrderDetail(manager: EntityManager, scoped: ScopedOrder)
     emergencyContactPhone: scoped.enrollment.emergencyContactPhone,
     participants: lines.map((line) => ({
       id: line.id, enrollmentParticipantId: line.enrollmentParticipantId,
-      displayName: line.displayNameSnapshot, gradeName: line.gradeNameSnapshot,
+      displayName: line.displayNameSnapshot, participantKind: line.participantKindSnapshot,
+      gradeName: line.gradeNameSnapshot,
       className: line.classNameSnapshot, amountFen: line.amountFen,
     })),
   }

@@ -2,6 +2,12 @@ import { ApiError } from "./api-error"
 import { parseEnrollmentMember, parseOrder, readCollection, readIsoString, readNonNegativeInteger, readRecord, readString } from "./api-parsers"
 import type { CatalogItem, OrderDetail, OrderHistoryItem, OrderParticipant, SavedEnrollmentMember } from "./api-types"
 
+function readParticipantKind(record: Record<string, unknown>): "student" | "adult" {
+  const value = readString(record, "participantKind")
+  if (value === "student" || value === "adult") return value
+  throw new ApiError(0, "participantKind 响应格式不正确")
+}
+
 export function parseCatalogItem(value: unknown): CatalogItem {
   const record = readRecord(value)
   const status = readString(record, "status")
@@ -45,7 +51,8 @@ function parseOrderParticipant(value: unknown): OrderParticipant {
   const record = readRecord(value)
   return {
     id: readString(record, "id"), enrollmentParticipantId: readString(record, "enrollmentParticipantId"),
-    displayName: readString(record, "displayName"), gradeName: readNullableText(record, "gradeName"),
+    displayName: readString(record, "displayName"), participantKind: readParticipantKind(record),
+    gradeName: readNullableText(record, "gradeName"),
     className: readNullableText(record, "className"), amountFen: readNonNegativeInteger(record, "amountFen"),
   }
 }
