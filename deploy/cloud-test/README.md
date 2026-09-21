@@ -1,20 +1,58 @@
-# 云端测试部署
+﻿# 云端测试部署
 
-此目录用于已备案域名下的受密码保护的测试环境。当前应用使用模拟家庭/员工身份及模拟支付，不用于真实家长报名或真实收款。
+本目录用于已备案域名下的受保护测试环境。当前环境只用于需求方点选和内部验收，使用虚构学校、家庭、人员、车辆和模拟支付数据；不得接入真实报名、真实收款、真实退款或图片直播生产数据。
 
-运行环境为 Ubuntu 22.04、Node 22.23.2、工作区锁定版本 pnpm、Nginx 和 systemd。业务数据连接独立云数据库 `linan_platform_test`，附件使用测试 COS 桶。
+## 运行结构
 
-- 程序位置：`/opt/linan-test/app`。
-- 私有 API 配置：`/etc/linan-test/api.env`，root 所有、权限 600；由 systemd 加载。至少配置 `DATABASE_URL`、`NODE_ENV=development`、`HOST=127.0.0.1`、`PORT=3000`、`ADMIN_WEB_ORIGIN=https://admin.linantravel.cn`；COS 配置参照根目录 `.env.example`。密码和密钥不得提交到仓库。
-- 后台构建时设置 `VITE_API_BASE_URL=/api`，后台 API 请求使用同源 Nginx 代理。
-- 初始化仅执行迁移，不启用 TypeORM synchronize；执行前确认指定测试库没有真实业务数据。演示价格为 128 元/人，使用虚拟学校和家庭。
-- `linan-test-api.service` 安装到 `/etc/systemd/system/`，执行 `systemctl daemon-reload` 和 `systemctl enable --now linan-test-api`。
-- 先启用 `nginx-http.conf`，通过 `/var/www/linan-acme` webroot 为两个域名申请名称为 `linan-test` 的证书，再同时启用 HTTP 和 HTTPS 配置。
-- HTTPS 使用 `/etc/nginx/linan-test.htpasswd` 保护后台和 API。HTTP 仅提供 ACME 校验与 HTTPS 跳转；API 只监听服务器回环地址。
-- Certbot 定时续期；将 `renew-nginx.sh` 安装为 root 所有、权限 750 的 `/etc/letsencrypt/renewal-hooks/deploy/linan-nginx.sh`，成功续期后检查并重新加载 Nginx。
+- 程序目录：`/opt/linan-test/app`。
+- API 进程：`linan-test-api.service`，由 systemd 管理，工作目录为 `/opt/linan-test/app/apps/api`。
+- API 只监听服务器回环地址，管理后台通过 Nginx 受保护入口访问；公网 HTTPS 未完成前，不开放正式交付入口。
+- 业务库：云数据库测试库 `linan_platform_test`。
+- 后台构建时使用 `VITE_API_BASE_URL=/api`，由同源 Nginx 转发 API。
 
-以下为公网开放前必须满足的验收条件：无密码返回 401；有效密码可打开后台并访问健康检查；后台能创建配置、查询和导出已付款名单；模拟报名/支付与按取消人数计算退款；API 崩溃后自动恢复；服务已设置开机启动；两个域名证书均有效。正式微信身份、真实支付及退款审批仍需单独完成后才能开放真实业务。
+## `/etc/linan-test/api.env` 必填项
 
-2026-09-17 实际进度：云端程序构建、独立空测试库的 5 项迁移（17 张表）、API/systemd 自动恢复及开机启动已完成。通过 SSH 加密隧道访问服务器回环 Nginx，实际浏览器建校、名单查询及 Excel 下载通过；虚拟两人订单为 256 元，取消一人的退款试算为 128 元，模拟退款不执行结算、不修改名单。
+该文件必须由服务器 root 持有，权限 `600`，不得提交到 Git。
 
-公网 HTTPS 尚未完成：证书 HTTP 校验被腾讯云备案提示页拦截，公开备案状态接口返回 `GovStatus=false`、`LandedStatus=false`。须核对该域名的 ICP 备案和腾讯云接入状态，解除平台拦截后再申请证书并启用 HTTPS 配置；在此之前两个公网入口不构成可用交付。内部 QA 站点仅监听 `127.0.0.1:8080`，API 仅监听 `127.0.0.1:3000`，没有新增公网业务端口。
+```bash
+DATABASE_URL=mysql://...
+NODE_ENV=development
+HOST=127.0.0.1
+PORT=3000
+ADMIN_WEB_ORIGIN=http://127.0.0.1:8080
+PERSON_DATA_ENCRYPTION_KEY_BASE64=<32-byte-random-base64>
+REVISION=<deployed-git-sha>
+```
+
+首次创建测试主管理员时，还需要临时写入并执行 bootstrap，完成后可移除：
+
+```bash
+STAFF_ADMIN_USERNAME=<test-admin-username>
+STAFF_ADMIN_TEMP_PASSWORD=<12+ character temporary password>
+STAFF_ADMIN_DISPLAY_NAME=测试主管理员
+```
+
+执行：
+
+```bash
+cd /opt/linan-test/app
+corepack pnpm --filter @linan/api staff:bootstrap-admin
+```
+
+## 当前发布验收口径
+
+- 当前迁移链路覆盖 10 个迁移文件，包含任务 2—6 的员工账号权限、告知书版本、名单导入、订单支付退款、车辆安排等表结构。
+- 当前演示价格按 195 元/人，两人订单为 390 元；退款仍按取消人员数试算，不接真实退款结算。
+- `GET /health` 必须返回 `revision`，其值必须等于本地最终提交和远端分支 HEAD。
+- systemd 验收要求：`systemctl is-active linan-test-api` 和 `systemctl is-enabled linan-test-api` 均通过。
+- 本次不启用公网 HTTPS、不接真实微信支付/退款、不接图片直播生产接口。
+
+## 必验流程
+
+1. 主账号登录，创建子账号，勾选权限和范围。
+2. 子账号首次登录强制改密，禁用和重置后状态正确。
+3. 三类名单模板导入成功；重复导入跳过；逐行错误可见；导入不改变订单和已付款统计。
+4. 版本化告知书激活后，报名必须精确同意当前版本。
+5. 车辆安排保存、容量刚好通过、超载失败、九列 Excel 导出。
+6. 多人订单、模拟支付、按取消人数退款预览/模拟通过，模拟退款不结算、不修改名单。
+7. 失败探针：缺加密 key、过期/禁用账号、错误 workbook、stale notice、车辆 overload、服务重启恢复。

@@ -7,6 +7,7 @@ export type HealthStatus = (typeof HEALTH_STATUS)[keyof typeof HEALTH_STATUS]
 export type HealthResponse = {
   readonly status: HealthStatus
   readonly service: "@linan/api"
+  readonly revision: string
 }
 
 export type {

@@ -23,7 +23,9 @@ services:
       ADMIN_WEB_ORIGIN: http://127.0.0.1:${LINAN_ADMIN_PORT:-4174}
       DATABASE_URL: mysql://root@mysql:3306/linan_uat
       NODE_ENV: development
+      PERSON_DATA_ENCRYPTION_KEY_BASE64: ${PERSON_DATA_ENCRYPTION_KEY_BASE64:?set PERSON_DATA_ENCRYPTION_KEY_BASE64}
       PORT: "3000"
+      REVISION: ${REVISION:-local-uat}
     command: ["sh", "-c", "node apps/api/scripts/domain-database.mjs migrate && node apps/api/dist/main.js"]
     depends_on:
       mysql:

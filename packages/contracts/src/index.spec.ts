@@ -18,6 +18,7 @@ describe("health contract", () => {
     const response: HealthResponse = {
       status: HEALTH_STATUS.ok,
       service: "@linan/api",
+      revision: "test-revision",
     }
 
     expect(response.status).toBe("ok")

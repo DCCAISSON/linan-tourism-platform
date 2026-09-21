@@ -15,13 +15,22 @@ describe("admin routes", () => {
       orders: "orders",
       roster: "roster",
       staffAccounts: "staff-accounts",
+      transport: "transport",
     })
-    expect(routes[2]?.children?.map(route => route.path)).toEqual(["home", "configuration", "roster", "orders", "staff-accounts"])
+    expect(routes[2]?.children?.map(route => route.path)).toEqual([
+      "home",
+      "configuration",
+      "roster",
+      "orders",
+      "transport",
+      "staff-accounts",
+    ])
     expect(routes[2]?.children?.map(route => route.meta?.["requiredPermission"])).toEqual([
       "workbench.read",
       "configuration.read",
       "roster.read",
       "orders.read",
+      "transport.read",
       "staff_accounts.manage",
     ])
   })
