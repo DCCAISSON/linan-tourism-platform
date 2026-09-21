@@ -12,14 +12,12 @@ import { makeId } from "../configuration/configuration.persistence.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
 import { DevStaffAccessService, type StaffAccess } from "../iam/dev-staff-access.service.js"
 import { malformedTransportInput, transportForbidden, transportSessionNotFound } from "./transport.errors.js"
-import { hasContactValue, sessionScope, textOrNull, toPlan, validateAllocation, validateVehicle, vehicleOccupancy } from "./transport.plan.js"
+import { hasContactValue, redactContactSnapshots, sessionScope, textOrNull, toPlan, validateAllocation, validateVehicle, vehicleOccupancy } from "./transport.plan.js"
 import type {
   TransportAllocationRecord,
   TransportPlanInput,
   TransportPlanResponse,
 } from "./transport.types.js"
-
-const DEMO_WARNING = "样表合计488人与需求口径492人存在差异，本演示保留该差异，正式上线前请按最终名单核准。"
 
 @Injectable()
 export class TransportService {
@@ -33,7 +31,8 @@ export class TransportService {
     const manager = (await this.database.getDataSource()).manager
     const session = await this.requireSession(manager, tourSessionId)
     this.staffAccess.assertTransportReadScope(access, sessionScope(session))
-    return this.loadPlan(manager, session)
+    const plan = await this.loadPlan(manager, session)
+    return access.permissionKeys.has("sensitive_data.read") ? plan : redactContactSnapshots(plan)
   }
 
   async savePlan(access: StaffAccess, tourSessionId: string, input: TransportPlanInput): Promise<TransportPlanResponse> {
@@ -122,8 +121,13 @@ export class TransportService {
       if (occupancy > vehicle.seatCapacity) {
         throw malformedTransportInput(`车辆${vehicle.sequence}超载：容量${vehicle.seatCapacity}人，已安排${occupancy}人`)
       }
+      const vehicleClassIds = new Set<string>()
       for (const allocation of vehicle.allocations) {
         validateAllocation(allocation)
+        if (vehicleClassIds.has(allocation.classId)) {
+          throw malformedTransportInput(`车辆${vehicle.sequence}中班级${allocation.classId}重复安排`)
+        }
+        vehicleClassIds.add(allocation.classId)
         this.staffAccess.assertTransportWriteScope(access, { ...sessionScope(session), requestedClassId: allocation.classId })
         classIds.add(allocation.classId)
       }

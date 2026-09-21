@@ -9,6 +9,15 @@ import type { TransportContactSnapshot } from "../../domain/entities/transport-s
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 
+const INTEGER_FIELD_LABELS: Record<string, string> = {
+  sequence: "车号",
+  seatCapacity: "座位数",
+  studentCount: "学生人数",
+  guardianCount: "家长人数",
+  teacherCount: "老师人数",
+  otherCount: "其他人数",
+} as const
+
 @Controller("transport")
 export class TransportController {
   constructor(
@@ -42,7 +51,7 @@ export class TransportController {
     response
       .status(200)
       .setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-      .setHeader("Content-Disposition", "attachment; filename=\"transport-contact-sheet.xlsx\"")
+      .setHeader("Content-Disposition", 'attachment; filename="transport-contact-sheet.xlsx"')
       .send(workbook)
   }
 }
@@ -51,7 +60,7 @@ function parsePlanInput(value: unknown): TransportPlanInput {
   const record = readRecord(value, "车辆安排")
   const vehicles = record["vehicles"]
   if (!Array.isArray(vehicles)) {
-    throw malformedTransportInput("vehicles must be an array")
+    throw malformedTransportInput("车辆安排必须包含车辆列表")
   }
   return { vehicles: vehicles.map(parseVehicle) }
 }
@@ -60,7 +69,7 @@ function parseVehicle(value: unknown): TransportVehicleInput {
   const record = readRecord(value, "车辆")
   const allocations = record["allocations"]
   if (!Array.isArray(allocations)) {
-    throw malformedTransportInput("allocations must be an array")
+    throw malformedTransportInput("车辆必须包含班级安排")
   }
   return {
     sequence: readInteger(record, "sequence"),
@@ -105,7 +114,7 @@ function readRecord(value: unknown, itemName: string): Record<string, unknown> {
 function readText(record: Record<string, unknown>, key: string, maxLength: number): string {
   const value = readOptionalText(record, key, maxLength)
   if (value.length === 0) {
-    throw malformedTransportInput(`${key} must be a non-empty string`)
+    throw malformedTransportInput(key === "classId" ? "班级不能为空" : `${key}不能为空`)
   }
   return value
 }
@@ -116,7 +125,7 @@ function readOptionalText(record: Record<string, unknown>, key: string, maxLengt
     return ""
   }
   if (typeof value !== "string" || value.length > maxLength) {
-    throw malformedTransportInput(`${key} must be a string of at most ${maxLength} characters`)
+    throw malformedTransportInput(`${key}必须是不超过${maxLength}个字符的文本`)
   }
   return value.trim()
 }
@@ -126,5 +135,5 @@ function readInteger(record: Record<string, unknown>, key: string): number {
   if (typeof value === "number" && Number.isInteger(value)) {
     return value
   }
-  throw malformedTransportInput(`${key} must be an integer`)
+  throw malformedTransportInput(`${INTEGER_FIELD_LABELS[key] ?? key}必须是整数`)
 }

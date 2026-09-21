@@ -71,6 +71,18 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
       .set(DEV_ADMIN_HEADERS)
       .expect(200)
     expect(read.body).toMatchObject(saved.body)
+    expect(read.body.vehicles[0].contactSnapshot.driverPhone).toBe("19900000001")
+
+    const nonsensitiveRead = await request(app.getHttpServer())
+      .get(`/transport/sessions/${catalog.tourSessionId}/plan`)
+      .set(schoolStaffHeaders(catalog.schoolId))
+      .expect(200)
+    expect(nonsensitiveRead.body.vehicles[0].contactSnapshot).toEqual({ driverName: "", driverPhone: "", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" })
+
+    await request(app.getHttpServer())
+      .get(`/transport/sessions/${catalog.tourSessionId}/export.xlsx`)
+      .set(schoolStaffHeaders(catalog.schoolId))
+      .expect(403)
 
     const exported = await request(app.getHttpServer())
       .get(`/transport/sessions/${catalog.tourSessionId}/export.xlsx`)
@@ -114,12 +126,21 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
       .set("Origin", ORIGIN)
       .send({ vehicles: [blankVehicle(catalog.classId, 1, 2), blankVehicle(catalog.classId, 1, 2)] })
       .expect(400)
+      .expect((response) => expect(response.body.message).toBe("车号1重复"))
     await request(app.getHttpServer())
       .put(`/transport/sessions/${catalog.tourSessionId}/plan`)
       .set(DEV_ADMIN_HEADERS)
       .set("Origin", ORIGIN)
       .send({ vehicles: [negativeVehicle(catalog.classId)] })
       .expect(400)
+      .expect((response) => expect(response.body.message).toBe("乘车人数必须为非负整数"))
+    await request(app.getHttpServer())
+      .put(`/transport/sessions/${catalog.tourSessionId}/plan`)
+      .set(DEV_ADMIN_HEADERS)
+      .set("Origin", ORIGIN)
+      .send({ vehicles: [duplicateClassVehicle(catalog.classId)] })
+      .expect(400)
+      .expect((response) => expect(response.body.message).toBe(`车辆1中班级${catalog.classId}重复安排`))
 
     const read = await request(app.getHttpServer())
       .get(`/transport/sessions/${catalog.tourSessionId}/plan`)
@@ -127,6 +148,7 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
       .expect(200)
     expect(read.body.vehicles).toHaveLength(1)
     expect(read.body.vehicles[0]).toMatchObject({ sequence: 1, seatCapacity: 2 })
+    expect(read.body.vehicles[0].warnings).toContain("1号车未满载：容量2人，已安排1人")
   })
 
   it("rejects cross-session classes and sensitive contacts without the sensitive grant", async () => {
@@ -188,6 +210,13 @@ function overloadedVehicle(classId: string) {
 
 function negativeVehicle(classId: string) {
   return { ...blankVehicle(classId, 1, 2), allocations: [{ classId, studentCount: -1, guardianCount: 0, teacherCount: 0, otherCount: 0, note: "" }] }
+}
+
+function duplicateClassVehicle(classId: string) {
+  return { ...blankVehicle(classId, 1, 4), allocations: [
+    { classId, studentCount: 1, guardianCount: 0, teacherCount: 0, otherCount: 0, note: "" },
+    { classId, studentCount: 1, guardianCount: 0, teacherCount: 0, otherCount: 0, note: "" },
+  ] }
 }
 
 function vehicleWithContact(classId: string) {

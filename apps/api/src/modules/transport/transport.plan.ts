@@ -9,22 +9,22 @@ import type {
   TransportVehicleResponse,
 } from "./transport.types.js"
 
-const DEMO_WARNING = "????488??????492?????????????????????????????"
+const DEMO_WARNING = "样表合计488人与需求口径492人存在差异，本演示保留该差异，正式上线前请按最终名单核准。"
 
 export function validateVehicle(vehicle: TransportVehicleInput, sequences: Set<number>, plates: Set<string>): void {
   if (!Number.isInteger(vehicle.sequence) || vehicle.sequence <= 0) {
-    throw malformedTransportInput("????????")
+    throw malformedTransportInput("车号必须是正整数")
   }
   if (!Number.isInteger(vehicle.seatCapacity) || vehicle.seatCapacity <= 0) {
-    throw malformedTransportInput("?????????")
+    throw malformedTransportInput("座位数必须是正整数")
   }
   if (sequences.has(vehicle.sequence)) {
-    throw malformedTransportInput(`??${vehicle.sequence}??`)
+    throw malformedTransportInput(`车号${vehicle.sequence}重复`)
   }
   sequences.add(vehicle.sequence)
   const plate = vehicle.plateNumber.trim()
   if (plate.length > 0 && plates.has(plate)) {
-    throw malformedTransportInput(`??${plate}??`)
+    throw malformedTransportInput(`车牌${plate}重复`)
   }
   if (plate.length > 0) {
     plates.add(plate)
@@ -34,10 +34,10 @@ export function validateVehicle(vehicle: TransportVehicleInput, sequences: Set<n
 export function validateAllocation(allocation: TransportAllocationInput): void {
   const counts = [allocation.studentCount, allocation.guardianCount, allocation.teacherCount, allocation.otherCount]
   if (allocation.classId.trim().length === 0) {
-    throw malformedTransportInput("??????")
+    throw malformedTransportInput("班级不能为空")
   }
   if (counts.some((count) => !Number.isInteger(count) || count < 0)) {
-    throw malformedTransportInput("?????????")
+    throw malformedTransportInput("乘车人数必须为非负整数")
   }
 }
 
@@ -87,7 +87,7 @@ function toAllocation(record: TransportAllocationRecord): TransportAllocationRes
     otherCount: readNumber(record.otherCount),
   }
   if (record.allocationId === null || record.classId === null || record.className === null || record.gradeName === null) {
-    throw malformedTransportInput("transport allocation is incomplete")
+    throw malformedTransportInput("班级安排信息不完整")
   }
   return {
     id: record.allocationId,
@@ -111,7 +111,7 @@ function withVehicleTotals(
     allocations,
     occupancy,
     remainingSeats,
-    warnings: remainingSeats > 0 ? [`${vehicle.sequence}????????${vehicle.seatCapacity}?????${occupancy}?`] : [],
+    warnings: remainingSeats > 0 ? [`${vehicle.sequence}号车未满载：容量${vehicle.seatCapacity}人，已安排${occupancy}人`] : [],
   }
 }
 
@@ -138,6 +138,16 @@ export function hasContactValue(vehicle: TransportVehicleInput | TransportVehicl
   return Object.values(vehicle.contactSnapshot).some((value) => value.trim().length > 0)
 }
 
+export function redactContactSnapshots(plan: TransportPlanResponse): TransportPlanResponse {
+  return {
+    ...plan,
+    vehicles: plan.vehicles.map((vehicle) => ({
+      ...vehicle,
+      contactSnapshot: { driverName: "", driverPhone: "", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" },
+    })),
+  }
+}
+
 export function sessionScope(session: TourSessionEntity) {
   return { schoolId: session.organizationId, requestedSchoolId: session.organizationId, requestedClassId: null, tourSessionId: session.id }
 }
@@ -154,7 +164,7 @@ function readNumber(value: number | string): number {
 function readContactSnapshot(value: TransportAllocationRecord["contactSnapshotJson"]): TransportVehicleResponse["contactSnapshot"] {
   const parsed: unknown = typeof value === "string" ? JSON.parse(value) : value
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw malformedTransportInput("transport contact snapshot is invalid")
+    throw malformedTransportInput("联系人信息格式不正确")
   }
   return {
     driverName: readContactText(parsed, "driverName"),
