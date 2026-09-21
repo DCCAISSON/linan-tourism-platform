@@ -11,6 +11,9 @@ import { OrganizationEntity } from "./organization.entity.js"
 import { PaymentEntity } from "./payment.entity.js"
 import { PaymentEventEntity } from "./payment-event.entity.js"
 import { RosterEntryEntity } from "./roster-entry.entity.js"
+import { RosterImportBatchEntity } from "./roster-import-batch.entity.js"
+import { RosterImportErrorEntity } from "./roster-import-error.entity.js"
+import { RosterImportPersonEntity } from "./roster-import-person.entity.js"
 import { SchoolClassEntity } from "./school-class.entity.js"
 import { SchoolGradeEntity } from "./school-grade.entity.js"
 import { StaffAccountEntity } from "./staff-account.entity.js"
@@ -32,6 +35,9 @@ export { OrganizationEntity } from "./organization.entity.js"
 export { PaymentEntity } from "./payment.entity.js"
 export { PaymentEventEntity } from "./payment-event.entity.js"
 export { RosterEntryEntity } from "./roster-entry.entity.js"
+export { RosterImportBatchEntity } from "./roster-import-batch.entity.js"
+export { RosterImportErrorEntity } from "./roster-import-error.entity.js"
+export { RosterImportPersonEntity } from "./roster-import-person.entity.js"
 export { SchoolClassEntity } from "./school-class.entity.js"
 export { SchoolGradeEntity } from "./school-grade.entity.js"
 export { StaffAccountEntity } from "./staff-account.entity.js"
@@ -55,6 +61,9 @@ export const DOMAIN_ENTITIES = [
   PaymentEntity,
   PaymentEventEntity,
   RosterEntryEntity,
+  RosterImportBatchEntity,
+  RosterImportPersonEntity,
+  RosterImportErrorEntity,
   ConsentRecordEntity,
   AuditLogEntity,
   StaffAccountEntity,

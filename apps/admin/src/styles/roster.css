@@ -306,3 +306,51 @@
     content: attr(data-label);
   }
 }
+
+.roster-import-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 24px;
+  background: var(--surface-elevated);
+  border-radius: 8px;
+}
+
+.roster-import-card .roster-table-heading {
+  align-items: flex-start;
+}
+
+.roster-import-card .roster-table-heading p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.roster-import-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.roster-import-form input[type="file"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  color: var(--text-primary);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  font: inherit;
+}
+
+@media (max-width: 768px) {
+  .roster-import-card {
+    padding: 20px;
+  }
+
+  .roster-import-form {
+    grid-template-columns: 1fr;
+  }
+}

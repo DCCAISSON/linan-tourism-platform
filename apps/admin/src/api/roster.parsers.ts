@@ -1,5 +1,5 @@
-import { RosterApiError } from "./roster.errors"
-import type { RosterFilters, RosterRow, RosterSummary } from "./roster.types"
+﻿import { RosterApiError } from "./roster.errors"
+import type { RosterFilters, RosterImportErrorRow, RosterImportResult, RosterImportTemplate, RosterRow, RosterSummary } from "./roster.types"
 
 export function parseRosterSummary(value: unknown): RosterSummary {
   const record = readRecord(value, "名单统计")
@@ -105,4 +105,50 @@ function readNumber(record: Record<string, unknown>, key: string, itemName: stri
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+export function parseRosterImportResult(value: unknown): RosterImportResult {
+  const record = readRecord(value, "导入结果")
+  const errors = record["errors"]
+  if (!Array.isArray(errors)) {
+    throw new RosterApiError(0, "导入错误列表响应格式不正确")
+  }
+  return {
+    id: readString(record, "id", "导入结果"),
+    sourceTemplate: readImportTemplate(record, "sourceTemplate"),
+    tourSessionId: readString(record, "tourSessionId", "导入结果"),
+    schoolId: readString(record, "schoolId", "导入结果"),
+    gradeId: readNullableString(record, "gradeId", "导入结果"),
+    classId: readNullableString(record, "classId", "导入结果"),
+    fileName: readString(record, "fileName", "导入结果"),
+    totalRows: readNumber(record, "totalRows", "导入结果"),
+    importedCount: readNumber(record, "importedCount", "导入结果"),
+    duplicateCount: readNumber(record, "duplicateCount", "导入结果"),
+    errorCount: readNumber(record, "errorCount", "导入结果"),
+    errors: errors.map(parseRosterImportError),
+  }
+}
+
+function parseRosterImportError(value: unknown): RosterImportErrorRow {
+  const record = readRecord(value, "导入错误")
+  return {
+    rowNumber: readNumber(record, "rowNumber", "导入错误"),
+    role: readImportRole(record["role"]),
+    field: readString(record, "field", "导入错误"),
+    message: readString(record, "message", "导入错误"),
+  }
+}
+
+function readImportTemplate(record: Record<string, unknown>, field: string): RosterImportTemplate {
+  const value = readString(record, field, "导入结果")
+  if (value === "parent_child" || value === "grade_3_6" || value === "teacher") {
+    return value
+  }
+  throw new RosterApiError(0, "导入模板响应格式不正确")
+}
+
+function readImportRole(value: unknown): "student" | "guardian" | "teacher" | null {
+  if (value === null || value === "student" || value === "guardian" || value === "teacher") {
+    return value
+  }
+  throw new RosterApiError(0, "导入错误角色响应格式不正确")
 }

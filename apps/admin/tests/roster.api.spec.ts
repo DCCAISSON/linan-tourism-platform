@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+﻿import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { downloadRosterExport, getRosterSummary, readableRosterError, RosterApiError } from "@/api/roster"
+import { downloadRosterExport, getRosterSummary, importRoster, readableRosterError, RosterApiError } from "@/api/roster"
 
 describe("roster API", () => {
   afterEach(() => {
@@ -48,6 +48,50 @@ describe("roster API", () => {
     await expect(getRosterSummary({ tourSessionId: "session-1" })).rejects.toThrow("名单服务暂不可用")
   })
 
+
+  it("uploads roster import workbooks with staff session cookies and parses the result", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "batch-1",
+            sourceTemplate: "grade_3_6",
+            tourSessionId: "session-1",
+            schoolId: "school-1",
+            gradeId: "grade-1",
+            classId: "class-1",
+            fileName: "roster.xlsx",
+            totalRows: 1,
+            importedCount: 1,
+            duplicateCount: 0,
+            errorCount: 0,
+            errors: [],
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await importRoster({
+      template: "grade_3_6",
+      tourSessionId: "session-1",
+      schoolId: "school-1",
+      gradeId: "grade-1",
+      classId: "class-1",
+      file: new File(["xlsx"], "roster.xlsx"),
+    })
+
+    const call = fetchMock.mock.calls[0]
+    expect(call).toBeDefined()
+    if (call === undefined) {
+      throw new Error("fetch was not called")
+    }
+    expect(call[0]).toBe("http://127.0.0.1:3000/roster/imports")
+    expect(call[1]?.method).toBe("POST")
+    expect(call[1]?.credentials).toBe("include")
+    expect(call[1]?.body).toBeInstanceOf(FormData)
+    expect(result.importedCount).toBe(1)
+  })
   it("downloads the export file with the same query and staff session cookies", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () =>

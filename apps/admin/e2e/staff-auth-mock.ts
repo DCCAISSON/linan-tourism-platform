@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test"
+﻿import type { Page } from "@playwright/test"
 
 const apiBase = "http://127.0.0.1:3000"
 
@@ -6,6 +6,7 @@ export async function installStaffAuthMock(page: Page, permissionKeys: readonly 
   "workbench.read",
   "configuration.read",
   "roster.read",
+  "roster.import",
   "roster.export",
   "orders.read",
   "refunds.preview",

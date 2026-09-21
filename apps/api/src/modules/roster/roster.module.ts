@@ -3,10 +3,11 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import { AuditLogService } from "../iam/audit-log.service.js"
 import { RosterController } from "./roster.controller.js"
 import { RosterService } from "./roster.service.js"
+import { RosterImportService } from "./roster-import.service.js"
 import { WorkbenchService } from "./workbench.service.js"
 
 @Module({
   controllers: [RosterController],
-  providers: [AuditLogService, ConfigurationDatabaseService, RosterService, WorkbenchService],
+  providers: [AuditLogService, ConfigurationDatabaseService, RosterImportService, RosterService, WorkbenchService],
 })
 export class RosterModule {}

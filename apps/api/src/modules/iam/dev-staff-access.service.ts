@@ -72,6 +72,14 @@ export class DevStaffAccessService {
     throw scopeForbidden("staff identity cannot export this roster")
   }
 
+  assertRosterImportScope(access: StaffAccess, scope: StaffRosterScope): void {
+    requirePermission(access, "roster.import", "staff identity cannot import this roster")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "summary"))) {
+      return
+    }
+    throw scopeForbidden("staff identity cannot import this roster")
+  }
+
   assertPaymentSummaryScope(access: StaffAccess): void {
     if (access.permissionKeys.has("orders.read") || access.permissionKeys.has("workbench.read")) {
       requireAllScope(access, "staff identity cannot access global payment totals")

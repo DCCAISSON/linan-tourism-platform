@@ -1,9 +1,9 @@
-import { RosterApiError, readableRosterError } from "./roster.errors"
-import { parseRosterSummary } from "./roster.parsers"
-import type { RosterQuery, RosterSummary } from "./roster.types"
+﻿import { RosterApiError, readableRosterError } from "./roster.errors"
+import { parseRosterImportResult, parseRosterSummary } from "./roster.parsers"
+import type { RosterImportPayload, RosterImportResult, RosterQuery, RosterSummary } from "./roster.types"
 
 export { RosterApiError, readableRosterError }
-export type { RosterFilters, RosterQuery, RosterRow, RosterSummary } from "./roster.types"
+export type { RosterFilters, RosterImportPayload, RosterImportResult, RosterImportTemplate, RosterQuery, RosterRow, RosterSummary } from "./roster.types"
 
 const fallbackApiBaseUrl = "http://127.0.0.1:3000"
 const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
@@ -11,6 +11,45 @@ const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
 export async function getRosterSummary(query: RosterQuery): Promise<RosterSummary> {
   const value = await requestJson(`/roster/summary?${buildQueryString(query)}`)
   return parseRosterSummary(value)
+}
+
+export async function importRoster(payload: RosterImportPayload): Promise<RosterImportResult> {
+  const form = new FormData()
+  form.set("template", payload.template)
+  form.set("tourSessionId", payload.tourSessionId)
+  form.set("schoolId", payload.schoolId ?? "")
+  form.set("gradeId", payload.gradeId ?? "")
+  form.set("classId", payload.classId ?? "")
+  form.set("file", payload.file)
+  const response = await fetch(`${apiBaseUrl}/roster/imports`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  })
+  const value = await readJson(response)
+  if (!response.ok) {
+    throw new RosterApiError(response.status, readErrorMessage(value) ?? `导入失败（${response.status}）`)
+  }
+  return parseRosterImportResult(value)
+}
+
+export async function downloadRosterImportErrors(batchId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/roster/imports/${encodeURIComponent(batchId)}/errors.csv`, {
+    method: "GET",
+    credentials: "include",
+  })
+  if (!response.ok) {
+    const value = await readJson(response)
+    throw new RosterApiError(response.status, readErrorMessage(value) ?? `下载失败（${response.status}）`)
+  }
+  const objectUrl = URL.createObjectURL(await response.blob())
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = `名单导入错误-${batchId}.csv`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
 }
 
 export async function downloadRosterExport(query: RosterQuery): Promise<void> {
