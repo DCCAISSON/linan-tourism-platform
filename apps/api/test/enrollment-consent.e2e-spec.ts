@@ -210,6 +210,17 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
     }))
     expect(enrollment.body).toEqual(expect.objectContaining({ participantCount: 2 }))
     expect(order.amountFen).toBe(39_000)
+    const orderLines: readonly {
+      readonly amount_fen: number
+      readonly participant_kind: string
+    }[] = await dataSource.query(
+      "select participant_kind, amount_fen from order_lines where order_id = ? order by participant_kind",
+      [order.id],
+    )
+    expect(orderLines).toEqual([
+      { participant_kind: "adult", amount_fen: 19_500 },
+      { participant_kind: "student", amount_fen: 19_500 },
+    ])
     const stored: readonly {
       readonly identity_ciphertext: string | null
       readonly identity_hash: string | null
