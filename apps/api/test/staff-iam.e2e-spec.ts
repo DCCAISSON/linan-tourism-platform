@@ -43,7 +43,7 @@ describe.skipIf(databaseUrl === undefined)("managed staff identity", () => {
   })
 
   beforeEach(async () => {
-    scope = createScope()
+    scope = createStaffScope()
     app = await createCatalogTripApp()
   })
 
@@ -250,4 +250,8 @@ function restoreEnv(name: string, previous: string | undefined): void {
     return
   }
   process.env[name] = previous
+}
+
+function createStaffScope(): string {
+  return createScope().replace("catalog-trip-", "").slice(0, 12)
 }

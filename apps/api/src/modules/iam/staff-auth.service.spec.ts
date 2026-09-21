@@ -6,6 +6,7 @@ import {
 } from "../../domain/entities/index.js"
 import type { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { AuditLogService } from "./audit-log.service.js"
+import { recordStaffAccountAudit } from "./staff-auth-audit.js"
 import { StaffAuthService } from "./staff-auth.service.js"
 import type { StaffAccess } from "./dev-staff-access.service.js"
 
@@ -78,6 +79,37 @@ describe("StaffAuthService account lifecycle audit", () => {
       expect.objectContaining({ actorId: "staff-admin", action: "staff.account.created" }),
       expect.objectContaining({ actorId: "staff-admin", targetId: "staff-target", action: "staff.account.password_reset" }),
       expect.objectContaining({ actorId: "staff-admin", targetId: "staff-target", action: "staff.account.disabled" }),
+    ])
+  })
+
+  it("falls back to the first organization when an audited account has no scopes", async () => {
+    const account = new StaffAccountEntity()
+    account.id = "staff-no-scope"
+
+    const auditRecords: unknown[] = []
+    const dataSource = {
+      manager: {
+        find: vi.fn().mockResolvedValue([{ id: "org-default" }]),
+      },
+      getRepository: vi.fn((entity: unknown) => {
+        if (entity === StaffAccountScopeEntity) {
+          return { findBy: vi.fn().mockResolvedValue([]) }
+        }
+        throw new Error("unexpected repository")
+      }),
+    }
+
+    await recordStaffAccountAudit(
+      { getDataSource: vi.fn().mockResolvedValue(dataSource) } as unknown as ConfigurationDatabaseService,
+      { record: vi.fn(async (_manager: unknown, entry: unknown) => auditRecords.push(entry)) } as unknown as AuditLogService,
+      account,
+      "staff.login.succeeded",
+      account.id,
+    )
+
+    expect(dataSource.manager.find).toHaveBeenCalledWith(expect.any(Function), { order: { id: "ASC" }, take: 1 })
+    expect(auditRecords).toEqual([
+      expect.objectContaining({ organizationId: "org-default", actorId: "staff-no-scope", targetId: "staff-no-scope" }),
     ])
   })
 })

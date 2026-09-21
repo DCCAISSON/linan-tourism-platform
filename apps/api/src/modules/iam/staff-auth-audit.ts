@@ -72,6 +72,6 @@ async function resolveAuditOrganizationId(manager: EntityManager, scopes: readon
       }
     }
   }
-  const organization = await manager.findOne(OrganizationEntity, { order: { id: "ASC" } })
+  const [organization] = await manager.find(OrganizationEntity, { order: { id: "ASC" }, take: 1 })
   return organization?.id ?? null
 }
