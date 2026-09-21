@@ -15,6 +15,7 @@ export type StaffAccessRequestHeaders = Record<string, string | readonly string[
 export type StaffAccess = {
   readonly kind: "administrator" | "school" | "guide" | "finance"
   readonly actorId: string
+  readonly forcePasswordChange: boolean
   readonly permissionKeys: ReadonlySet<StaffPermissionKey>
   readonly scopes: readonly StaffScope[]
 }
@@ -22,17 +23,22 @@ export type StaffAccess = {
 export type StaffRosterScope = {
   readonly schoolId: string
   readonly requestedSchoolId: string | null
+  readonly requestedClassId: string | null
   readonly tourSessionId: string
+}
+
+type ResolveOptions = {
+  readonly allowPasswordChange: boolean
 }
 
 @Injectable()
 export class DevStaffAccessService {
   constructor(@Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService) {}
 
-  async resolve(headers: StaffAccessRequestHeaders): Promise<StaffAccess> {
+  async resolve(headers: StaffAccessRequestHeaders, options: ResolveOptions = { allowPasswordChange: false }): Promise<StaffAccess> {
     const token = readCookie(headers, STAFF_SESSION_COOKIE)
     if (token !== undefined) {
-      return await this.resolveSession(token)
+      return await this.resolveSession(token, options)
     }
 
     if (hasDevStaffHeader(headers)) {
@@ -47,6 +53,7 @@ export class DevStaffAccessService {
 
   assertConfigurationWrite(access: StaffAccess): void {
     requirePermission(access, "configuration.write", "staff identity cannot change configuration")
+    requireAllScope(access, "staff identity cannot change global configuration")
   }
 
   assertRosterSummaryScope(access: StaffAccess, scope: StaffRosterScope): void {
@@ -67,6 +74,7 @@ export class DevStaffAccessService {
 
   assertPaymentSummaryScope(access: StaffAccess): void {
     if (access.permissionKeys.has("orders.read") || access.permissionKeys.has("workbench.read")) {
+      requireAllScope(access, "staff identity cannot access global payment totals")
       return
     }
     throw scopeForbidden("staff identity cannot access payment totals")
@@ -74,22 +82,27 @@ export class DevStaffAccessService {
 
   assertWorkbenchScope(access: StaffAccess): void {
     requirePermission(access, "workbench.read", "staff identity cannot access operator workbench")
+    requireAllScope(access, "staff identity cannot access global workbench")
   }
 
   assertOrderReadScope(access: StaffAccess): void {
     requirePermission(access, "orders.read", "staff identity cannot access orders")
+    requireAllScope(access, "staff identity cannot access global orders")
   }
 
   assertRefundPreviewScope(access: StaffAccess): void {
     requirePermission(access, "refunds.preview", "staff identity cannot preview refunds")
+    requireAllScope(access, "staff identity cannot preview global refunds")
   }
 
   assertRefundSimulationScope(access: StaffAccess): void {
     requirePermission(access, "refunds.simulate", "staff identity cannot simulate refunds")
+    requireAllScope(access, "staff identity cannot simulate global refunds")
   }
 
   assertStaffAccountManagement(access: StaffAccess): void {
     requirePermission(access, "staff_accounts.manage", "staff identity cannot manage staff accounts")
+    requireAllScope(access, "staff identity cannot manage global staff accounts")
   }
 
   assertUnsafeOrigin(headers: StaffAccessRequestHeaders): void {
@@ -101,16 +114,26 @@ export class DevStaffAccessService {
       }
       return
     }
-    if (origin !== undefined && origin !== configuredOrigin) {
+    if (origin === undefined) {
+      if (process.env["NODE_ENV"] === "production") {
+        throw new ForbiddenException({ code: "staff_origin_forbidden", message: "admin origin is not allowed" })
+      }
+      return
+    }
+    if (origin !== configuredOrigin) {
       throw new ForbiddenException({ code: "staff_origin_forbidden", message: "admin origin is not allowed" })
     }
   }
 
-  private async resolveSession(token: string): Promise<StaffAccess> {
+  private async resolveSession(token: string, options: ResolveOptions): Promise<StaffAccess> {
     const dataSource = await this.database.getDataSource()
     const session = await dataSource.getRepository(StaffSessionEntity).findOneBy({ tokenHash: hashToken(token) })
     const now = new Date()
-    if (session === null || session.revokedAt !== null || session.expiresAt.getTime() <= now.getTime()) {
+    if (session === null || session.revokedAt !== null) {
+      throw identityRequired("staff session is expired")
+    }
+    if (session.expiresAt.getTime() <= now.getTime()) {
+      await dataSource.getRepository(StaffSessionEntity).delete({ id: session.id })
       throw identityRequired("staff session is expired")
     }
 
@@ -119,10 +142,12 @@ export class DevStaffAccessService {
       account === null ||
       account.status !== "active" ||
       account.permissionsVersion !== session.permissionsVersion ||
-      account.forcePasswordChange ||
       (account.expiresAt !== null && account.expiresAt.getTime() <= now.getTime())
     ) {
       throw identityRequired("staff account is not available")
+    }
+    if (account.forcePasswordChange && !options.allowPasswordChange) {
+      throw identityRequired("staff password change is required")
     }
 
     const [permissionRows, scopeRows] = await Promise.all([
@@ -134,6 +159,7 @@ export class DevStaffAccessService {
     return {
       actorId: account.id,
       kind: deriveKind(permissionKeys, scopes),
+      forcePasswordChange: account.forcePasswordChange,
       permissionKeys,
       scopes,
     }
@@ -159,9 +185,18 @@ function requirePermission(access: StaffAccess, permissionKey: StaffPermissionKe
   }
 }
 
+function requireAllScope(access: StaffAccess, message: string): void {
+  if (!access.scopes.some((scope) => scope.kind === "all")) {
+    throw scopeForbidden(message)
+  }
+}
+
 function scopeMatches(scope: StaffScope, rosterScope: StaffRosterScope, mode: "summary" | "export"): boolean {
   if (scope.kind === "all") {
     return true
+  }
+  if (scope.kind === "class") {
+    return rosterScope.requestedClassId === scope.id
   }
   if ((scope.kind === "school" || scope.kind === "organization") && scope.id === rosterScope.schoolId) {
     return rosterScope.requestedSchoolId === null || rosterScope.requestedSchoolId === scope.id

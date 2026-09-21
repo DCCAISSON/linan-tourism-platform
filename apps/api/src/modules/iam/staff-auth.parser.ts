@@ -71,7 +71,16 @@ function readScopes(value: unknown): readonly StaffScope[] {
       throw malformedInput("scope kind is invalid")
     }
     const idValue = record["id"]
-    return { kind, id: idValue === null ? null : readBoundedText(record, "id", 1, 64) }
+    if (kind === "all") {
+      if (idValue !== null && idValue !== undefined && idValue !== "") {
+        throw malformedInput("all scope must not include id")
+      }
+      return { kind, id: null }
+    }
+    if (idValue === null || idValue === undefined) {
+      throw malformedInput("scoped permission id is required")
+    }
+    return { kind, id: readBoundedText(record, "id", 1, 64) }
   })
 }
 

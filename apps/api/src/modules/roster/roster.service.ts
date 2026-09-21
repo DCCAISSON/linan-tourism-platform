@@ -31,6 +31,7 @@ export class RosterService {
     this.staffAccess.assertRosterSummaryScope(access, {
       schoolId: session.organizationId,
       requestedSchoolId: filters.schoolId,
+      requestedClassId: filters.classId,
       tourSessionId: session.id,
     })
 
@@ -67,7 +68,12 @@ export class RosterService {
       throw rosterSessionNotFound()
     }
     const resolvedFilters = { ...filters, schoolId: filters.schoolId ?? session.organizationId }
-    const scope = { schoolId: session.organizationId, requestedSchoolId: filters.schoolId, tourSessionId: session.id }
+    const scope = {
+      schoolId: session.organizationId,
+      requestedSchoolId: filters.schoolId,
+      requestedClassId: filters.classId,
+      tourSessionId: session.id,
+    }
     try {
       this.staffAccess.assertRosterExportScope(access, scope)
     } catch (error) {

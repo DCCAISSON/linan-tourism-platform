@@ -3,17 +3,25 @@ import { describe, expect, it } from "vitest"
 import { routeNames, routes } from "@/router/routes"
 
 describe("admin routes", () => {
-  it("exposes login shell, home, configuration, roster, orders, and staff account routes", () => {
-    expect(routes).toHaveLength(2)
-    expect(routes.map(route => route.path)).toEqual(["/login", "/"])
+  it("exposes login, password-change, and permission-gated admin routes", () => {
+    expect(routes).toHaveLength(3)
+    expect(routes.map(route => route.path)).toEqual(["/login", "/force-password-change", "/"])
     expect(routeNames).toEqual({
       configuration: "configuration",
+      forcePasswordChange: "force-password-change",
       home: "home",
       login: "login",
       orders: "orders",
       roster: "roster",
       staffAccounts: "staff-accounts",
     })
-    expect(routes[1]?.children?.map(route => route.path)).toEqual(["home", "configuration", "roster", "orders", "staff-accounts"])
+    expect(routes[2]?.children?.map(route => route.path)).toEqual(["home", "configuration", "roster", "orders", "staff-accounts"])
+    expect(routes[2]?.children?.map(route => route.meta?.["requiredPermission"])).toEqual([
+      "workbench.read",
+      "configuration.read",
+      "roster.read",
+      "orders.read",
+      "staff_accounts.manage",
+    ])
   })
 })

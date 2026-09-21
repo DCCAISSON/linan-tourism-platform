@@ -45,7 +45,11 @@ async function submitLogin(): Promise<void> {
   submitting.value = true
   errorMessage.value = ""
   try {
-    await loginStaff(username.value, password.value)
+    const account = await loginStaff(username.value, password.value)
+    if (account.forcePasswordChange) {
+      await router.push({ name: routeNames.forcePasswordChange, query: { username: account.username } })
+      return
+    }
     const redirect = typeof route.query["redirect"] === "string" ? route.query["redirect"] : undefined
     await router.push(redirect ?? { name: routeNames.home })
   } catch (error) {

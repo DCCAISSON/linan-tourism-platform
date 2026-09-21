@@ -42,8 +42,8 @@ export class StaffAccountEntity {
   updatedAt = new Date(0)
 
   @OneToMany(() => StaffAccountPermissionEntity, (permission) => permission.account)
-  permissions: StaffAccountPermissionEntity[] = []
+  permissions?: StaffAccountPermissionEntity[]
 
   @OneToMany(() => StaffAccountScopeEntity, (scope) => scope.account)
-  scopes: StaffAccountScopeEntity[] = []
+  scopes?: StaffAccountScopeEntity[]
 }

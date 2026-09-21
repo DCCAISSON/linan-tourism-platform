@@ -5,7 +5,7 @@
         <p class="home-panel__eyebrow">工作人员账号</p>
         <h2>账号权限</h2>
       </div>
-      <el-button type="primary" @click="drawerOpen = true">新建账号</el-button>
+      <el-button v-if="canManageStaffAccounts" type="primary" @click="drawerOpen = true">新建账号</el-button>
     </header>
 
     <el-alert v-if="errorMessage.length > 0" :closable="false" type="error" :title="errorMessage" />
@@ -26,8 +26,8 @@
         </el-table-column>
         <el-table-column label="操作" width="220">
           <template #default="{ row }: { row: StaffAccount }">
-            <el-button size="small" @click="startReset(row)">重置密码</el-button>
-            <el-button size="small" type="danger" :disabled="row.status !== 'active'" @click="disableAccount(row)">停用</el-button>
+            <el-button v-if="canManageStaffAccounts" size="small" @click="startReset(row)">重置密码</el-button>
+            <el-button v-if="canManageStaffAccounts" size="small" type="danger" :disabled="row.status !== 'active'" @click="disableAccount(row)">停用</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -72,30 +72,23 @@ import { onMounted, reactive, ref } from "vue"
 import {
   createStaffAccount,
   disableStaffAccount,
+  getCurrentStaff,
   listStaffAccounts,
   resetStaffPassword,
+  staffPermissionKeys,
   type StaffAccount,
   type StaffPermissionKey,
   type StaffScope,
 } from "@/api/auth"
 import { readableApiError } from "@/api/configuration"
 
-const permissionOptions: readonly StaffPermissionKey[] = [
-  "workbench.read",
-  "configuration.read",
-  "configuration.write",
-  "roster.read",
-  "roster.export",
-  "orders.read",
-  "refunds.preview",
-  "refunds.simulate",
-  "staff_accounts.manage",
-]
+const permissionOptions: readonly StaffPermissionKey[] = staffPermissionKeys
 
 const accounts = ref<readonly StaffAccount[]>([])
 const drawerOpen = ref(false)
 const saving = ref(false)
 const errorMessage = ref("")
+const canManageStaffAccounts = ref(false)
 const form = reactive({
   username: "",
   displayName: "",
@@ -105,7 +98,11 @@ const form = reactive({
   scopeId: "",
 })
 
-onMounted(loadAccounts)
+onMounted(async () => {
+  const staff = await getCurrentStaff()
+  canManageStaffAccounts.value = staff.permissionKeys.includes("staff_accounts.manage")
+  await loadAccounts()
+})
 
 async function loadAccounts(): Promise<void> {
   try {

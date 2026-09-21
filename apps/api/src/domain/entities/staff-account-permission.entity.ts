@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, ForeignKey, Index, ManyToOne, PrimaryColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, ForeignKey, Index, JoinColumn, ManyToOne, PrimaryColumn } from "typeorm"
 import { StaffAccountEntity } from "./staff-account.entity.js"
 
 @Entity({ name: "staff_account_permissions" })
@@ -23,5 +23,6 @@ export class StaffAccountPermissionEntity {
   createdAt = new Date(0)
 
   @ManyToOne(() => StaffAccountEntity, (account) => account.permissions)
+  @JoinColumn({ name: "staff_account_id" })
   account: StaffAccountEntity | null = null
 }

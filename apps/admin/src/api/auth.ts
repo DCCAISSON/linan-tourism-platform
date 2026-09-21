@@ -21,6 +21,25 @@ export type StaffPermissionKey =
   | "audit.read"
   | "sensitive_data.read"
 
+export const staffPermissionKeys: readonly StaffPermissionKey[] = [
+  "workbench.read",
+  "configuration.read",
+  "configuration.write",
+  "roster.read",
+  "roster.import",
+  "roster.export",
+  "roster.export_sensitive",
+  "orders.read",
+  "refunds.preview",
+  "refunds.simulate",
+  "transport.read",
+  "transport.write",
+  "transport.export",
+  "staff_accounts.manage",
+  "audit.read",
+  "sensitive_data.read",
+]
+
 export type StaffScope = {
   readonly kind: "all" | "organization" | "school" | "class" | "tour_session"
   readonly id: string | null
@@ -40,6 +59,7 @@ export type StaffAccount = {
 export type StaffAccess = {
   readonly actorId: string
   readonly kind: string
+  readonly forcePasswordChange: boolean
   readonly permissionKeys: readonly StaffPermissionKey[]
   readonly scopes: readonly StaffScope[]
 }
@@ -56,6 +76,10 @@ export async function logoutStaff(): Promise<void> {
   await request("/staff/auth/logout", { method: "POST" })
 }
 
+export async function changeStaffPassword(username: string, currentPassword: string, newPassword: string): Promise<void> {
+  await request("/staff/auth/change-password", jsonRequest({ username, currentPassword, newPassword }))
+}
+
 export async function getCurrentStaff(): Promise<StaffAccess> {
   const record = readRecord(await request("/staff/auth/me", { method: "GET" }))
   const permissions = record["permissionKeys"]
@@ -66,6 +90,7 @@ export async function getCurrentStaff(): Promise<StaffAccess> {
   return {
     actorId: readText(record, "actorId"),
     kind: readText(record, "kind"),
+    forcePasswordChange: readBoolean(record, "forcePasswordChange"),
     permissionKeys: permissions.map(readPermission),
     scopes: scopes.map(parseScope),
   }
@@ -155,25 +180,12 @@ function parseScope(value: unknown): StaffScope {
 }
 
 function readPermission(value: unknown): StaffPermissionKey {
-  if (
-    value === "workbench.read" ||
-    value === "configuration.read" ||
-    value === "configuration.write" ||
-    value === "roster.read" ||
-    value === "roster.import" ||
-    value === "roster.export" ||
-    value === "roster.export_sensitive" ||
-    value === "orders.read" ||
-    value === "refunds.preview" ||
-    value === "refunds.simulate" ||
-    value === "transport.read" ||
-    value === "transport.write" ||
-    value === "transport.export" ||
-    value === "staff_accounts.manage" ||
-    value === "audit.read" ||
-    value === "sensitive_data.read"
-  ) {
-    return value
+  if (typeof value === "string") {
+    for (const permissionKey of staffPermissionKeys) {
+      if (permissionKey === value) {
+        return permissionKey
+      }
+    }
   }
   throw new ApiError(0, "账号权限响应格式不正确")
 }

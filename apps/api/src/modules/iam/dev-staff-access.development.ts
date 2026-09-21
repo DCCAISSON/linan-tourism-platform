@@ -21,6 +21,7 @@ export function resolveDevelopmentStaff(headers: StaffAccessRequestHeaders): Sta
     return {
       kind: "school",
       actorId,
+      forcePasswordChange: false,
       permissionKeys: new Set(["roster.read", "roster.export", "configuration.read"]),
       scopes: [{ kind: "school", id: schoolId }],
     }
@@ -30,6 +31,7 @@ export function resolveDevelopmentStaff(headers: StaffAccessRequestHeaders): Sta
     return {
       kind: "guide",
       actorId,
+      forcePasswordChange: false,
       permissionKeys: new Set(["roster.read", "configuration.read"]),
       scopes: [{ kind: "tour_session", id: tourSessionId }],
     }
@@ -38,6 +40,7 @@ export function resolveDevelopmentStaff(headers: StaffAccessRequestHeaders): Sta
     return {
       kind: "finance",
       actorId,
+      forcePasswordChange: false,
       permissionKeys: new Set(["orders.read", "workbench.read"]),
       scopes: [{ kind: "all", id: null }],
     }
@@ -49,6 +52,7 @@ function fullAccess(actorId: string, kind: StaffAccess["kind"]): StaffAccess {
   return {
     kind,
     actorId,
+    forcePasswordChange: false,
     permissionKeys: new Set([
       "workbench.read",
       "configuration.read",

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Inject, Param, Post, Res } from "@nestjs/common"
+import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post, Res } from "@nestjs/common"
 import type { Response } from "express"
 import {
   parseCreateStaffAccount,
@@ -26,6 +26,7 @@ export class StaffAuthController {
   ) {}
 
   @Post("auth/login")
+  @HttpCode(200)
   async login(@Headers() headers: RequestHeaders, @Body() body: unknown, @Res({ passthrough: true }) response: Response): Promise<StaffAccountSummary> {
     this.staffAccess.assertUnsafeOrigin(headers)
     const input = parseLogin(body)
@@ -44,6 +45,7 @@ export class StaffAuthController {
   }
 
   @Post("auth/logout")
+  @HttpCode(200)
   async logout(@Headers() headers: RequestHeaders, @Res({ passthrough: true }) response: Response): Promise<{ readonly ok: true }> {
     this.staffAccess.assertUnsafeOrigin(headers)
     await this.auth.logout(readCookie(headers, STAFF_SESSION_COOKIE))
@@ -52,6 +54,7 @@ export class StaffAuthController {
   }
 
   @Post("auth/change-password")
+  @HttpCode(200)
   async changePassword(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<{ readonly ok: true }> {
     this.staffAccess.assertUnsafeOrigin(headers)
     const input = parsePasswordChange(body)
@@ -61,7 +64,7 @@ export class StaffAuthController {
 
   @Get("auth/me")
   async me(@Headers() headers: RequestHeaders): Promise<StaffAccessResponse> {
-    return serializeAccess(await this.staffAccess.resolve(headers))
+    return serializeAccess(await this.staffAccess.resolve(headers, { allowPasswordChange: true }))
   }
 
   @Get("accounts")
@@ -72,6 +75,7 @@ export class StaffAuthController {
   }
 
   @Post("accounts")
+  @HttpCode(200)
   async createAccount(@Headers() headers: RequestHeaders, @Body() body: unknown): Promise<StaffAccountSummary> {
     this.staffAccess.assertUnsafeOrigin(headers)
     const access = await this.staffAccess.resolve(headers)
@@ -80,6 +84,7 @@ export class StaffAuthController {
   }
 
   @Post("accounts/:id/reset-password")
+  @HttpCode(200)
   async resetPassword(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<StaffAccountSummary> {
     this.staffAccess.assertUnsafeOrigin(headers)
     const access = await this.staffAccess.resolve(headers)
@@ -88,6 +93,7 @@ export class StaffAuthController {
   }
 
   @Post("accounts/:id/disable")
+  @HttpCode(200)
   async disableAccount(@Headers() headers: RequestHeaders, @Param("id") id: string): Promise<StaffAccountSummary> {
     this.staffAccess.assertUnsafeOrigin(headers)
     const access = await this.staffAccess.resolve(headers)

@@ -14,7 +14,9 @@ import {
   StaffSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
+import { AuditLogService } from "./audit-log.service.js"
 import type { StaffAccess } from "./dev-staff-access.service.js"
+import { recordStaffAccountAudit, recordStaffAuditForScopes } from "./staff-auth-audit.js"
 import type { CreateStaffAccountInput } from "./staff-auth.parser.js"
 import type { StaffPermissionKey, StaffScope } from "./staff-permissions.js"
 import {
@@ -47,7 +49,10 @@ export type StaffAccountSummary = {
 
 @Injectable()
 export class StaffAuthService {
-  constructor(@Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService) {}
+  constructor(
+    @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
+    @Inject(AuditLogService) private readonly audit: AuditLogService,
+  ) {}
 
   async login(username: string, password: string): Promise<StaffLoginResult> {
     const dataSource = await this.database.getDataSource()
@@ -57,6 +62,7 @@ export class StaffAuthService {
       throw invalidLogin()
     }
     if (account.lockedUntil !== null && account.lockedUntil > now) {
+      await recordStaffAccountAudit(this.database, this.audit, account, "staff.login.locked", account.id)
       throw new HttpException({ code: "staff_account_locked", message: "staff account is locked" }, 423)
     }
 
@@ -66,6 +72,13 @@ export class StaffAuthService {
         account.lockedUntil = new Date(now.getTime() + LOCK_MS)
       }
       await dataSource.getRepository(StaffAccountEntity).save(account)
+      await recordStaffAccountAudit(
+        this.database,
+        this.audit,
+        account,
+        account.lockedUntil === null ? "staff.login.failed" : "staff.login.locked",
+        account.id,
+      )
       throw invalidLogin()
     }
 
@@ -83,6 +96,7 @@ export class StaffAuthService {
       expiresAt,
       revokedAt: null,
     })
+    await recordStaffAccountAudit(this.database, this.audit, account, "staff.login.succeeded", account.id)
     return { token, expiresAt, account }
   }
 
@@ -95,6 +109,8 @@ export class StaffAuthService {
     if (session !== null) {
       session.revokedAt = new Date()
       await dataSource.getRepository(StaffSessionEntity).save(session)
+      const account = await this.findAccount(session.staffAccountId)
+      await recordStaffAccountAudit(this.database, this.audit, account, "staff.logout", session.staffAccountId)
     }
   }
 
@@ -127,6 +143,7 @@ export class StaffAuthService {
       }
       throw error
     }
+    await recordStaffAuditForScopes(dataSource.manager, this.audit, account.id, input.scopes, "staff.account.created", account.id)
     return await this.toSummary(account)
   }
 
@@ -139,6 +156,7 @@ export class StaffAuthService {
     account.permissionsVersion += 1
     const dataSource = await this.database.getDataSource()
     await dataSource.getRepository(StaffAccountEntity).save(account)
+    await recordStaffAccountAudit(this.database, this.audit, account, "staff.account.password_reset", account.id)
     return await this.toSummary(account)
   }
 
@@ -148,6 +166,7 @@ export class StaffAuthService {
     account.permissionsVersion += 1
     const dataSource = await this.database.getDataSource()
     await dataSource.getRepository(StaffAccountEntity).save(account)
+    await recordStaffAccountAudit(this.database, this.audit, account, "staff.account.disabled", account.id)
     return await this.toSummary(account)
   }
 
@@ -163,6 +182,7 @@ export class StaffAuthService {
     account.lockedUntil = null
     account.permissionsVersion += 1
     await dataSource.getRepository(StaffAccountEntity).save(account)
+    await recordStaffAccountAudit(this.database, this.audit, account, "staff.password.changed", account.id)
   }
 
   private async findAccount(id: string): Promise<StaffAccountEntity> {

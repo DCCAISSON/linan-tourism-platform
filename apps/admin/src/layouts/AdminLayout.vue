@@ -10,11 +10,11 @@
       </div>
 
       <nav class="admin-nav" aria-label="主要菜单">
-        <router-link class="admin-nav__item" to="/home">工作台</router-link>
-        <router-link class="admin-nav__item" to="/configuration">活动配置</router-link>
-        <router-link class="admin-nav__item" to="/roster">名单统计</router-link>
-        <router-link class="admin-nav__item" to="/orders">订单管理</router-link>
-        <router-link class="admin-nav__item" to="/staff-accounts">账号权限</router-link>
+        <router-link v-if="hasPermission('workbench.read')" class="admin-nav__item" to="/home">工作台</router-link>
+        <router-link v-if="hasPermission('configuration.read')" class="admin-nav__item" to="/configuration">活动配置</router-link>
+        <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/roster">名单统计</router-link>
+        <router-link v-if="hasPermission('orders.read')" class="admin-nav__item" to="/orders">订单管理</router-link>
+        <router-link v-if="hasPermission('staff_accounts.manage')" class="admin-nav__item" to="/staff-accounts">账号权限</router-link>
       </nav>
     </aside>
 
@@ -35,15 +35,26 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 
-import { logoutStaff } from "@/api/auth"
+import { getCurrentStaff, logoutStaff, type StaffPermissionKey } from "@/api/auth"
 import { routeNames } from "@/router/routes"
 
 const router = useRouter()
+const permissionKeys = ref<readonly StaffPermissionKey[]>([])
+
+onMounted(async () => {
+  const staff = await getCurrentStaff()
+  permissionKeys.value = staff.permissionKeys
+})
 
 async function logout(): Promise<void> {
   await logoutStaff()
   await router.push({ name: routeNames.login })
+}
+
+function hasPermission(permissionKey: StaffPermissionKey): boolean {
+  return permissionKeys.value.includes(permissionKey)
 }
 </script>
