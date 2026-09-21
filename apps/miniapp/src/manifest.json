@@ -1,11 +1,11 @@
 {
-  "name": "临安文旅",
-  "appid": "",
-  "description": "临安文旅数字化平台微信小程序",
+  "name": "临安旅游通",
+  "appid": "wxc5342b9c2405431b",
+  "description": "临安旅游通微信小程序",
   "versionName": "0.0.0",
   "versionCode": "1",
   "mp-weixin": {
-    "appid": "",
+    "appid": "wxc5342b9c2405431b",
     "setting": {
       "urlCheck": false,
       "es6": true
