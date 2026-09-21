@@ -30,22 +30,26 @@ export class FamilyOrderService {
   async detail(identity: EnrollmentIdentity, orderId: string): Promise<OrderDetailResponse> {
     const manager = (await this.database.getDataSource()).manager
     const scoped = await findScopedOrder(manager, identity, orderId)
-    const lines = await manager.find(OrderLineEntity, { where: { orderId }, order: { id: "ASC" } })
-    return {
-      ...await toHistoryItem(manager, scoped),
-      contactName: scoped.enrollment.contactName,
-      emergencyContactName: scoped.enrollment.emergencyContactName,
-      emergencyContactPhone: scoped.enrollment.emergencyContactPhone,
-      participants: lines.map((line) => ({
-        id: line.id, enrollmentParticipantId: line.enrollmentParticipantId,
-        displayName: line.displayNameSnapshot, gradeName: line.gradeNameSnapshot,
-        className: line.classNameSnapshot, amountFen: line.amountFen,
-      })),
-    }
+    return toOrderDetail(manager, scoped)
   }
 }
 
-async function toHistoryItem(manager: EntityManager, scoped: ScopedOrder): Promise<OrderHistoryItem> {
+export async function toOrderDetail(manager: EntityManager, scoped: ScopedOrder): Promise<OrderDetailResponse> {
+  const lines = await manager.find(OrderLineEntity, { where: { orderId: scoped.order.id }, order: { id: "ASC" } })
+  return {
+    ...await toHistoryItem(manager, scoped),
+    contactName: scoped.enrollment.contactName,
+    emergencyContactName: scoped.enrollment.emergencyContactName,
+    emergencyContactPhone: scoped.enrollment.emergencyContactPhone,
+    participants: lines.map((line) => ({
+      id: line.id, enrollmentParticipantId: line.enrollmentParticipantId,
+      displayName: line.displayNameSnapshot, gradeName: line.gradeNameSnapshot,
+      className: line.classNameSnapshot, amountFen: line.amountFen,
+    })),
+  }
+}
+
+export async function toHistoryItem(manager: EntityManager, scoped: ScopedOrder): Promise<OrderHistoryItem> {
   const session = await manager.findOneBy(TourSessionEntity, { id: scoped.enrollment.tourSessionId })
   if (session === null) throw orderNotFound()
   const [catalog, school] = await Promise.all([

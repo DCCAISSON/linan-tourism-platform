@@ -1,6 +1,6 @@
 import { ORDER_STATUS, PAYMENT_STATUS } from "@linan/contracts"
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
-import { OrderLineEntity, PaymentEntity } from "../../domain/entities/index.js"
+import { OrderEntity, OrderLineEntity, PaymentEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import { findScopedOrder } from "./order.persistence.js"
@@ -30,6 +30,20 @@ export class LocalRefundService {
     this.ensureAvailable()
     const manager = (await this.database.getDataSource()).manager
     const { order } = await findScopedOrder(manager, identity, orderId)
+    return this.calculate(order, selection)
+  }
+
+  async previewStaff(orderId: string, selection: LocalRefundSelection): Promise<LocalRefundPreview> {
+    this.ensureAvailable()
+    const manager = (await this.database.getDataSource()).manager
+    const order = await manager.findOneBy(OrderEntity, { id: orderId })
+    if (order === null) throw new NotFoundException({ code: "not_found", message: "order was not found" })
+    return this.calculate(order, selection)
+  }
+
+  private async calculate(order: OrderEntity, selection: LocalRefundSelection): Promise<LocalRefundPreview> {
+    const orderId = order.id
+    const manager = (await this.database.getDataSource()).manager
     const [lines, payments] = await Promise.all([
       manager.find(OrderLineEntity, { where: { orderId }, order: { id: "ASC" } }),
       manager.find(PaymentEntity, { where: { orderId, status: PAYMENT_STATUS.succeeded } }),

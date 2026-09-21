@@ -13,6 +13,7 @@
         <router-link class="admin-nav__item" to="/home">工作台</router-link>
         <router-link class="admin-nav__item" to="/configuration">活动配置</router-link>
         <router-link class="admin-nav__item" to="/roster">名单统计</router-link>
+        <router-link class="admin-nav__item" to="/orders">订单管理</router-link>
       </nav>
     </aside>
 

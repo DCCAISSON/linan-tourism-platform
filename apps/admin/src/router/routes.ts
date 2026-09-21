@@ -5,12 +5,14 @@ import ConfigurationView from "@/views/ConfigurationView.vue"
 import HomeView from "@/views/HomeView.vue"
 import LoginView from "@/views/LoginView.vue"
 import RosterView from "@/views/RosterView.vue"
+import OrdersView from "@/views/OrdersView.vue"
 
 export const routeNames = {
   configuration: "configuration",
   home: "home",
   login: "login",
   roster: "roster",
+  orders: "orders",
 } as const
 
 export const routes: RouteRecordRaw[] = [
@@ -50,6 +52,12 @@ export const routes: RouteRecordRaw[] = [
         meta: {
           title: "名单统计",
         },
+      },
+      {
+        path: "orders",
+        name: routeNames.orders,
+        component: OrdersView,
+        meta: { title: "订单管理" },
       },
     ],
   },

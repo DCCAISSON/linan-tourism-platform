@@ -43,6 +43,13 @@ export type OrderDetailResponse = OrderHistoryItem & {
   readonly participants: readonly OrderParticipant[]
 }
 
+export type StaffOrderListResponse = {
+  readonly orders: readonly OrderHistoryItem[]
+  readonly total: number
+  readonly page: number
+  readonly pageSize: number
+}
+
 export type MockPaymentEventStatus = "succeeded" | "failed"
 
 export type MockPaymentEvent = {

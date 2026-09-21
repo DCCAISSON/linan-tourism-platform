@@ -78,6 +78,13 @@ export class DevStaffAccessService {
     }
     throw scopeForbidden("staff identity cannot access payment totals")
   }
+
+  assertOrderManagementScope(access: StaffAccess): void {
+    if (access.kind === "administrator") {
+      return
+    }
+    throw scopeForbidden("staff identity cannot access orders")
+  }
 }
 
 function readHeader(headers: RequestHeaders, name: string): string | undefined {

@@ -36,6 +36,7 @@
       <div class="workbench-shortcuts">
         <router-link to="/configuration"><strong>管理学校、课程与团期</strong><span>维护活动内容、日期和学校价格</span></router-link>
         <router-link to="/roster"><strong>查询名单与导出 Excel</strong><span>按团期、学校、年级和班级查询</span></router-link>
+        <router-link to="/orders"><strong>查看订单与退款试算</strong><span>核对参加人员、历史金额和本地模拟结果</span></router-link>
       </div>
     </section>
   </section>
