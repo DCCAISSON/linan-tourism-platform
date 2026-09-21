@@ -30,7 +30,7 @@
             <select id="notice-session" v-model="noticeSessionId" required>
               <option value="">请选择团期</option>
               <option v-for="session in tourSessions" :key="session.id" :value="session.id">
-                {{ session.code }} ? {{ catalogTitleById(session.catalogItemId) }}
+                {{ session.code }} · {{ catalogTitleById(session.catalogItemId) }}
               </option>
             </select>
           </div>
