@@ -1,6 +1,7 @@
 ﻿import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { downloadRosterExport, getRosterSummary, importRoster, readableRosterError, RosterApiError } from "@/api/roster"
+import { parseRosterImportResult } from "@/api/roster.parsers"
 
 describe("roster API", () => {
   afterEach(() => {
@@ -91,6 +92,35 @@ describe("roster API", () => {
     expect(call[1]?.credentials).toBe("include")
     expect(call[1]?.body).toBeInstanceOf(FormData)
     expect(result.importedCount).toBe(1)
+  })
+
+  it("maps import row errors to business labels", () => {
+    const result = parseRosterImportResult({
+      id: "batch-1",
+      sourceTemplate: "grade_3_6",
+      tourSessionId: "session-1",
+      schoolId: "school-1",
+      gradeId: "grade-1",
+      classId: "class-1",
+      fileName: "roster.xlsx",
+      totalRows: 1,
+      importedCount: 0,
+      duplicateCount: 0,
+      errorCount: 1,
+      errors: [
+        {
+          rowNumber: 4,
+          role: "student",
+          field: "identityNumber",
+          message: "identityNumber must be a valid resident identity number",
+        },
+      ],
+    })
+
+    expect(result.errors[0]).toMatchObject({
+      fieldLabel: "证件号码",
+      messageLabel: "证件号码格式不正确",
+    })
   })
   it("downloads the export file with the same query and staff session cookies", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(

@@ -334,7 +334,7 @@
   min-width: 0;
 }
 
-.roster-import-form input[type="file"] {
+.roster-import-form select, .roster-import-form input[type="file"] {
   width: 100%;
   min-height: 44px;
   padding: 9px 12px;
@@ -343,6 +343,11 @@
   border: 1px solid var(--border-default);
   border-radius: 8px;
   font: inherit;
+}
+
+.roster-import-form select:focus, .roster-import-form input[type="file"]:focus {
+  border-color: var(--accent-primary);
+  outline: 2px solid var(--border-subtle);
 }
 
 @media (max-width: 768px) {

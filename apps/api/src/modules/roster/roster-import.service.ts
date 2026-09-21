@@ -175,7 +175,19 @@ export class RosterImportService {
         identityHash: protectedData.identityHash,
       })
       if (existing !== null) {
-        counters.duplicate += 1
+        if (
+          existing.organizationId === input.schoolId
+          && existing.gradeId === input.gradeId
+          && existing.classId === input.classId
+          && existing.sourceClassName === row.className.slice(0, 120)
+          && existing.role === person.role
+          && existing.displayName === person.displayName.slice(0, 120)
+          && existing.phoneHash === protectedData.phoneHash
+        ) {
+          counters.duplicate += 1
+        } else {
+          errors.push(rowError(row, person.role, "identityNumber", "证件号码已在同团期导入，但姓名、角色、班级或手机号不一致"))
+        }
         return
       }
       await manager.save(manager.create(RosterImportPersonEntity, {

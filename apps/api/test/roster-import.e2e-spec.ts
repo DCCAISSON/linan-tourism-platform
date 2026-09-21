@@ -15,6 +15,7 @@ import { createCatalog, restoreNodeEnv, virtualPhone, virtualResidentId } from "
 import { payEnrollment } from "./roster-export-fixture.js"
 
 const PERSON_DATA_KEY = Buffer.alloc(32, 12).toString("base64")
+const ROSTER_IMPORT_MAX_FILE_BYTES = 5 * 1024 * 1024
 
 describe.skipIf(databaseUrl === undefined)("Roster import API", () => {
   let app: INestApplication
@@ -98,6 +99,43 @@ describe.skipIf(databaseUrl === undefined)("Roster import API", () => {
     expect(csv.text).toContain('"rowNumber","role","field","message"')
     expect(csv.text).toContain('"3","student","identityNumber"')
   })
+
+  it("returns a row error when the same credential has conflicting roster details", async () => {
+    const catalog = await createCatalog(app, scope)
+    await importWorkbook(app, catalog, "grade_3_6", await gradeWorkbook("三（2）班"))
+
+    const conflicted = await importWorkbook(app, catalog, "grade_3_6", await conflictingGradeWorkbook("三（2）班"))
+
+    expect(conflicted.body).toMatchObject({ totalRows: 1, importedCount: 0, duplicateCount: 0, errorCount: 1 })
+    expect(conflicted.body.errors).toEqual([
+      expect.objectContaining({
+        rowNumber: 3,
+        role: "student",
+        field: "identityNumber",
+        message: "证件号码已在同团期导入，但姓名、角色、班级或手机号不一致",
+      }),
+    ])
+  })
+
+  it("rejects roster workbooks larger than 5MB", async () => {
+    const catalog = await createCatalog(app, scope)
+
+    const response = await request(app.getHttpServer())
+      .post("/roster/imports")
+      .set(DEV_ADMIN_HEADERS)
+      .field("template", "grade_3_6")
+      .field("tourSessionId", catalog.tourSessionId)
+      .field("schoolId", catalog.schoolId)
+      .field("gradeId", catalog.gradeId)
+      .field("classId", catalog.classId)
+      .attach("file", Buffer.alloc(ROSTER_IMPORT_MAX_FILE_BYTES + 1, 1), "large.xlsx")
+      .expect(400)
+
+    expect(response.body).toMatchObject({
+      code: "malformed_input",
+      message: "file must be at most 5MB",
+    })
+  })
 })
 
 async function importWorkbook(
@@ -130,6 +168,13 @@ async function gradeWorkbook(className: string): Promise<Buffer> {
   return workbookBuffer([
     ["序号", "班级", "*学生姓名", "*身份证号", "生日", "年龄", "* 手机"],
     [1, className, "学生二", virtualResidentId("20140101", "102"), "", "", virtualPhone("2102")],
+  ])
+}
+
+async function conflictingGradeWorkbook(className: string): Promise<Buffer> {
+  return workbookBuffer([
+    ["序号", "班级", "*学生姓名", "*身份证号", "生日", "年龄", "* 手机"],
+    [1, className, "学生二改", virtualResidentId("20140101", "102"), "", "", virtualPhone("2102")],
   ])
 }
 

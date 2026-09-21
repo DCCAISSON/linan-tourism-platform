@@ -33,7 +33,9 @@ export type RosterImportErrorRow = {
   readonly rowNumber: number
   readonly role: "student" | "guardian" | "teacher" | null
   readonly field: string
+  readonly fieldLabel: string
   readonly message: string
+  readonly messageLabel: string
 }
 
 export type RosterImportResult = {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Inject, Param, Post, Query, Res, UploadedFile, UseInterceptors } from "@nestjs/common"
+import { ArgumentsHost, BadRequestException, Body, Catch, Controller, Get, Headers, Inject, Param, Post, Query, Res, UploadedFile, UseFilters, UseInterceptors } from "@nestjs/common"
 import { FileInterceptor } from "@nestjs/platform-express"
 import type { Response } from "express"
 import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
@@ -13,6 +13,20 @@ import { WorkbenchService } from "./workbench.service.js"
 import type { WorkbenchSummary } from "./workbench.types.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
+const ROSTER_IMPORT_MAX_FILE_BYTES = 5 * 1024 * 1024
+
+@Catch(BadRequestException)
+class RosterUploadBadRequestFilter {
+  catch(exception: BadRequestException, host: ArgumentsHost): void {
+    const response = host.switchToHttp().getResponse<Response>()
+    const payload = exception.getResponse()
+    if (isFileTooLargePayload(payload)) {
+      response.status(400).json(rosterImportFileTooLarge().getResponse())
+      return
+    }
+    response.status(exception.getStatus()).json(payload)
+  }
+}
 
 @Controller("roster")
 export class RosterController {
@@ -39,7 +53,8 @@ export class RosterController {
   }
 
   @Post("imports")
-  @UseInterceptors(FileInterceptor("file"))
+  @UseFilters(RosterUploadBadRequestFilter)
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: ROSTER_IMPORT_MAX_FILE_BYTES } }))
   async importRoster(
     @Headers() headers: RequestHeaders,
     @Body() body: unknown,
@@ -48,6 +63,9 @@ export class RosterController {
     this.staffAccess.assertUnsafeOrigin(headers)
     if (file === undefined || !Buffer.isBuffer(file.buffer)) {
       throw malformedRosterInput("file is required")
+    }
+    if (file.buffer.length > ROSTER_IMPORT_MAX_FILE_BYTES) {
+      throw rosterImportFileTooLarge()
     }
     const scope = parseRosterImportBody(body)
     return this.rosterImport.importWorkbook(await this.staffAccess.resolve(headers), {
@@ -146,4 +164,19 @@ function createErrorCsv(errors: readonly RosterImportErrorRow[]): string {
 function csvCell(value: string): string {
   const safe = /^[=+\-@]/.test(value) ? `'${value}` : value
   return `"${safe.replaceAll('"', '""')}"`
+}
+
+function rosterImportFileTooLarge(): BadRequestException {
+  return malformedRosterInput("file must be at most 5MB")
+}
+
+function isFileTooLargePayload(payload: unknown): boolean {
+  if (typeof payload === "string") {
+    return payload === "File too large"
+  }
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload) || !("message" in payload)) {
+    return false
+  }
+  const message = payload.message
+  return message === "File too large" || (Array.isArray(message) && message.includes("File too large"))
 }

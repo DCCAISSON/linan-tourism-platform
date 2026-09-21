@@ -108,7 +108,9 @@ test("queries roster summary, imports a returned template, and downloads the exp
   })
   await page.getByRole("button", { name: "导入名单" }).click()
   await expect(page.getByText("已处理 2 行，新增 1 人，跳过重复 1 人，错误 1 条。")).toBeVisible()
-  await expect(page.getByRole("table", { name: "名单导入错误表" })).toContainText("identityNumber")
+  await expect(page.getByRole("table", { name: "名单导入错误表" })).toContainText("证件号码")
+  await expect(page.getByRole("table", { name: "名单导入错误表" })).toContainText("证件号码格式不正确")
+  await expect(page.getByRole("table", { name: "名单导入错误表" })).not.toContainText("identityNumber")
   for (const width of [1280, 375]) {
     await page.setViewportSize({ width, height: 900 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)

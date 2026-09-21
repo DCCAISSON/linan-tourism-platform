@@ -130,12 +130,36 @@ export function parseRosterImportResult(value: unknown): RosterImportResult {
 
 function parseRosterImportError(value: unknown): RosterImportErrorRow {
   const record = readRecord(value, "导入错误")
+  const field = readString(record, "field", "导入错误")
+  const message = readString(record, "message", "导入错误")
   return {
     rowNumber: readNumber(record, "rowNumber", "导入错误"),
     role: readImportRole(record["role"]),
-    field: readString(record, "field", "导入错误"),
-    message: readString(record, "message", "导入错误"),
+    field,
+    fieldLabel: importErrorFieldLabel(field),
+    message,
+    messageLabel: importErrorMessageLabel(message),
   }
+}
+
+function importErrorFieldLabel(field: string): string {
+  if (field === "className" || field === "classId") return "班级"
+  if (field === "displayName") return "姓名"
+  if (field === "identityNumber") return "证件号码"
+  if (field === "phone") return "手机号"
+  if (field === "gradeId") return "年级"
+  if (field === "schoolId") return "学校"
+  if (field === "tourSessionId") return "团期"
+  if (field === "row") return "整行"
+  return field
+}
+
+function importErrorMessageLabel(message: string): string {
+  if (message === "identityNumber must be a valid resident identity number") return "证件号码格式不正确"
+  if (message === "identityNumber birth date is invalid") return "证件号码出生日期不正确"
+  if (message === "identityNumber checksum is invalid") return "证件号码校验位不正确"
+  if (message === "phone must be a valid mainland China mobile number") return "手机号格式不正确"
+  return message
 }
 
 function readImportTemplate(record: Record<string, unknown>, field: string): RosterImportTemplate {

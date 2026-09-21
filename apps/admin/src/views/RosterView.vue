@@ -100,8 +100,8 @@
             <tr v-for="errorRow in importResult.errors" :key="`${errorRow.rowNumber}-${errorRow.role ?? 'row'}-${errorRow.field}`">
               <td data-label="行号">{{ errorRow.rowNumber }}</td>
               <td data-label="角色">{{ roleLabel(errorRow.role) }}</td>
-              <td data-label="字段">{{ errorRow.field }}</td>
-              <td data-label="错误">{{ errorRow.message }}</td>
+              <td data-label="字段">{{ errorRow.fieldLabel }}</td>
+              <td data-label="错误">{{ errorRow.messageLabel }}</td>
             </tr>
           </tbody>
         </table>
