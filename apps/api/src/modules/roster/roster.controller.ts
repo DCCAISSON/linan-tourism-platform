@@ -1,4 +1,4 @@
-import { ArgumentsHost, BadRequestException, Body, Catch, Controller, Get, Headers, Inject, Param, Post, Query, Res, UploadedFile, UseFilters, UseInterceptors } from "@nestjs/common"
+import { ArgumentsHost, BadRequestException, Body, Catch, Controller, Get, Headers, Inject, Param, PayloadTooLargeException, Post, Query, Res, UploadedFile, UseFilters, UseInterceptors } from "@nestjs/common"
 import { FileInterceptor } from "@nestjs/platform-express"
 import type { Response } from "express"
 import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
@@ -15,15 +15,15 @@ import type { WorkbenchSummary } from "./workbench.types.js"
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 const ROSTER_IMPORT_MAX_FILE_BYTES = 5 * 1024 * 1024
 
-@Catch(BadRequestException)
+@Catch(BadRequestException, PayloadTooLargeException)
 class RosterUploadBadRequestFilter {
-  catch(exception: BadRequestException, host: ArgumentsHost): void {
+  catch(exception: BadRequestException | PayloadTooLargeException, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>()
-    const payload = exception.getResponse()
-    if (isFileTooLargePayload(payload)) {
+    if (isFileTooLargeException(exception)) {
       response.status(400).json(rosterImportFileTooLarge().getResponse())
       return
     }
+    const payload = exception.getResponse()
     response.status(exception.getStatus()).json(payload)
   }
 }
@@ -170,13 +170,20 @@ function rosterImportFileTooLarge(): BadRequestException {
   return malformedRosterInput("file must be at most 5MB")
 }
 
-function isFileTooLargePayload(payload: unknown): boolean {
-  if (typeof payload === "string") {
-    return payload === "File too large"
+function isFileTooLargeException(exception: unknown): boolean {
+  if (exception instanceof PayloadTooLargeException) {
+    return true
   }
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload) || !("message" in payload)) {
+  if (!isRecord(exception)) {
     return false
   }
-  const message = payload.message
-  return message === "File too large" || (Array.isArray(message) && message.includes("File too large"))
+  if (exception["code"] === "LIMIT_FILE_SIZE") {
+    return true
+  }
+  const response = typeof exception["getResponse"] === "function" ? exception["getResponse"]() : undefined
+  return isRecord(response) && response["message"] === "File too large"
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
