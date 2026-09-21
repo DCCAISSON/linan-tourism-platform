@@ -22,7 +22,7 @@ export function resolveDevelopmentStaff(headers: StaffAccessRequestHeaders): Sta
       kind: "school",
       actorId,
       forcePasswordChange: false,
-      permissionKeys: new Set(["roster.read", "roster.export", "configuration.read"]),
+      permissionKeys: new Set(["roster.read", "roster.export", "configuration.read", "transport.read", "transport.write", "transport.export"]),
       scopes: [{ kind: "school", id: schoolId }],
     }
   }
@@ -32,7 +32,7 @@ export function resolveDevelopmentStaff(headers: StaffAccessRequestHeaders): Sta
       kind: "guide",
       actorId,
       forcePasswordChange: false,
-      permissionKeys: new Set(["roster.read", "configuration.read"]),
+      permissionKeys: new Set(["roster.read", "configuration.read", "transport.read"]),
       scopes: [{ kind: "tour_session", id: tourSessionId }],
     }
   }

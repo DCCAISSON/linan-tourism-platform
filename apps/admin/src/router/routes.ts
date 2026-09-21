@@ -8,6 +8,7 @@ import LoginView from "@/views/LoginView.vue"
 import RosterView from "@/views/RosterView.vue"
 import OrdersView from "@/views/OrdersView.vue"
 import StaffAccountsView from "@/views/StaffAccountsView.vue"
+import TransportView from "@/views/TransportView.vue"
 
 export const routeNames = {
   configuration: "configuration",
@@ -16,6 +17,7 @@ export const routeNames = {
   forcePasswordChange: "force-password-change",
   roster: "roster",
   orders: "orders",
+  transport: "transport",
   staffAccounts: "staff-accounts",
 } as const
 
@@ -73,6 +75,12 @@ export const routes: RouteRecordRaw[] = [
         name: routeNames.orders,
         component: OrdersView,
         meta: { title: "订单管理", requiredPermission: "orders.read" },
+      },
+      {
+        path: "transport",
+        name: routeNames.transport,
+        component: TransportView,
+        meta: { title: "车辆安排", requiredPermission: "transport.read" },
       },
       {
         path: "staff-accounts",

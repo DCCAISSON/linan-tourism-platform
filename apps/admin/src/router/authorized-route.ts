@@ -6,6 +6,7 @@ const authorizedRouteOrder: readonly { readonly permissionKey: StaffPermissionKe
   { permissionKey: "configuration.read", routeName: routeNames.configuration },
   { permissionKey: "roster.read", routeName: routeNames.roster },
   { permissionKey: "orders.read", routeName: routeNames.orders },
+  { permissionKey: "transport.read", routeName: routeNames.transport },
   { permissionKey: "staff_accounts.manage", routeName: routeNames.staffAccounts },
 ]
 

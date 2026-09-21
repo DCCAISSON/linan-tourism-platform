@@ -80,6 +80,31 @@ export class DevStaffAccessService {
     throw scopeForbidden("staff identity cannot import this roster")
   }
 
+
+  assertTransportReadScope(access: StaffAccess, scope: StaffRosterScope): void {
+    requirePermission(access, "transport.read", "staff identity cannot access transport plan")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "summary"))) {
+      return
+    }
+    throw scopeForbidden("staff identity cannot access transport plan")
+  }
+
+  assertTransportWriteScope(access: StaffAccess, scope: StaffRosterScope): void {
+    requirePermission(access, "transport.write", "staff identity cannot change transport plan")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "summary"))) {
+      return
+    }
+    throw scopeForbidden("staff identity cannot change transport plan")
+  }
+
+  assertTransportExportScope(access: StaffAccess, scope: StaffRosterScope): void {
+    requirePermission(access, "transport.export", "staff identity cannot export transport plan")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "summary"))) {
+      return
+    }
+    throw scopeForbidden("staff identity cannot export transport plan")
+  }
+
   assertPaymentSummaryScope(access: StaffAccess): void {
     if (access.permissionKeys.has("orders.read") || access.permissionKeys.has("workbench.read")) {
       requireAllScope(access, "staff identity cannot access global payment totals")

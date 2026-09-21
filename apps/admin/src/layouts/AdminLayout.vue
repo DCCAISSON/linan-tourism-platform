@@ -14,6 +14,7 @@
         <router-link v-if="hasPermission('configuration.read')" class="admin-nav__item" to="/configuration">活动配置</router-link>
         <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/roster">名单统计</router-link>
         <router-link v-if="hasPermission('orders.read')" class="admin-nav__item" to="/orders">订单管理</router-link>
+        <router-link v-if="hasPermission('transport.read')" class="admin-nav__item" to="/transport">车辆安排</router-link>
         <router-link v-if="hasPermission('staff_accounts.manage')" class="admin-nav__item" to="/staff-accounts">账号权限</router-link>
       </nav>
     </aside>

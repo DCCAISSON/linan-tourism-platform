@@ -22,6 +22,8 @@ import { StaffAccountPermissionEntity } from "./staff-account-permission.entity.
 import { StaffAccountScopeEntity } from "./staff-account-scope.entity.js"
 import { StaffSessionEntity } from "./staff-session.entity.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
+import { TransportClassAllocationEntity } from "./transport-class-allocation.entity.js"
+import { TransportSessionVehicleEntity } from "./transport-session-vehicle.entity.js"
 
 export { AuditLogEntity } from "./audit-log.entity.js"
 export { CatalogItemEntity } from "./catalog-item.entity.js"
@@ -47,6 +49,8 @@ export { StaffAccountPermissionEntity } from "./staff-account-permission.entity.
 export { StaffAccountScopeEntity } from "./staff-account-scope.entity.js"
 export { StaffSessionEntity } from "./staff-session.entity.js"
 export { TourSessionEntity } from "./tour-session.entity.js"
+export { TransportClassAllocationEntity } from "./transport-class-allocation.entity.js"
+export { TransportSessionVehicleEntity } from "./transport-session-vehicle.entity.js"
 
 export const DOMAIN_ENTITIES = [
   OrganizationEntity,
@@ -73,4 +77,6 @@ export const DOMAIN_ENTITIES = [
   StaffAccountPermissionEntity,
   StaffAccountScopeEntity,
   StaffSessionEntity,
+  TransportSessionVehicleEntity,
+  TransportClassAllocationEntity,
 ]
