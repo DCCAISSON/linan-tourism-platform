@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { firstAuthorizedRouteName } from "@/router/authorized-route"
 import { routeNames, routes } from "@/router/routes"
 
 describe("admin routes", () => {
@@ -23,5 +24,11 @@ describe("admin routes", () => {
       "orders.read",
       "staff_accounts.manage",
     ])
+  })
+
+  it("chooses the first route the staff account is allowed to open", () => {
+    expect(firstAuthorizedRouteName(["roster.read"])).toBe(routeNames.roster)
+    expect(firstAuthorizedRouteName(["orders.read", "roster.read"])).toBe(routeNames.roster)
+    expect(firstAuthorizedRouteName([])).toBeNull()
   })
 })

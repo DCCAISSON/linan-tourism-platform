@@ -1,6 +1,8 @@
 import type { INestApplication } from "@nestjs/common"
 import request from "supertest"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
+import { parseCreateStaffAccount } from "../src/modules/iam/staff-auth.parser.js"
+import { hashToken } from "../src/modules/iam/staff-session-token.js"
 import {
   closeCatalogTripDatabase,
   createCatalogTripApp,
@@ -10,6 +12,27 @@ import {
   DEV_ADMIN_HEADERS,
   initializeCatalogTripDatabase,
 } from "./catalog-trip-fixture.js"
+
+describe("managed staff identity policy without database", () => {
+  it("validates fixed scopes and hashes session tokens without storing the raw token", () => {
+    expect(hashToken("session-token")).toHaveLength(64)
+    expect(hashToken("session-token")).not.toBe("session-token")
+    expect(() => parseCreateStaffAccount({
+      username: "operator",
+      displayName: "Operator",
+      temporaryPassword: "Admin1234567",
+      permissionKeys: ["workbench.read"],
+      scopes: [{ kind: "organization", id: "org-1" }],
+    })).not.toThrow()
+    expect(() => parseCreateStaffAccount({
+      username: "operator",
+      displayName: "Operator",
+      temporaryPassword: "Admin1234567",
+      permissionKeys: ["workbench.read"],
+      scopes: [{ kind: "all", id: "org-1" }],
+    })).toThrow("all scope must not include id")
+  })
+})
 
 describe.skipIf(databaseUrl === undefined)("managed staff identity", () => {
   let app: INestApplication

@@ -1,17 +1,17 @@
 import { expect, test } from "@playwright/test"
 import { installRosterOptions } from "./roster-options"
+import { installStaffAuthMock } from "./staff-auth-mock"
 
 const apiBase = "http://127.0.0.1:3000"
 
 test("queries roster summary and downloads the export", async ({ page }) => {
+  await installStaffAuthMock(page)
   await installRosterOptions(page)
   await page.route(`${apiBase}/roster/summary?**`, async route => {
     const request = route.request()
     const url = new URL(request.url())
     expect(url.searchParams.get("tourSessionId")).toBe("session-1")
     expect(url.searchParams.get("schoolId")).toBe("school-1")
-    expect(request.headers()["x-linan-dev-staff-id"]).toBe("dev-admin")
-    expect(request.headers()["x-linan-dev-staff-role"]).toBe("administrator")
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
@@ -52,7 +52,6 @@ test("queries roster summary and downloads the export", async ({ page }) => {
     const request = route.request()
     const url = new URL(request.url())
     expect(url.searchParams.get("tourSessionId")).toBe("session-1")
-    expect(request.headers()["x-linan-dev-staff-role"]).toBe("administrator")
     await route.fulfill({
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -81,6 +80,7 @@ test("queries roster summary and downloads the export", async ({ page }) => {
 })
 
 test("shows roster query errors", async ({ page }) => {
+  await installStaffAuthMock(page)
   await installRosterOptions(page)
   await page.route(`${apiBase}/roster/summary?**`, async route => {
     await route.fulfill({
@@ -100,6 +100,7 @@ test("shows roster query errors", async ({ page }) => {
 
 test("clears grade and class when the selected school changes", async ({ page }) => {
   // Given: name-based options belong to separate schools.
+  await installStaffAuthMock(page)
   await installRosterOptions(page)
   await page.goto("/roster")
   await page.getByLabel("学校", { exact: true }).selectOption("school-1")

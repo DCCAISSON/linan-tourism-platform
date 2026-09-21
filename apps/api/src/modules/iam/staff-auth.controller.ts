@@ -80,7 +80,7 @@ export class StaffAuthController {
     this.staffAccess.assertUnsafeOrigin(headers)
     const access = await this.staffAccess.resolve(headers)
     this.staffAccess.assertStaffAccountManagement(access)
-    return await this.auth.createAccount(parseCreateStaffAccount(body))
+    return await this.auth.createAccount(access, parseCreateStaffAccount(body))
   }
 
   @Post("accounts/:id/reset-password")
@@ -89,7 +89,7 @@ export class StaffAuthController {
     this.staffAccess.assertUnsafeOrigin(headers)
     const access = await this.staffAccess.resolve(headers)
     this.staffAccess.assertStaffAccountManagement(access)
-    return await this.auth.resetPassword(id, parseTemporaryPassword(body))
+    return await this.auth.resetPassword(access, id, parseTemporaryPassword(body))
   }
 
   @Post("accounts/:id/disable")
@@ -98,7 +98,7 @@ export class StaffAuthController {
     this.staffAccess.assertUnsafeOrigin(headers)
     const access = await this.staffAccess.resolve(headers)
     this.staffAccess.assertStaffAccountManagement(access)
-    return await this.auth.disableAccount(id)
+    return await this.auth.disableAccount(access, id)
   }
 }
 

@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test"
+import { installStaffAuthMock } from "./staff-auth-mock"
 
 const apiBase = "http://127.0.0.1:3000"
 
 test("staff reviews an order and validates a one-person refund without settling it", async ({ page }, testInfo) => {
+  await installStaffAuthMock(page)
   await page.route(`${apiBase}/staff/orders?**`, async route => {
-    expect(route.request().headers()["x-linan-dev-staff-role"]).toBe("administrator")
     await route.fulfill({ json: {
       orders: [{ id: "order-1", code: "ORDER-001", enrollmentId: "enrollment-1", payerName: "陈女士", status: "paid", amountFen: 25600, paidFen: 25600, participantCount: 2, tourSessionId: "session-1", activityTitle: "临安研学", schoolName: "临安实验小学", startsAt: "2027-02-01T00:00:00.000Z", endsAt: "2027-02-02T00:00:00.000Z", createdAt: "2026-09-21T00:00:00.000Z" }],
       total: 1, page: 1, pageSize: 20,
@@ -42,6 +43,7 @@ test("staff reviews an order and validates a one-person refund without settling 
 })
 
 test("shows a retryable error when the order service returns a non-JSON failure", async ({ page }) => {
+  await installStaffAuthMock(page)
   await page.route(`${apiBase}/staff/orders?**`, async route => {
     await route.fulfill({ status: 502, contentType: "text/html", body: "Gateway unavailable" })
   })

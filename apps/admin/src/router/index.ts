@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router"
 
 import { getCurrentStaff, staffPermissionKeys, type StaffPermissionKey } from "@/api/auth"
+import { firstAuthorizedRouteName } from "./authorized-route"
 import { routes } from "./routes"
 import { routeNames } from "./routes"
 
@@ -20,7 +21,8 @@ router.beforeEach(async (to) => {
     }
     const requiredPermission = readRequiredPermission(to.meta["requiredPermission"])
     if (requiredPermission !== null && !staff.permissionKeys.includes(requiredPermission)) {
-      return { name: routeNames.home }
+      const routeName = firstAuthorizedRouteName(staff.permissionKeys)
+      return routeName === null ? { name: routeNames.login } : { name: routeName }
     }
     return true
   } catch {

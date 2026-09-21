@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test"
+import { installStaffAuthMock } from "./staff-auth-mock"
+
 const apiBase = "http://127.0.0.1:3000"
 test("manages schools, classes, catalog items, and tour sessions", async ({ page }) => {
+  await installStaffAuthMock(page)
   let tourSession = {
     id: "session-2",
     organizationId: "school-1",

@@ -27,8 +27,9 @@
 import { ref } from "vue"
 import { useRoute, useRouter } from "vue-router"
 
-import { loginStaff } from "@/api/auth"
+import { getCurrentStaff, loginStaff } from "@/api/auth"
 import { readableApiError } from "@/api/configuration"
+import { firstAuthorizedRouteName } from "@/router/authorized-route"
 import { routeNames } from "@/router/routes"
 
 const route = useRoute()
@@ -51,7 +52,12 @@ async function submitLogin(): Promise<void> {
       return
     }
     const redirect = typeof route.query["redirect"] === "string" ? route.query["redirect"] : undefined
-    await router.push(redirect ?? { name: routeNames.home })
+    if (redirect !== undefined) {
+      await router.push(redirect)
+      return
+    }
+    const staff = await getCurrentStaff()
+    await router.push({ name: firstAuthorizedRouteName(staff.permissionKeys) ?? routeNames.login })
   } catch (error) {
     errorMessage.value = readableApiError(error)
   } finally {

@@ -121,7 +121,7 @@ export class StaffAuthService {
     return access.permissionKeys.has("staff_accounts.manage") ? rows : []
   }
 
-  async createAccount(input: CreateStaffAccountInput): Promise<StaffAccountSummary> {
+  async createAccount(actor: StaffAccess, input: CreateStaffAccountInput): Promise<StaffAccountSummary> {
     const dataSource = await this.database.getDataSource()
     const account = new StaffAccountEntity()
     account.id = `staff-${randomUUID()}`
@@ -143,11 +143,11 @@ export class StaffAuthService {
       }
       throw error
     }
-    await recordStaffAuditForScopes(dataSource.manager, this.audit, account.id, input.scopes, "staff.account.created", account.id)
+    await recordStaffAuditForScopes(dataSource.manager, this.audit, actor.actorId, input.scopes, "staff.account.created", account.id)
     return await this.toSummary(account)
   }
 
-  async resetPassword(id: string, temporaryPassword: string): Promise<StaffAccountSummary> {
+  async resetPassword(actor: StaffAccess, id: string, temporaryPassword: string): Promise<StaffAccountSummary> {
     const account = await this.findAccount(id)
     account.passwordHash = await passwordHash(temporaryPassword)
     account.forcePasswordChange = true
@@ -156,17 +156,17 @@ export class StaffAuthService {
     account.permissionsVersion += 1
     const dataSource = await this.database.getDataSource()
     await dataSource.getRepository(StaffAccountEntity).save(account)
-    await recordStaffAccountAudit(this.database, this.audit, account, "staff.account.password_reset", account.id)
+    await recordStaffAuditForScopes(dataSource.manager, this.audit, actor.actorId, await this.accountScopes(account.id), "staff.account.password_reset", account.id)
     return await this.toSummary(account)
   }
 
-  async disableAccount(id: string): Promise<StaffAccountSummary> {
+  async disableAccount(actor: StaffAccess, id: string): Promise<StaffAccountSummary> {
     const account = await this.findAccount(id)
     account.status = "disabled"
     account.permissionsVersion += 1
     const dataSource = await this.database.getDataSource()
     await dataSource.getRepository(StaffAccountEntity).save(account)
-    await recordStaffAccountAudit(this.database, this.audit, account, "staff.account.disabled", account.id)
+    await recordStaffAuditForScopes(dataSource.manager, this.audit, actor.actorId, await this.accountScopes(account.id), "staff.account.disabled", account.id)
     return await this.toSummary(account)
   }
 
@@ -210,6 +210,12 @@ export class StaffAuthService {
       permissionKeys: permissionRows.map((row) => row.permissionKey as StaffPermissionKey),
       scopes: scopeRows.map((row) => ({ kind: row.scopeKind as StaffScope["kind"], id: row.scopeId })),
     }
+  }
+
+  private async accountScopes(staffAccountId: string): Promise<readonly StaffScope[]> {
+    const dataSource = await this.database.getDataSource()
+    const scopeRows = await dataSource.getRepository(StaffAccountScopeEntity).findBy({ staffAccountId })
+    return scopeRows.map((row) => ({ kind: row.scopeKind as StaffScope["kind"], id: row.scopeId }))
   }
 }
 

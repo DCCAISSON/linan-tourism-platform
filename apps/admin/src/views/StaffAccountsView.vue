@@ -33,7 +33,7 @@
       </el-table>
     </div>
 
-    <el-drawer v-model="drawerOpen" title="新建工作人员账号" size="420px">
+    <el-drawer v-model="drawerOpen" title="新建工作人员账号" size="min(420px, 92vw)">
       <el-form label-position="top">
         <el-form-item label="账号">
           <el-input v-model="form.username" />
@@ -52,6 +52,7 @@
         <el-form-item label="数据范围">
           <el-select v-model="form.scopeKind">
             <el-option label="全部" value="all" />
+            <el-option label="机构" value="organization" />
             <el-option label="学校/机构" value="school" />
             <el-option label="班级" value="class" />
             <el-option label="团期" value="tour_session" />
