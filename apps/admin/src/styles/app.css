@@ -10,6 +10,12 @@
   --accent-primary: #1468c0;
   --accent-hover: #10549b;
   --accent-soft: #e8f2ff;
+  --el-color-primary: var(--accent-primary);
+  --el-color-primary-dark-2: var(--accent-hover);
+  --el-color-primary-light-3: var(--accent-hover);
+  --el-color-primary-light-5: var(--accent-primary);
+  --el-color-primary-light-7: var(--accent-soft);
+  --el-color-primary-light-9: var(--accent-soft);
   --accent-secondary: #13745c;
   --accent-secondary-soft: #e7f5ef;
   --brand-ink: #104b7a;
@@ -125,6 +131,10 @@ a:active {
   color: var(--text-secondary);
   font-size: 16px;
   line-height: 1.6;
+}
+
+.cjk-nowrap {
+  white-space: nowrap;
 }
 
 .login-form {

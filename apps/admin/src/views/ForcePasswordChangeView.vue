@@ -4,7 +4,7 @@
       <div class="login-copy">
         <p class="login-copy__eyebrow">首次登录</p>
         <h1 id="password-title">请先修改临时密码</h1>
-        <p>管理员重置或新建账号后，需要先设置自己的正式密码。</p>
+        <p>管理员重置或新建账号后，需要先设置<span class="cjk-nowrap">自己的</span>正式密码。</p>
       </div>
 
       <el-form class="login-form" label-position="top" @submit.prevent="submitChange">
