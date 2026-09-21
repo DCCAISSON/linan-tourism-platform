@@ -6,6 +6,7 @@ import {
   createMember,
   enrollmentBody,
   resetEnrollmentConsentData,
+  virtualPhone,
 } from "./enrollment-consent-fixture.js"
 
 export const LOCAL_MOCK_PROVIDER = "local_mock"
@@ -49,7 +50,7 @@ export async function createPaidEnrollmentFixture(
       memberIds,
       contactName: `Payment Parent ${input.family}`,
       emergencyContactName: `Payment Emergency ${input.family}`,
-      emergencyContactPhone: "13900000008",
+      emergencyContactPhone: virtualPhone("0008"),
     }))
     .expect(201)
 

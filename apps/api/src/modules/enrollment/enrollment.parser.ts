@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common"
 import { DOMAIN_SCHEMA_VERSION, FAMILY_ENROLLMENT_AGREEMENT_VERSION } from "@linan/contracts"
 import type { NewEnrollmentSubmission, NewFamilyMember, UpdateFamilyMember } from "./enrollment.types.js"
+import { normalizeParticipantKind } from "./person-data.js"
 
 type UnknownRecord = Record<string, unknown>
 
@@ -10,12 +11,22 @@ export function malformedEnrollmentInput(message: string): BadRequestException {
 
 export function parseFamilyMember(body: unknown): NewFamilyMember {
   const record = parseBody(body)
+  const participantKind = normalizeParticipantKind(readOptionalString(record, "participantKind", 16))
+  const schoolId = readOptionalString(record, "schoolId", 64)
+  const gradeId = readOptionalString(record, "gradeId", 64)
+  const classId = readOptionalString(record, "classId", 64)
+  if (participantKind === "adult" && (schoolId !== undefined || gradeId !== undefined || classId !== undefined)) {
+    throw malformedEnrollmentInput("adult participant must not submit schoolId, gradeId or classId")
+  }
   return {
     code: readString(record, "code", 64),
     displayName: readString(record, "displayName", 120),
-    schoolId: readString(record, "schoolId", 64),
-    gradeId: readString(record, "gradeId", 64),
-    classId: readString(record, "classId", 64),
+    participantKind,
+    schoolId: participantKind === "student" ? requireOptionalString(schoolId, "schoolId", 64) : undefined,
+    gradeId: participantKind === "student" ? requireOptionalString(gradeId, "gradeId", 64) : undefined,
+    classId: participantKind === "student" ? requireOptionalString(classId, "classId", 64) : undefined,
+    tourSessionId: readOptionalString(record, "tourSessionId", 64),
+    personData: parsePersonData(record),
   }
 }
 
@@ -80,6 +91,22 @@ function readOptionalString(body: UnknownRecord, field: string, maxLength: numbe
     return undefined
   }
   return readString(body, field, maxLength)
+}
+
+function parsePersonData(body: UnknownRecord): NewFamilyMember["personData"] {
+  const identityNumber = readOptionalString(body, "identityNumber", 18)
+  const phone = readOptionalString(body, "phone", 32)
+  if (identityNumber === undefined || phone === undefined) {
+    throw malformedEnrollmentInput("identityNumber and phone must be submitted together")
+  }
+  return { identityNumber, phone }
+}
+
+function requireOptionalString(value: string | undefined, field: string, maxLength: number): string {
+  if (value === undefined) {
+    throw malformedEnrollmentInput(`${field} must be a non-empty string of at most ${maxLength} characters`)
+  }
+  return value
 }
 
 function readStringArray(body: UnknownRecord, field: string): readonly string[] {

@@ -5,7 +5,7 @@ import {
   closeCatalogTripDatabase, createCatalogTripApp, createScope, dataSource,
   databaseUrl, initializeCatalogTripDatabase,
 } from "./catalog-trip-fixture.js"
-import { familyHeader, restoreNodeEnv } from "./enrollment-consent-fixture.js"
+import { familyHeader, restoreNodeEnv, virtualPhone } from "./enrollment-consent-fixture.js"
 import { createOrder, createPaidEnrollmentFixture, resetMockPaymentData } from "./mock-payment-fixture.js"
 
 describe.skipIf(databaseUrl === undefined)("Own-family order history", () => {
@@ -64,7 +64,7 @@ describe.skipIf(databaseUrl === undefined)("Own-family order history", () => {
     // Then
     expect(response.body).toEqual(expect.objectContaining({
       id: order.id, amountFen: 2400, contactName: "Payment Parent snapshot",
-      emergencyContactName: "Payment Emergency snapshot", emergencyContactPhone: "13900000008",
+      emergencyContactName: "Payment Emergency snapshot", emergencyContactPhone: virtualPhone("0008"),
       participants: expect.arrayContaining([1, 2].map((index) => expect.objectContaining({
         id: expect.any(String), enrollmentParticipantId: expect.any(String),
         displayName: `Payment Child ${index}`, gradeName: "Grade One", className: "Class One", amountFen: 1200,

@@ -1,5 +1,5 @@
 import { ORDER_STATUS, PAYMENT_STATUS } from "@linan/contracts"
-import { Inject, Injectable } from "@nestjs/common"
+import { ForbiddenException, Inject, Injectable } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
 import { TourSessionEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
@@ -7,9 +7,14 @@ import { AuditLogService } from "../iam/audit-log.service.js"
 import { DevStaffAccessService, type StaffAccess } from "../iam/dev-staff-access.service.js"
 import { rosterSessionNotFound } from "./roster.errors.js"
 import type { RosterExportRow } from "./roster.workbook.js"
-import type { PaymentSummary, RosterFilters, RosterRow, RosterSummary } from "./roster.types.js"
+import type { PaymentSummary, RosterFilters, RosterQueryFilters, RosterRow, RosterSummary } from "./roster.types.js"
+import { decryptPersonValue } from "../enrollment/person-data.js"
 
-type RosterRecord = RosterExportRow
+type RosterRecord = RosterExportRow & {
+  readonly identityCiphertext: string | null
+  readonly phoneCiphertext: string | null
+  readonly personDataKeyVersion: string | null
+}
 type TotalRecord = { readonly paidHeadcount: number | string | null; readonly paidAmountFen: number | string | null }
 type SqlParts = { readonly where: string; readonly params: readonly unknown[] }
 
@@ -21,7 +26,7 @@ export class RosterService {
     @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
   ) {}
 
-  async summarize(access: StaffAccess, filters: RosterFilters): Promise<RosterSummary> {
+  async summarize(access: StaffAccess, filters: RosterQueryFilters): Promise<RosterSummary> {
     const manager = (await this.database.getDataSource()).manager
     const session = await manager.findOneBy(TourSessionEntity, { id: filters.tourSessionId })
     if (session === null) {
@@ -38,14 +43,14 @@ export class RosterService {
     const totals = await this.loadTotals(manager, resolvedFilters)
     const rows = await this.loadRows(manager, resolvedFilters)
     return {
-      filters: resolvedFilters,
+      filters: publicFilters(resolvedFilters),
       paidHeadcount: readNumber(totals[0]?.paidHeadcount),
       paidAmountFen: readNumber(totals[0]?.paidAmountFen),
       rows: rows.map(toSummaryRow),
     }
   }
 
-  async paymentSummary(access: StaffAccess, filters: RosterFilters): Promise<PaymentSummary> {
+  async paymentSummary(access: StaffAccess, filters: RosterQueryFilters): Promise<PaymentSummary> {
     const manager = (await this.database.getDataSource()).manager
     const session = await manager.findOneBy(TourSessionEntity, { id: filters.tourSessionId })
     if (session === null) {
@@ -55,13 +60,13 @@ export class RosterService {
     const resolvedFilters = { ...filters, schoolId: filters.schoolId ?? session.organizationId }
     const totals = await this.loadTotals(manager, resolvedFilters)
     return {
-      filters: resolvedFilters,
+      filters: publicFilters(resolvedFilters),
       paidHeadcount: readNumber(totals[0]?.paidHeadcount),
       paidAmountFen: readNumber(totals[0]?.paidAmountFen),
     }
   }
 
-  async listExportRows(access: StaffAccess, filters: RosterFilters): Promise<readonly RosterExportRow[]> {
+  async listExportRows(access: StaffAccess, filters: RosterQueryFilters): Promise<readonly RosterExportRow[]> {
     const manager = (await this.database.getDataSource()).manager
     const session = await manager.findOneBy(TourSessionEntity, { id: filters.tourSessionId })
     if (session === null) {
@@ -81,9 +86,12 @@ export class RosterService {
       throw error
     }
 
+    if (filters.includeSensitive) {
+      assertSensitiveExport(access)
+    }
     const rows = await this.loadRows(manager, resolvedFilters)
     await this.recordExport(manager, access, session.organizationId, session.id, "roster.exported")
-    return rows
+    return filters.includeSensitive ? rows.map(withSensitiveValues) : rows.map(withoutSensitiveValues)
   }
 
   private async loadRows(manager: EntityManager, filters: RosterFilters): Promise<readonly RosterExportRow[]> {
@@ -92,6 +100,9 @@ export class RosterService {
       select
         ep.id as participantId,
         ol.display_name_snapshot as displayName,
+        ol.identity_ciphertext_snapshot as identityCiphertext,
+        ol.phone_ciphertext_snapshot as phoneCiphertext,
+        ol.person_data_key_version_snapshot as personDataKeyVersion,
         org.id as schoolId,
         org.name as schoolName,
         sg.id as gradeId,
@@ -181,6 +192,11 @@ function normalizeExportRow(row: RosterRecord): RosterExportRow {
     classId: row.classId,
     className: row.className,
     amountFen: readNumber(row.amountFen),
+    identityNumber: null,
+    phone: null,
+    identityCiphertext: row.identityCiphertext,
+    phoneCiphertext: row.phoneCiphertext,
+    personDataKeyVersion: row.personDataKeyVersion,
     enrollmentCode: row.enrollmentCode,
     orderCode: row.orderCode,
     rosterStatus: row.rosterStatus,
@@ -199,6 +215,37 @@ function toSummaryRow(row: RosterExportRow): RosterRow {
     className: row.className,
     amountFen: row.amountFen,
   }
+}
+
+function publicFilters(filters: RosterQueryFilters): RosterFilters {
+  return {
+    tourSessionId: filters.tourSessionId,
+    schoolId: filters.schoolId,
+    gradeId: filters.gradeId,
+    classId: filters.classId,
+  }
+}
+
+function assertSensitiveExport(access: StaffAccess): void {
+  if (access.permissionKeys.has("roster.export_sensitive") && access.permissionKeys.has("sensitive_data.read")) {
+    return
+  }
+  throw new ForbiddenException({ code: "staff_scope_forbidden", message: "staff identity cannot export sensitive roster data" })
+}
+
+function withSensitiveValues(row: RosterExportRow): RosterExportRow {
+  if (row.identityCiphertext === null || row.phoneCiphertext === null || row.personDataKeyVersion === null) {
+    return row
+  }
+  return {
+    ...row,
+    identityNumber: decryptPersonValue(row.identityCiphertext, row.personDataKeyVersion),
+    phone: decryptPersonValue(row.phoneCiphertext, row.personDataKeyVersion),
+  }
+}
+
+function withoutSensitiveValues(row: RosterExportRow): RosterExportRow {
+  return { ...row, identityNumber: null, phone: null }
 }
 
 function readNumber(value: number | string | null | undefined): number {

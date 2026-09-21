@@ -10,7 +10,7 @@ import {
   DEV_ADMIN_HEADERS,
   initializeCatalogTripDatabase,
 } from "./catalog-trip-fixture.js"
-import { createCatalog } from "./enrollment-consent-fixture.js"
+import { createCatalog, virtualPhone } from "./enrollment-consent-fixture.js"
 import { resetMockPaymentData } from "./mock-payment-fixture.js"
 import { collectBinary, payEnrollment, schoolStaffHeaders } from "./roster-export-fixture.js"
 
@@ -39,7 +39,7 @@ describe.skipIf(databaseUrl === undefined)("Staff role and data-scope matrix", (
   it("allows each staff role only its assigned data surface", async () => {
     const catalog = await createCatalog(app, scope)
     const otherCatalog = await createCatalog(app, `${scope}-other`)
-    await payEnrollment({ app, scope, catalog, family: "matrix", names: ["权限测试学生"], status: "succeeded" })
+    await payEnrollment({ app, scope, catalog, family: "m", names: ["权限测试学生"], status: "succeeded" })
 
     const school = schoolStaffHeaders(catalog.schoolId)
     const guide = guideHeaders(catalog.tourSessionId)
@@ -114,7 +114,7 @@ describe.skipIf(databaseUrl === undefined)("Staff role and data-scope matrix", (
 
   it("records agreement and export decisions without sensitive values", async () => {
     const catalog = await createCatalog(app, scope)
-    await payEnrollment({ app, scope, catalog, family: "audit", names: ["审计测试学生"], status: "succeeded" })
+    await payEnrollment({ app, scope, catalog, family: "a", names: ["审计测试学生"], status: "succeeded" })
 
     await request(app.getHttpServer())
       .get("/roster/export.xlsx")
@@ -126,7 +126,7 @@ describe.skipIf(databaseUrl === undefined)("Staff role and data-scope matrix", (
     expect(rows.map((row) => row.action)).toEqual(expect.arrayContaining(["agreement.confirmed", "roster.export.denied"]))
     expect(rows.every(hasRequiredAuditFields)).toBe(true)
     expect(JSON.stringify(rows)).not.toContain("审计测试学生")
-    expect(JSON.stringify(rows)).not.toContain("13900000009")
+    expect(JSON.stringify(rows)).not.toContain(virtualPhone("0009"))
   })
 })
 

@@ -72,8 +72,15 @@ const {
 
     <view v-for="member in draft.familyMembers" :key="member.id" class="member-row">
       <view class="member-row__fields">
+        <view class="kind-toggle">
+          <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': (member.participantKind ?? 'student') === 'student' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'student'">学生</button>
+          <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': member.participantKind === 'adult' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'adult'">成人</button>
+        </view>
         <input v-model="member.code" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="64" placeholder="成员编号" placeholder-class="input-placeholder" />
         <input v-model="member.displayName" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="120" placeholder="成员称呼" placeholder-class="input-placeholder" />
+        <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="证件号码" placeholder-class="input-placeholder" />
+        <input v-model="member.phone" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="11" type="number" placeholder="联系电话" placeholder-class="input-placeholder" />
+        <text v-if="member.participantKind === 'adult'" class="member-row__hint">成人参与人无需选择年级和班级</text>
       </view>
       <button class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
         {{ member.selected ? "已选择" : "未选择" }}
@@ -214,6 +221,37 @@ const {
 
 .member-row__fields .text-input + .text-input {
   margin-top: 8px;
+}
+
+.kind-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kind-toggle__button {
+  min-height: 36px;
+  margin: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--surface-primary);
+  font-size: 14px;
+  line-height: 36px;
+}
+
+.kind-toggle__button--on {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background: var(--accent-soft);
+}
+
+.member-row__hint {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .toggle-button,

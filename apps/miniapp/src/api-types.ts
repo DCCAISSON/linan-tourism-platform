@@ -47,21 +47,28 @@ export type EnrollmentPayload = {
 }
 
 export type EnrollmentMemberPayload = {
-  readonly schoolId: string
-  readonly gradeId: string
-  readonly classId: string
+  readonly schoolId?: string
+  readonly gradeId?: string
+  readonly classId?: string
+  readonly tourSessionId?: string
   readonly code: string
   readonly displayName: string
+  readonly participantKind?: "student" | "adult"
+  readonly identityNumber?: string
+  readonly phone?: string
 }
 
 export type EnrollmentMember = {
   readonly id: string
   readonly code: string
   readonly displayName: string
+  readonly participantKind?: "student" | "adult"
+  readonly identityNumberMasked?: string | null
+  readonly phoneMasked?: string | null
 }
 
 export type SavedEnrollmentMember = EnrollmentMember & {
-  readonly schoolId: string
+  readonly schoolId: string | null
   readonly gradeId: string | null
   readonly classId: string | null
 }

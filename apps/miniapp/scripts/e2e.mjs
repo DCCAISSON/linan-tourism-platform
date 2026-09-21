@@ -37,9 +37,9 @@ try {
   projectOpened = true
   miniProgram = await connectWhenReady(60_000)
   await runDiscoveryBefore(miniProgram, fixture)
-  await runJourney(miniProgram)
+  const journeyEvidence = await runJourney(miniProgram)
   await runDiscoveryAfter(miniProgram)
-  console.log(JSON.stringify({ screenshots: 22, members: 2, amountFen: 25_600, status: "paid", localMock: true }))
+  console.log(JSON.stringify({ screenshots: 23, members: 2, amountFen: 25_600, status: "paid", localMock: true, ...journeyEvidence }))
 } finally {
   miniProgram?.disconnect()
   if (projectOpened) await runCli(["close", "--project", projectPath], 15_000)
@@ -114,10 +114,31 @@ async function runJourney(program) {
   await (await required(component, ".text-button")).tap()
   await page.waitFor(50)
   component = await required(page, "[u-i]")
+  const kindButtons = await component.$$(".kind-toggle__button")
+  if (kindButtons.length !== 4) throw new Error(`Expected 4 participant kind buttons, received ${kindButtons.length}`)
+  await kindButtons[3].tap()
+  await page.waitFor(50)
+  component = await required(page, "[u-i]")
   const inputs = await component.$$("input")
-  if (inputs.length !== 7) throw new Error(`Expected 7 enrollment inputs, received ${inputs.length}`)
-  const values = ["child-e2e-1", "演示学生甲", "child-e2e-2", "演示学生乙", "演示家长", "演示联系人", "13900000008"]
+  if (inputs.length !== 11) throw new Error(`Expected 11 enrollment inputs, received ${inputs.length}`)
+  const emergencyPhone = virtualPhone(8)
+  const values = [
+    "child-e2e-1",
+    "演示学生甲",
+    virtualResidentId(1),
+    virtualPhone(1),
+    "child-e2e-2",
+    "演示成人乙",
+    virtualResidentId(2),
+    virtualPhone(2),
+    "演示家长",
+    "演示联系人",
+    emergencyPhone,
+  ]
   for (const [index, value] of values.entries()) await inputs[index].input(value)
+  await program.pageScrollTo(700)
+  await screenshot(program, "15-adult-member.png")
+  await program.pageScrollTo(0)
   await (await required(component, ".consent-button")).tap()
   await page.waitFor(100)
   await assertNoHorizontalOverflow(program, page)
@@ -130,8 +151,8 @@ async function runJourney(program) {
   component = await required(page, "[u-i]")
   assertIncludes(await component.text(), "成员：2 人", "two-participant review")
   assertIncludes(await component.text(), "演示学生甲（child-e2e-1）", "first participant review")
-  assertIncludes(await component.text(), "演示学生乙（child-e2e-2）", "second participant review")
-  assertIncludes(await component.text(), "紧急联系电话：13900000008", "emergency phone review")
+  assertIncludes(await component.text(), "演示成人乙（child-e2e-2）", "second participant review")
+  assertIncludes(await component.text(), `紧急联系电话：${emergencyPhone}`, "emergency phone review")
   assertIncludes(await component.text(), "预计金额：¥256.00", "review amount")
   await program.pageScrollTo(10_000)
   await screenshot(program, "16-review.png")
@@ -143,6 +164,10 @@ async function runJourney(program) {
   assertIncludes(await component.text(), "待支付", "pending payment state")
   assertIncludes(await component.text(), "应付金额：¥256.00", "authoritative amount")
   assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--warning", "pending state tone")
+  const adultMemberRequest = fixture.requests.find((entry) => entry.method === "POST" && entry.path === "/enrollment/members" && entry.body.participantKind === "adult")
+  if (!adultMemberRequest) throw new Error("Adult member payload was not submitted")
+  if ("gradeId" in adultMemberRequest.body || "classId" in adultMemberRequest.body) throw new Error("Adult member payload must not include gradeId or classId")
+  if (adultMemberRequest.body.tourSessionId !== "session-open-e2e") throw new Error("Adult member payload must include the selected tourSessionId")
   const orderRequest = fixture.requests.find((entry) => entry.method === "POST" && entry.path === "/orders")
   if (orderRequest?.body.amountFen !== undefined) throw new Error("Client sent an authoritative amount")
   await screenshot(program, "17-payment-pending.png")
@@ -156,6 +181,7 @@ async function runJourney(program) {
   assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--success", "paid state tone")
   await assertNoHorizontalOverflow(program, page)
   await screenshot(program, "18-paid.png")
+  return { adultPayloadNoGradeClass: true, adultPayloadTourSessionId: "session-open-e2e" }
 }
 
 async function buildMiniapp() {
@@ -203,3 +229,16 @@ async function connectWhenReady(timeout) {
 }
 
 function fail(message) { console.error(message); process.exit(1) }
+
+function virtualPhone(seed) {
+  return `1990000${String(seed).padStart(4, "0")}`
+}
+
+function virtualResidentId(seed) {
+  const body = `999999201601${String(seed).padStart(2, "0")}00`
+  const weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+  const checkDigits = ["1", "0", "X", "9", "8", "7", "6", "5", "4", "3", "2"]
+  let sum = 0
+  for (const [index, digit] of [...body].entries()) sum += Number(digit) * weights[index]
+  return `${body}${checkDigits[sum % 11]}`
+}

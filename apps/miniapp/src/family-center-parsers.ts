@@ -16,7 +16,7 @@ export function parseCatalogItem(value: unknown): CatalogItem {
 export function parseSavedEnrollmentMember(value: unknown): SavedEnrollmentMember {
   const record = readRecord(value)
   return {
-    ...parseEnrollmentMember(value), schoolId: readString(record, "schoolId"),
+    ...parseEnrollmentMember(value), schoolId: readNullableText(record, "schoolId"),
     gradeId: readNullableText(record, "gradeId"), classId: readNullableText(record, "classId"),
   }
 }

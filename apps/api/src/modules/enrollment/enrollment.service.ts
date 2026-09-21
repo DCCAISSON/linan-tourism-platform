@@ -24,6 +24,7 @@ import {
   findFamilyByCode,
   findScopedMember,
   memberFromInput,
+  resolveMemberOrganization,
 } from "./enrollment.persistence.js"
 import type {
   EnrollmentIdentity,
@@ -33,6 +34,7 @@ import type {
   NewFamilyMember,
   UpdateFamilyMember,
 } from "./enrollment.types.js"
+import { protectPersonData } from "./person-data.js"
 
 const CONSENT_PURPOSE = "enrollment_submission"
 
@@ -48,9 +50,13 @@ export class EnrollmentService {
     const dataSource = await this.database.getDataSource()
     try {
       const member = await dataSource.transaction(async (manager) => {
-        await ensureSchoolPlacement(manager, input)
-        const family = await ensureFamily(manager, identity.familyCode, input.schoolId)
-        return manager.save(FamilyMemberEntity, memberFromInput(input, family))
+        const resolved = await resolveMemberOrganization(manager, input)
+        const family = await ensureFamily(manager, identity.familyCode, resolved.organizationId)
+        const protectedInput = {
+          ...resolved,
+          protectedPersonData: input.personData === undefined ? undefined : protectPersonData(input.personData),
+        }
+        return manager.save(FamilyMemberEntity, memberFromInput(protectedInput, family))
       })
       return toMemberResponse(member)
     } catch (error) {
@@ -199,15 +205,23 @@ export class EnrollmentService {
     for (const member of input.members) {
       const grade = member.gradeId === null ? null : await manager.findOneBy(SchoolGradeEntity, { id: member.gradeId })
       const schoolClass = member.classId === null ? null : await manager.findOneBy(SchoolClassEntity, { id: member.classId })
-      await manager.save(EnrollmentParticipantEntity, {
+        await manager.save(EnrollmentParticipantEntity, {
         id: makeId("participant"),
         organizationId: member.organizationId,
         enrollmentId: input.enrollmentId,
         familyId: input.familyId,
         familyMemberId: member.id,
         displayNameSnapshot: member.displayName,
+        participantKindSnapshot: member.participantKind,
         gradeNameSnapshot: grade?.name ?? null,
         classNameSnapshot: schoolClass?.name ?? null,
+        identityCiphertextSnapshot: member.identityCiphertext,
+        identityHashSnapshot: member.identityHash,
+        identityMaskedSnapshot: member.identityMasked,
+        phoneCiphertextSnapshot: member.phoneCiphertext,
+        phoneHashSnapshot: member.phoneHash,
+        phoneMaskedSnapshot: member.phoneMasked,
+        personDataKeyVersionSnapshot: member.personDataKeyVersion,
         policyVersion: DOMAIN_POLICY_VERSION,
       })
     }
@@ -223,9 +237,12 @@ function toMemberResponse(member: FamilyMemberEntity): FamilyMemberResponse {
     id: member.id,
     code: member.code,
     displayName: member.displayName,
+    participantKind: member.participantKind,
     schoolId: member.organizationId,
     gradeId: member.gradeId,
     classId: member.classId,
+    identityNumberMasked: member.identityMasked,
+    phoneMasked: member.phoneMasked,
   }
 }
 

@@ -41,11 +41,35 @@ export class OrderLineEntity {
   @Column({ name: "display_name_snapshot", type: "varchar", length: 120 })
   displayNameSnapshot = ""
 
+  @Column({ name: "participant_kind_snapshot", type: "varchar", length: 16 })
+  participantKindSnapshot: "student" | "adult" = "student"
+
   @Column({ name: "grade_name_snapshot", type: "varchar", length: 120, nullable: true })
   gradeNameSnapshot: string | null = null
 
   @Column({ name: "class_name_snapshot", type: "varchar", length: 120, nullable: true })
   classNameSnapshot: string | null = null
+
+  @Column({ name: "identity_ciphertext_snapshot", type: "text", nullable: true })
+  identityCiphertextSnapshot: string | null = null
+
+  @Column({ name: "identity_hash_snapshot", type: "char", length: 64, nullable: true })
+  identityHashSnapshot: string | null = null
+
+  @Column({ name: "identity_masked_snapshot", type: "varchar", length: 64, nullable: true })
+  identityMaskedSnapshot: string | null = null
+
+  @Column({ name: "phone_ciphertext_snapshot", type: "text", nullable: true })
+  phoneCiphertextSnapshot: string | null = null
+
+  @Column({ name: "phone_hash_snapshot", type: "char", length: 64, nullable: true })
+  phoneHashSnapshot: string | null = null
+
+  @Column({ name: "phone_masked_snapshot", type: "varchar", length: 32, nullable: true })
+  phoneMaskedSnapshot: string | null = null
+
+  @Column({ name: "person_data_key_version_snapshot", type: "varchar", length: 16 })
+  personDataKeyVersionSnapshot = "v1"
 
   @Column({ name: "amount_fen", type: "int", unsigned: true })
   amountFen = 0

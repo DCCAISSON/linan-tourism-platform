@@ -13,6 +13,8 @@ import {
 import {
   createCatalog,
   restoreNodeEnv,
+  virtualPhone,
+  virtualResidentId,
 } from "./enrollment-consent-fixture.js"
 import { resetMockPaymentData } from "./mock-payment-fixture.js"
 import {
@@ -24,10 +26,13 @@ import {
   schoolStaffHeaders,
 } from "./roster-export-fixture.js"
 const rosterEvidencePath = process.env["ROSTER_EXPORT_EVIDENCE_PATH"]
+const PERSON_DATA_KEY = Buffer.alloc(32, 9).toString("base64")
 
 describe.skipIf(databaseUrl === undefined)("Roster export API", () => {
   let app: INestApplication
   let scope: string
+  let previousPersonDataKey: string | undefined
+  let previousSuiteNodeEnv: string | undefined
 
   beforeAll(async () => {
     await initializeCatalogTripDatabase()
@@ -35,10 +40,16 @@ describe.skipIf(databaseUrl === undefined)("Roster export API", () => {
 
   beforeEach(async () => {
     scope = createScope()
+    previousSuiteNodeEnv = process.env["NODE_ENV"]
+    process.env["NODE_ENV"] = "development"
+    previousPersonDataKey = process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"]
+    process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"] = PERSON_DATA_KEY
     app = await createCatalogTripApp()
   })
 
   afterEach(async () => {
+    restorePersonDataKey(previousPersonDataKey)
+    restoreNodeEnv(previousSuiteNodeEnv)
     await app.close()
     await resetMockPaymentData(scope)
   })
@@ -190,6 +201,52 @@ describe.skipIf(databaseUrl === undefined)("Roster export API", () => {
     expect(exportResponse.headers["content-disposition"]).toBeUndefined()
   })
 
+  it("requires sensitive-data and sensitive-export permissions before exporting plaintext identity fields", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const identityNumber = virtualResidentId("20100101", "013")
+    const phone = virtualPhone("2001")
+    await payEnrollment({
+      app,
+      scope,
+      catalog,
+      family: "s",
+      names: ["Virtual Sensitive Student"],
+      identities: [{
+        participantKind: "student",
+        identityNumber,
+        phone,
+      }],
+      status: "succeeded",
+    })
+
+    // When
+    const denied = await request(app.getHttpServer())
+      .get("/roster/export.xlsx")
+      .set(schoolStaffHeaders(catalog.schoolId))
+      .query({ tourSessionId: catalog.tourSessionId, includeSensitive: "1" })
+      .expect(403)
+    const exportResponse = await request(app.getHttpServer())
+      .get("/roster/export.xlsx")
+      .set(ADMIN_HEADERS)
+      .query({ tourSessionId: catalog.tourSessionId, includeSensitive: "1" })
+      .buffer(true)
+      .parse(collectBinary)
+      .expect(200)
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(exportResponse.body)
+    const worksheet = workbook.getWorksheet("Roster")
+    if (worksheet === undefined) {
+      throw new Error("roster worksheet missing")
+    }
+
+    // Then
+    expect(denied.body).toEqual(expect.objectContaining({ code: "staff_scope_forbidden" }))
+    expect(worksheet.getRow(1).values).toEqual([undefined, ...ROSTER_COLUMNS, "Identity Number", "Phone"])
+    expect(worksheet.getRow(2).getCell(9).value).toBe(identityNumber)
+    expect(worksheet.getRow(2).getCell(10).value).toBe(phone)
+  })
+
   it("rejects the development staff helper in production mode", async () => {
     // Given
     const catalog = await createCatalog(app, scope)
@@ -205,9 +262,17 @@ describe.skipIf(databaseUrl === undefined)("Roster export API", () => {
         .expect(401)
 
       // Then
-      expect(response.body).toEqual(expect.objectContaining({ code: "staff_identity_unavailable" }))
+      expect(response.body).toEqual(expect.objectContaining({ code: "staff_identity_required" }))
     } finally {
       restoreNodeEnv(previousNodeEnv)
     }
   })
 })
+
+function restorePersonDataKey(value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"]
+    return
+  }
+  process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"] = value
+}

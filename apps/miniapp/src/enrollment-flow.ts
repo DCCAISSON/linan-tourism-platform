@@ -13,6 +13,9 @@ export type FamilyMember = {
   id: string
   code: string
   displayName: string
+  participantKind?: "student" | "adult"
+  identityNumber?: string
+  phone?: string
   selected: boolean
   remoteMemberId?: string
 }
@@ -70,8 +73,13 @@ export function selectedFamilyMembers(
 }
 
 export function readEnrollmentReadiness(draft: EnrollmentDraft): EnrollmentReadiness {
-  const addsMember = selectedFamilyMembers(draft.familyMembers).some((member) => member.remoteMemberId === undefined)
-  if (draft.selectedSchoolId.length === 0 || (addsMember && (draft.selectedGradeId.length === 0 || draft.selectedClassId.length === 0))) {
+  const selectedMembers = selectedFamilyMembers(draft.familyMembers)
+  const addsStudent = selectedMembers.some((member) => member.remoteMemberId === undefined && (member.participantKind ?? "student") === "student")
+  const addsOnlyAdultMembers = selectedMembers.length > 0 && selectedMembers.every((member) => member.remoteMemberId === undefined && member.participantKind === "adult")
+  if (
+    (draft.selectedSchoolId.length === 0 && !addsOnlyAdultMembers)
+    || (addsStudent && (draft.selectedGradeId.length === 0 || draft.selectedClassId.length === 0))
+  ) {
     return { ready: false, reason: "请选择学校、年级和班级" }
   }
 
@@ -79,12 +87,16 @@ export function readEnrollmentReadiness(draft: EnrollmentDraft): EnrollmentReadi
     return { ready: false, reason: "请选择可报名团期" }
   }
 
-  if (selectedFamilyMembers(draft.familyMembers).length === 0) {
+  if (selectedMembers.length === 0) {
     return { ready: false, reason: "请至少选择一名家庭成员" }
   }
 
-  if (selectedFamilyMembers(draft.familyMembers).some((member) => member.code.trim().length === 0)) {
+  if (selectedMembers.some((member) => member.code.trim().length === 0 || member.displayName.trim().length === 0)) {
     return { ready: false, reason: "请填写成员编号" }
+  }
+
+  if (selectedMembers.some((member) => member.remoteMemberId === undefined && ((member.identityNumber ?? "").trim().length === 0 || (member.phone ?? "").trim().length === 0))) {
+    return { ready: false, reason: "请填写证件号码和联系电话" }
   }
 
   if (draft.contactName.trim().length === 0) {
@@ -134,13 +146,7 @@ export function buildSelectedMemberPayloads(draft: EnrollmentDraft): readonly En
     throw new Error(readiness.reason)
   }
 
-  return selectedFamilyMembers(draft.familyMembers).map((member) => ({
-    schoolId: draft.selectedSchoolId,
-    gradeId: draft.selectedGradeId,
-    classId: draft.selectedClassId,
-    code: member.code.trim(),
-    displayName: member.displayName.trim(),
-  }))
+  return selectedFamilyMembers(draft.familyMembers).map((member) => buildMemberPayload(draft, member))
 }
 
 export async function prepareSelectedMembersForSubmit(
@@ -170,12 +176,23 @@ export async function prepareSelectedMembersForSubmit(
 }
 
 function buildMemberPayload(draft: EnrollmentDraft, member: FamilyMember): EnrollmentMemberPayload {
+  const participantKind = member.participantKind ?? "student"
+  const base = {
+    tourSessionId: draft.selectedTourSessionId,
+    code: member.code.trim(),
+    displayName: member.displayName.trim(),
+    participantKind,
+    identityNumber: (member.identityNumber ?? "").trim(),
+    phone: (member.phone ?? "").trim(),
+  } as const
+  if (participantKind === "adult") {
+    return base
+  }
   return {
+    ...base,
     schoolId: draft.selectedSchoolId,
     gradeId: draft.selectedGradeId,
     classId: draft.selectedClassId,
-    code: member.code.trim(),
-    displayName: member.displayName.trim(),
   }
 }
 

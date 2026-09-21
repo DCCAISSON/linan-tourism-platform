@@ -7,9 +7,10 @@ import {
   OrganizationEntity,
   SchoolClassEntity,
   SchoolGradeEntity,
+  TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { makeId } from "../configuration/configuration.persistence.js"
-import type { NewFamilyMember, UpdateFamilyMember } from "./enrollment.types.js"
+import type { NewFamilyMember, ProtectedFamilyMemberInput, UpdateFamilyMember } from "./enrollment.types.js"
 
 export type SchoolPlacement = {
   readonly school: OrganizationEntity
@@ -37,6 +38,44 @@ export async function ensureSchoolPlacement(
     throw malformedSchoolPlacement()
   }
   return { school, grade, schoolClass }
+}
+
+export async function resolveMemberOrganization(
+  manager: EntityManager,
+  input: NewFamilyMember,
+): Promise<ProtectedFamilyMemberInput> {
+  if (input.participantKind === "student") {
+    if (input.schoolId === undefined || input.gradeId === undefined || input.classId === undefined) {
+      throw malformedSchoolPlacement()
+    }
+    await ensureSchoolPlacement(manager, {
+      schoolId: input.schoolId,
+      gradeId: input.gradeId,
+      classId: input.classId,
+    })
+    return {
+      ...input,
+      organizationId: input.schoolId,
+      gradeId: input.gradeId,
+      classId: input.classId,
+      protectedPersonData: undefined,
+    }
+  }
+  if (input.schoolId !== undefined) {
+    const school = await manager.findOneBy(OrganizationEntity, { id: input.schoolId })
+    if (school === null) {
+      throw malformedSchoolPlacement()
+    }
+    return { ...input, organizationId: school.id, gradeId: null, classId: null, protectedPersonData: undefined }
+  }
+  if (input.tourSessionId === undefined) {
+    throw malformedSchoolPlacement()
+  }
+  const session = await manager.findOneBy(TourSessionEntity, { id: input.tourSessionId })
+  if (session === null) {
+    throw malformedSchoolPlacement()
+  }
+  return { ...input, organizationId: session.organizationId, gradeId: null, classId: null, protectedPersonData: undefined }
 }
 
 export async function findFamilyByCode(
@@ -78,15 +117,23 @@ export async function findScopedMember(
   return family?.code === familyCode ? member : null
 }
 
-export function memberFromInput(input: NewFamilyMember, family: FamilyEntity): FamilyMemberEntity {
+export function memberFromInput(input: ProtectedFamilyMemberInput, family: FamilyEntity): FamilyMemberEntity {
   return Object.assign(new FamilyMemberEntity(), {
     id: makeId("member"),
-    organizationId: input.schoolId,
+    organizationId: input.organizationId,
     familyId: family.id,
     code: input.code,
     displayName: input.displayName,
+    participantKind: input.participantKind,
     gradeId: input.gradeId,
     classId: input.classId,
+    identityCiphertext: input.protectedPersonData?.identityCiphertext ?? null,
+    identityHash: input.protectedPersonData?.identityHash ?? null,
+    identityMasked: input.protectedPersonData?.identityMasked ?? null,
+    phoneCiphertext: input.protectedPersonData?.phoneCiphertext ?? null,
+    phoneHash: input.protectedPersonData?.phoneHash ?? null,
+    phoneMasked: input.protectedPersonData?.phoneMasked ?? null,
+    personDataKeyVersion: input.protectedPersonData?.keyVersion ?? "v1",
     policyVersion: DOMAIN_POLICY_VERSION,
   })
 }

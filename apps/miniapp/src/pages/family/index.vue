@@ -16,6 +16,9 @@ async function load(): Promise<void> {
   try {
     const [saved, schools] = await Promise.all([api.listEnrollmentMembers(), api.listSchools()])
     members.value = await Promise.all(saved.map(async (member) => {
+      if (member.participantKind === "adult" || member.schoolId === null) {
+        return { ...member, schoolName: "成人参与人", gradeName: "无需年级", className: "无需班级" }
+      }
       const grades = await api.listGrades(member.schoolId)
       const classes = member.gradeId === null ? [] : await api.listClasses(member.gradeId)
       return { ...member, schoolName: schools.find((school) => school.id === member.schoolId)?.name ?? "学校信息待完善", gradeName: grades.find((grade) => grade.id === member.gradeId)?.name ?? "年级未设置", className: classes.find((item) => item.id === member.classId)?.name ?? "班级未设置" }

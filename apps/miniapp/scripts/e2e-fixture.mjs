@@ -44,7 +44,13 @@ export function createFixtureServer(baseUrl) {
     }
     if (request.method === "POST" && url.pathname === "/enrollment/members") {
       fixture.memberCount += 1
-      const member = { id: `member-e2e-${fixture.memberCount}`, ...body }
+      const member = {
+        id: `member-e2e-${fixture.memberCount}`,
+        ...body,
+        schoolId: body.schoolId ?? null,
+        gradeId: body.gradeId ?? null,
+        classId: body.classId ?? null,
+      }
       fixture.members.push(member)
       return json(response, 201, member)
     }
@@ -54,7 +60,7 @@ export function createFixtureServer(baseUrl) {
     if (request.method === "POST" && url.pathname === "/orders") { fixture.orderCreated = true; return json(response, 201, orderResponse(fixture)) }
     if (request.method === "GET" && url.pathname === "/orders") return json(response, 200, fixture.orderCreated ? [orderHistory(fixture)] : [])
     if (request.method === "GET" && url.pathname === "/orders/order-e2e/detail") return json(response, 200, {
-      ...orderHistory(fixture), contactName: "演示家长", emergencyContactName: "演示联系人", emergencyContactPhone: "13900000008",
+      ...orderHistory(fixture), contactName: "演示家长", emergencyContactName: "演示联系人", emergencyContactPhone: "19900000008",
       participants: fixture.members.map((member, index) => ({ id: `line-${index}`, enrollmentParticipantId: `person-${index}`, displayName: member.displayName, gradeName: grade.name, className: schoolClass.name, amountFen: 12_800 })),
     })
     if (request.method === "POST" && url.pathname === "/payments/mock/order-e2e") {

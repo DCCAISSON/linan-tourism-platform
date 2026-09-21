@@ -93,10 +93,16 @@ export function parseEnrollmentSubmission(value: unknown): EnrollmentSubmission 
 
 export function parseEnrollmentMember(value: unknown): EnrollmentMember {
   const record = readRecord(value)
+  const participantKind = readOptionalParticipantKind(record)
+  const identityNumberMasked = readOptionalNullableString(record, "identityNumberMasked")
+  const phoneMasked = readOptionalNullableString(record, "phoneMasked")
   return {
     id: readString(record, "id"),
     code: readString(record, "code"),
     displayName: readString(record, "displayName"),
+    ...(participantKind !== undefined ? { participantKind } : {}),
+    ...(identityNumberMasked !== undefined ? { identityNumberMasked } : {}),
+    ...(phoneMasked !== undefined ? { phoneMasked } : {}),
   }
 }
 
@@ -159,6 +165,33 @@ export function readString(record: UnknownRecord, field: string): string {
   }
 
   throw new ApiError(0, `${field} 响应格式不正确`)
+}
+
+function readOptionalNullableString(record: UnknownRecord, field: string): string | null | undefined {
+  const value = record[field]
+  if (value === undefined) {
+    return undefined
+  }
+  if (value === null) {
+    return null
+  }
+  if (typeof value === "string") {
+    return value
+  }
+
+  throw new ApiError(0, `${field} 响应格式不正确`)
+}
+
+function readOptionalParticipantKind(record: UnknownRecord): "student" | "adult" | undefined {
+  const value = record["participantKind"]
+  if (value === undefined) {
+    return undefined
+  }
+  if (value === "student" || value === "adult") {
+    return value
+  }
+
+  throw new ApiError(0, "participantKind 响应格式不正确")
 }
 
 export function readIsoString(record: UnknownRecord, field: string): string {

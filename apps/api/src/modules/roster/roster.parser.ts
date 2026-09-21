@@ -1,15 +1,16 @@
 import { malformedRosterInput } from "./roster.errors.js"
-import type { RosterFilters } from "./roster.types.js"
+import type { RosterQueryFilters } from "./roster.types.js"
 
 type QueryRecord = Record<string, unknown>
 
-export function parseRosterFilters(query: unknown): RosterFilters {
+export function parseRosterFilters(query: unknown): RosterQueryFilters {
   const record = parseQuery(query)
   return {
     tourSessionId: readRequiredString(record, "tourSessionId"),
     schoolId: readOptionalString(record, "schoolId"),
     gradeId: readOptionalString(record, "gradeId"),
     classId: readOptionalString(record, "classId"),
+    includeSensitive: readOptionalBoolean(record, "includeSensitive"),
   }
 }
 
@@ -41,4 +42,18 @@ function readOptionalString(query: QueryRecord, field: string): string | null {
     throw malformedRosterInput(`${field} must be a non-empty string of at most 64 characters`)
   }
   return value.trim()
+}
+
+function readOptionalBoolean(query: QueryRecord, field: string): boolean {
+  const value = query[field]
+  if (value === undefined) {
+    return false
+  }
+  if (value === "1" || value === "true") {
+    return true
+  }
+  if (value === "0" || value === "false") {
+    return false
+  }
+  throw malformedRosterInput(`${field} must be 1 or 0`)
 }

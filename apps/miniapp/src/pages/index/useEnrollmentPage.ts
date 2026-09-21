@@ -11,6 +11,7 @@ import {
 import {
   buildEnrollmentPayload, createEmptyDraft, optionNames, prepareSelectedMembersForSubmit,
   readEnrollmentReadiness, selectedFamilyMembers, sessionOptionNames,
+  type FamilyMember,
   type LoadState, type PageMode,
 } from "../../enrollment-flow"
 import { readableError, readPickerIndex, readStateTone, stateLabel } from "./page-helpers"
@@ -35,7 +36,7 @@ export function useEnrollmentPage() {
   onLoad((query) => { wantedSessionId.value = query?.["sessionId"] ?? "" })
   const draft = reactive({
     ...createEmptyDraft(),
-    familyMembers: [] as { id: string; code: string; displayName: string; selected: boolean; remoteMemberId?: string }[],
+    familyMembers: [] as FamilyMember[],
   })
   const catalog = reactive({
     schools: [] as School[],
@@ -108,7 +109,16 @@ export function useEnrollmentPage() {
     draft.selectedGradeId = ""
     draft.selectedClassId = ""
     draft.selectedTourSessionId = catalog.sessions.find((session) => session.id === wantedSessionId.value && session.organizationId === school.id)?.id ?? ""
-    draft.familyMembers = savedMembers.value.filter((member) => member.schoolId === school.id).map((member) => ({ id: member.id, code: member.code, displayName: member.displayName, remoteMemberId: member.id, selected: false }))
+    draft.familyMembers = savedMembers.value.filter((member) => member.schoolId === school.id).map((member) => ({
+      id: member.id,
+      code: member.code,
+      displayName: member.displayName,
+      participantKind: member.participantKind ?? "student",
+      identityNumber: member.identityNumberMasked ?? "",
+      phone: member.phoneMasked ?? "",
+      remoteMemberId: member.id,
+      selected: false,
+    }))
     catalog.grades = []
     catalog.classes = []
     resetCheckout()
@@ -153,6 +163,9 @@ export function useEnrollmentPage() {
       id: `local-member-${Date.now()}-${draft.familyMembers.length + 1}`,
       code: "",
       displayName: "",
+      participantKind: "student",
+      identityNumber: "",
+      phone: "",
       selected: true,
     })
   }

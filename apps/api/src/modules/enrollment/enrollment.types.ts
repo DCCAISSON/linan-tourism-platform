@@ -1,4 +1,5 @@
 import { FAMILY_ENROLLMENT_AGREEMENT_VERSION } from "@linan/contracts"
+import type { ParticipantKind, PlainPersonData, ProtectedPersonData } from "./person-data.js"
 
 export type EnrollmentIdentity = {
   readonly familyCode: string
@@ -8,9 +9,12 @@ export type EnrollmentIdentity = {
 export type NewFamilyMember = {
   readonly code: string
   readonly displayName: string
-  readonly schoolId: string
-  readonly gradeId: string
-  readonly classId: string
+  readonly participantKind: ParticipantKind
+  readonly schoolId: string | undefined
+  readonly gradeId: string | undefined
+  readonly classId: string | undefined
+  readonly tourSessionId: string | undefined
+  readonly personData: PlainPersonData | undefined
 }
 
 export type UpdateFamilyMember = {
@@ -23,9 +27,19 @@ export type FamilyMemberResponse = {
   readonly id: string
   readonly code: string
   readonly displayName: string
+  readonly participantKind: ParticipantKind
   readonly schoolId: string
   readonly gradeId: string | null
   readonly classId: string | null
+  readonly identityNumberMasked: string | null
+  readonly phoneMasked: string | null
+}
+
+export type ProtectedFamilyMemberInput = Omit<NewFamilyMember, "schoolId" | "gradeId" | "classId"> & {
+  readonly organizationId: string
+  readonly gradeId: string | null
+  readonly classId: string | null
+  readonly protectedPersonData: ProtectedPersonData | undefined
 }
 
 export type NewEnrollmentSubmission = {

@@ -4,12 +4,19 @@ import request from "supertest"
 import { dataSource, DEV_ADMIN_HEADERS } from "./catalog-trip-fixture.js"
 
 export const AGREEMENT_VERSION = FAMILY_ENROLLMENT_AGREEMENT_VERSION
+const TEST_PERSON_DATA_KEY = Buffer.alloc(32, 11).toString("base64")
 
 export type CatalogFixture = {
   readonly schoolId: string
   readonly gradeId: string
   readonly classId: string
   readonly tourSessionId: string
+}
+
+export type VirtualIdentityFixture = {
+  readonly participantKind: "student" | "adult"
+  readonly identityNumber: string
+  readonly phone: string
 }
 
 type EnrollmentWindow = {
@@ -83,12 +90,14 @@ export async function createMember(
     readonly catalog: CatalogFixture
     readonly displayName: string
     readonly codeSuffix: string
+    readonly body?: object
   },
 ): Promise<{ readonly id: string }> {
+  process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"] ??= TEST_PERSON_DATA_KEY
   const member = await request(input.app.getHttpServer())
     .post("/enrollment/members")
     .set(input.headers)
-    .send(memberBody(input.catalog, input.displayName, `member-${input.scope}-${input.codeSuffix}`))
+    .send(input.body ?? memberBody(input.catalog, input.displayName, `member-${input.scope}-${input.codeSuffix}`))
     .expect(201)
   return { id: member.body.id }
 }
@@ -100,6 +109,39 @@ export function memberBody(catalog: CatalogFixture, displayName: string, code = 
     schoolId: catalog.schoolId,
     gradeId: catalog.gradeId,
     classId: catalog.classId,
+    participantKind: "student",
+    identityNumber: virtualResidentId("20100101", "003"),
+    phone: virtualPhone("1000"),
+  }
+}
+
+export function studentIdentityMemberBody(
+  catalog: CatalogFixture,
+  displayName: string,
+  code: string,
+  identity: VirtualIdentityFixture,
+) {
+  return {
+    ...memberBody(catalog, displayName, code),
+    participantKind: identity.participantKind,
+    identityNumber: identity.identityNumber,
+    phone: identity.phone,
+  }
+}
+
+export function adultIdentityMemberBody(
+  catalog: CatalogFixture,
+  displayName: string,
+  code: string,
+  identity: VirtualIdentityFixture,
+) {
+  return {
+    code,
+    displayName,
+    participantKind: identity.participantKind,
+    identityNumber: identity.identityNumber,
+    phone: identity.phone,
+    tourSessionId: catalog.tourSessionId,
   }
 }
 
@@ -134,6 +176,21 @@ export function restoreNodeEnv(previousNodeEnv: string | undefined): void {
   process.env["NODE_ENV"] = previousNodeEnv
 }
 
+export function virtualResidentId(birthDate: string, sequence: string): string {
+  const body = `999999${birthDate}${sequence}`
+  const weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2] as const
+  const checkCodes = "10X98765432"
+  let sum = 0
+  for (const [index, weight] of weights.entries()) {
+    sum += Number(body[index]) * weight
+  }
+  return `${body}${checkCodes[sum % 11]}`
+}
+
+export function virtualPhone(sequence: string): string {
+  return `1990000${sequence.padStart(4, "0")}`
+}
+
 export function createCapturingLogger(messages: string[]): LoggerService {
   return {
     log: (message: unknown) => messages.push(String(message)),
@@ -145,21 +202,42 @@ export function createCapturingLogger(messages: string[]): LoggerService {
 }
 
 export async function resetEnrollmentConsentData(scope: string): Promise<void> {
+  const familyPattern = `family-${scope}%`
   await dataSource.query(
     "delete from audit_logs where organization_id in (select id from organizations where code like ?)",
     [`school-${scope}%`],
   )
   await dataSource.query(
+    "delete pe from payment_events pe join payments p on p.id = pe.payment_id join orders o on o.id = p.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
+    "delete p from payments p join orders o on o.id = p.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
+    "delete ol from order_lines ol join orders o on o.id = ol.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
+    "delete o from orders o join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
+    "delete r from roster_entries r join enrollments e on e.id = r.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
     "delete from consent_records where family_id in (select id from families where code like ?)",
-    [`family-${scope}%`],
+    [familyPattern],
   )
   await dataSource.query(
     "delete from enrollment_participants where family_id in (select id from families where code like ?)",
-    [`family-${scope}%`],
+    [familyPattern],
   )
   await dataSource.query(
     "delete from enrollments where family_id in (select id from families where code like ?)",
-    [`family-${scope}%`],
+    [familyPattern],
   )
   await dataSource.query("delete from family_members where code like ?", [`member-${scope}%`])
   await dataSource.query("delete from families where code like ?", [`family-${scope}%`])

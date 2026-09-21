@@ -36,8 +36,9 @@ export class RosterController {
   @Get("export.xlsx")
   async export(@Headers() headers: RequestHeaders, @Query() query: unknown, @Res() response: Response): Promise<void> {
     const access = await this.staffAccess.resolve(headers)
-    const rows = await this.roster.listExportRows(access, parseRosterFilters(query))
-    const workbook = await createRosterWorkbook(rows)
+    const filters = parseRosterFilters(query)
+    const rows = await this.roster.listExportRows(access, filters)
+    const workbook = await createRosterWorkbook(rows, { includeSensitive: filters.includeSensitive })
     response
       .status(200)
       .setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
