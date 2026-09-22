@@ -5,7 +5,7 @@
         <p class="home-panel__eyebrow">工作人员账号</p>
         <h2>账号权限</h2>
       </div>
-      <el-button v-if="canManageStaffAccounts" type="primary" @click="drawerOpen = true">新建账号</el-button>
+      <el-button v-if="canManageStaffAccounts" data-testid="staff-new-account" type="primary" @click="drawerOpen = true">新建账号</el-button>
     </header>
 
     <el-alert v-if="errorMessage.length > 0" :closable="false" type="error" :title="errorMessage" />
@@ -21,7 +21,7 @@
         </el-table-column>
         <el-table-column label="权限" min-width="260">
           <template #default="{ row }: { row: StaffAccount }">
-            {{ row.permissionKeys.join("、") }}
+            {{ permissionSummary(row) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220">
@@ -33,8 +33,30 @@
       </el-table>
     </div>
 
+    <div class="staff-page__cards" aria-label="工作人员账号列表">
+      <article v-for="account in accounts" :key="account.id" class="staff-account-card" data-testid="staff-mobile-card">
+        <div class="staff-account-card__header">
+          <div>
+            <strong>{{ account.username }}</strong>
+            <span>{{ account.displayName }}</span>
+          </div>
+          <el-tag :type="account.status === 'active' ? 'success' : 'info'">{{ account.status === "active" ? "启用" : "停用" }}</el-tag>
+        </div>
+        <dl class="staff-account-card__facts">
+          <div>
+            <dt>权限</dt>
+            <dd>{{ permissionSummary(account) }}</dd>
+          </div>
+        </dl>
+        <div v-if="canManageStaffAccounts" class="staff-account-card__actions">
+          <el-button data-testid="staff-mobile-reset" size="small" :aria-label="`重置密码 ${account.username}`" @click="startReset(account)">重置密码</el-button>
+          <el-button data-testid="staff-mobile-disable" size="small" type="danger" :disabled="account.status !== 'active'" :aria-label="`停用 ${account.username}`" @click="disableAccount(account)">停用</el-button>
+        </div>
+      </article>
+    </div>
+
     <el-drawer v-model="drawerOpen" title="新建工作人员账号" size="min(420px, 92vw)">
-      <el-form label-position="top">
+      <el-form data-testid="staff-account-form" label-position="top">
         <el-form-item label="账号">
           <el-input v-model="form.username" />
         </el-form-item>
@@ -145,5 +167,9 @@ async function startReset(account: StaffAccount): Promise<void> {
 async function disableAccount(account: StaffAccount): Promise<void> {
   await disableStaffAccount(account.id)
   await loadAccounts()
+}
+
+function permissionSummary(account: StaffAccount): string {
+  return account.permissionKeys.join("、")
 }
 </script>
