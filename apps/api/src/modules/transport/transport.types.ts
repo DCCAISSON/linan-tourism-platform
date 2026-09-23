@@ -1,4 +1,5 @@
 import type { TransportContactSnapshot } from "../../domain/entities/transport-session-vehicle.entity.js"
+import type { PersonRef, TravelerDto } from "../travelers/travelers.types.js"
 
 export type TransportAllocationInput = {
   readonly classId: string
@@ -19,6 +20,11 @@ export type TransportVehicleInput = {
 
 export type TransportPlanInput = {
   readonly vehicles: readonly TransportVehicleInput[]
+}
+
+export type TransportExpectedVersions = {
+  readonly expectedPlanVersion: number
+  readonly expectedRosterVersion: string
 }
 
 export type TransportAllocationResponse = TransportAllocationInput & {
@@ -43,6 +49,7 @@ export type TransportVehicleResponse = {
 export type TransportPlanResponse = {
   readonly tourSessionId: string
   readonly organizationId: string
+  readonly planVersion: number
   readonly vehicles: readonly TransportVehicleResponse[]
   readonly totals: {
     readonly studentCount: number
@@ -54,6 +61,87 @@ export type TransportPlanResponse = {
   }
   readonly warnings: readonly string[]
 }
+
+export type TransportPersonAssignmentInput = {
+  readonly personRef: PersonRef
+  readonly vehicleId: string
+}
+
+export type TransportPersonAssignmentsInput = TransportExpectedVersions & {
+  readonly assignments: readonly TransportPersonAssignmentInput[]
+}
+
+export type TransportConfirmationInput = TransportExpectedVersions
+
+export type TransportAssignmentResponse = {
+  readonly personRef: PersonRef
+  readonly vehicleId: string
+  readonly displayName: string
+  readonly className: string | null
+  readonly importedRole: "student" | "guardian" | "teacher" | null
+  readonly active: boolean
+  readonly conflict: TravelerDto["conflict"]
+}
+
+export type TransportPeopleVehicleResponse = TransportVehicleResponse & {
+  readonly estimatedOccupancy: number
+  readonly actualOccupancy: number
+  readonly actualRemainingSeats: number
+}
+
+export type TransportConfirmationResponse = {
+  readonly id: string
+  readonly planVersion: number
+  readonly rosterVersion: string
+  readonly status: "current" | "stale"
+  readonly confirmedAt: string
+  readonly confirmedBy: string
+}
+
+export type TransportPeoplePlanResponse = {
+  readonly tourSessionId: string
+  readonly organizationId: string
+  readonly planVersion: number
+  readonly rosterVersion: string
+  readonly vehicles: readonly TransportPeopleVehicleResponse[]
+  readonly assignments: readonly TransportAssignmentResponse[]
+  readonly unassigned: readonly TravelerDto[]
+  readonly conflicts: readonly TravelerDto[]
+  readonly confirmation: TransportConfirmationResponse | null
+}
+
+export type TransportSuggestionTraveler = {
+  readonly personRef: PersonRef
+  readonly classId: string | null
+}
+
+export type TransportSuggestionInput = {
+  readonly availableSeatsBySequence: Readonly<Record<number, number>>
+  readonly reservedSeatsBySequence: Readonly<Record<number, number>>
+  readonly staffSeatsBySequence: Readonly<Record<number, number>>
+  readonly keepFamilyTogether: boolean
+  readonly allowClassSplit: boolean
+  readonly travelers: readonly TransportSuggestionTraveler[]
+}
+
+export type TransportSuggestionAssignment = {
+  readonly personRef: PersonRef
+  readonly sequence: number
+}
+
+export type TransportSuggestionResponse =
+  | {
+    readonly kind: "draft"
+    readonly assignments: readonly TransportSuggestionAssignment[]
+    readonly explanations: readonly string[]
+    readonly conflicts: readonly string[]
+  }
+  | {
+    readonly kind: "conflict"
+    readonly assignments: readonly TransportSuggestionAssignment[]
+    readonly explanations: readonly string[]
+    readonly conflicts: readonly string[]
+  }
 
 export type TransportAllocationRecord = {
   readonly allocationId: string | null

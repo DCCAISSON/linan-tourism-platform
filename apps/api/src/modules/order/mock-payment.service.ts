@@ -5,7 +5,7 @@ import {
   PAYMENT_STATUS,
   ROSTER_STATUS,
 } from "@linan/contracts"
-import { Inject, Injectable } from "@nestjs/common"
+import { ConflictException, Inject, Injectable } from "@nestjs/common"
 import { createHash } from "node:crypto"
 import type { EntityManager } from "typeorm"
 import {
@@ -15,6 +15,7 @@ import {
   PaymentEntity,
   PaymentEventEntity,
   RosterEntryEntity,
+  TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { makeId } from "../configuration/configuration.persistence.js"
@@ -89,7 +90,8 @@ export class MockPaymentService {
     }
     const dataSource = await this.database.getDataSource()
     try {
-      return await dataSource.transaction(async (manager) => {
+      // Read committed makes the capacity count see payments committed while waiting for the session lock.
+      return await dataSource.transaction("READ COMMITTED", async (manager) => {
         const { order, enrollment } = await lockScopedOrder(manager, identity, event.orderId)
         const payment = await manager.findOne(PaymentEntity, {
           where: { organizationId: order.organizationId, paymentNo: mockPaymentNumber(order.id) },
@@ -171,7 +173,18 @@ export class MockPaymentService {
     order: OrderEntity,
     enrollment: EnrollmentEntity,
   ): Promise<void> {
+    const session = await manager.findOneOrFail(TourSessionEntity, {
+      where: { id: enrollment.tourSessionId }, lock: { mode: "pessimistic_write" },
+    })
     const lines = await manager.find(OrderLineEntity, { where: { orderId: order.id }, order: { id: "ASC" } })
+    const occupiedCapacity = await manager.createQueryBuilder(RosterEntryEntity, "roster")
+      .innerJoin(OrderEntity, "paid_order", "paid_order.enrollment_id = roster.enrollment_id and paid_order.status = :paid", { paid: ORDER_STATUS.paid })
+      .where("roster.tour_session_id = :id", { id: session.id })
+      .andWhere("roster.status != :cancelled", { cancelled: ROSTER_STATUS.cancelled })
+      .getCount()
+    if (occupiedCapacity + lines.length > session.capacity) {
+      throw new ConflictException({ code: "tour_session_full", message: "tour session has insufficient remaining capacity" })
+    }
     for (const line of lines) {
       await manager.save(RosterEntryEntity, {
         id: makeId("roster"),

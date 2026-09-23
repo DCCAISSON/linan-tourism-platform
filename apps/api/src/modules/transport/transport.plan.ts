@@ -41,7 +41,7 @@ export function validateAllocation(allocation: TransportAllocationInput): void {
   }
 }
 
-export function toPlan(session: TourSessionEntity, records: readonly TransportAllocationRecord[]): TransportPlanResponse {
+export function toPlan(session: TourSessionEntity, records: readonly TransportAllocationRecord[], planVersion: number): TransportPlanResponse {
   const vehicles = new Map<string, TransportVehicleResponse>()
   for (const record of records) {
     let vehicle = vehicles.get(record.vehicleId)
@@ -59,6 +59,7 @@ export function toPlan(session: TourSessionEntity, records: readonly TransportAl
   return {
     tourSessionId: session.id,
     organizationId: session.organizationId,
+    planVersion,
     vehicles: vehicleList,
     totals: totalVehicles(vehicleList),
     warnings: [DEMO_WARNING, ...vehicleList.flatMap((vehicle) => vehicle.warnings)],

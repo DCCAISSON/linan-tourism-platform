@@ -9,9 +9,11 @@ import { MockPaymentController, OrderController } from "./order.controller.js"
 import { OrderService } from "./order.service.js"
 import { StaffOrderController } from "./staff-order.controller.js"
 import { StaffOrderService } from "./staff-order.service.js"
+import { StaffRefundService } from "./staff-refund.service.js"
+import { AuditLogService } from "../iam/audit-log.service.js"
 
 @Module({
   controllers: [OrderController, MockPaymentController, LocalRefundController, StaffOrderController],
-  providers: [ConfigurationDatabaseService, EnrollmentIdentityService, OrderService, MockPaymentService, FamilyOrderService, LocalRefundService, StaffOrderService],
+  providers: [ConfigurationDatabaseService, EnrollmentIdentityService, AuditLogService, OrderService, MockPaymentService, FamilyOrderService, LocalRefundService, StaffOrderService, StaffRefundService],
 })
 export class OrderModule {}

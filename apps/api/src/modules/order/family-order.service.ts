@@ -8,7 +8,8 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import { orderNotFound } from "./order.errors.js"
 import { findScopedOrder, toOrderResponse, type ScopedOrder } from "./order.persistence.js"
-import type { OrderDetailResponse, OrderHistoryItem } from "./order.types.js"
+import { buildOrderRefundView } from "./refund-read-model.js"
+import type { FamilyOrderDetailResponse, OrderDetailResponse, OrderHistoryItem } from "./order.types.js"
 
 @Injectable()
 export class FamilyOrderService {
@@ -27,25 +28,34 @@ export class FamilyOrderService {
     }))
   }
 
-  async detail(identity: EnrollmentIdentity, orderId: string): Promise<OrderDetailResponse> {
+  async detail(identity: EnrollmentIdentity, orderId: string): Promise<FamilyOrderDetailResponse> {
     const manager = (await this.database.getDataSource()).manager
     const scoped = await findScopedOrder(manager, identity, orderId)
-    return toOrderDetail(manager, scoped)
+    const detail = await toOrderDetail(manager, scoped)
+    return {
+      ...detail,
+      refundHistory: detail.refundHistory.map(({ note: _note, failureMessage: _failureMessage, ...item }) => item),
+    }
   }
 }
 
 export async function toOrderDetail(manager: EntityManager, scoped: ScopedOrder): Promise<OrderDetailResponse> {
   const lines = await manager.find(OrderLineEntity, { where: { orderId: scoped.order.id }, order: { id: "ASC" } })
+  const refundView = await buildOrderRefundView(manager, scoped.order.id, scoped.order.amountFen)
   return {
     ...await toHistoryItem(manager, scoped),
     contactName: scoped.enrollment.contactName,
     emergencyContactName: scoped.enrollment.emergencyContactName,
     emergencyContactPhone: scoped.enrollment.emergencyContactPhone,
+    refundSummary: refundView.summary,
+    refundHistory: refundView.history,
     participants: lines.map((line) => ({
       id: line.id, enrollmentParticipantId: line.enrollmentParticipantId,
       displayName: line.displayNameSnapshot, participantKind: line.participantKindSnapshot,
       gradeName: line.gradeNameSnapshot,
       className: line.classNameSnapshot, amountFen: line.amountFen,
+      refundedFen: refundView.participants.get(line.id)?.refundedFen ?? 0,
+      refundStatus: refundView.participants.get(line.id)?.refundStatus ?? "none",
     })),
   }
 }

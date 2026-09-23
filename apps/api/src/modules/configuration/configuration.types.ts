@@ -78,6 +78,9 @@ export type EnrollmentAvailabilityResponse = {
   readonly available: true
   readonly tourSessionId: string
   readonly at: string
+  readonly capacity: number
+  readonly occupiedCapacity: number
+  readonly remainingCapacity: number
 }
 
 export type NewSchool = {

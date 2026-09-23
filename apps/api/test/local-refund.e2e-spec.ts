@@ -150,5 +150,7 @@ async function snapshot(orderId: string, enrollmentId: string) {
     dataSource.query("select pe.* from payment_events pe join payments p on p.id = pe.payment_id where p.order_id = ? order by pe.id", [orderId]),
     dataSource.query("select * from enrollments where id = ?", [enrollmentId]),
     dataSource.query("select * from roster_entries where enrollment_id = ? order by id", [enrollmentId]),
+    dataSource.query("select * from refund_requests where order_id = ? order by id", [orderId]),
+    dataSource.query("select l.* from refund_request_lines l join refund_requests r on r.id = l.refund_request_id where r.order_id = ? order by l.id", [orderId]),
   ])
 }

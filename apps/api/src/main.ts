@@ -11,7 +11,7 @@ async function bootstrap(): Promise<void> {
     process.exit(1)
   }
 
-  const app = await NestFactory.create(AppModule)
+  const app = await NestFactory.create(AppModule, { rawBody: true })
   app.enableCors({
     origin: process.env["ADMIN_WEB_ORIGIN"] ?? DEFAULT_ADMIN_ORIGIN,
     credentials: true,

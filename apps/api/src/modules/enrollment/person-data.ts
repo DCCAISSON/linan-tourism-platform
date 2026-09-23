@@ -72,7 +72,12 @@ export function normalizeParticipantKind(value: string | undefined): Participant
   throw malformedPersonData("participantKind must be student or adult")
 }
 
-function encryptValue(value: string): string {
+export function protectPhoneData(value: string): Pick<ProtectedPersonData, "phoneCiphertext" | "phoneHash" | "phoneMasked" | "keyVersion"> {
+  const phone = normalizePhone(value)
+  return { phoneCiphertext: encryptValue(phone), phoneHash: hashCredential(phone), phoneMasked: maskPhone(phone), keyVersion: PERSON_DATA_KEY_VERSION }
+}
+
+export function encryptValue(value: string): string {
   const key = readPersonDataKey()
   const iv = randomBytes(12)
   const cipher = createCipheriv("aes-256-gcm", key, iv)

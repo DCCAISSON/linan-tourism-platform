@@ -1,7 +1,6 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common"
 import type { OnModuleDestroy } from "@nestjs/common"
 import { DataSource } from "typeorm"
-import { createDomainDataSource } from "../../domain/data-source.js"
 
 @Injectable()
 export class ConfigurationDatabaseService implements OnModuleDestroy {
@@ -20,6 +19,7 @@ export class ConfigurationDatabaseService implements OnModuleDestroy {
       })
     }
 
+    const { createDomainDataSource } = await import("../../domain/data-source.js")
     const dataSource = createDomainDataSource(databaseUrl)
     await dataSource.initialize()
     this.dataSource = dataSource

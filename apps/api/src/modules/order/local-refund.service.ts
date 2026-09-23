@@ -5,6 +5,7 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import { findScopedOrder } from "./order.persistence.js"
 import { calculateParticipantRefund, RefundCalculationError } from "./refund-calculation.js"
+import { buildOrderRefundView } from "./refund-read-model.js"
 import type { LocalRefundSelection } from "./local-refund.parser.js"
 
 export type LocalRefundPreview = {
@@ -53,15 +54,19 @@ export class LocalRefundService {
       || payments.length !== 1 || payments[0]?.amountFen !== order.paidFen) {
       throw new ConflictException({ code: "refund_payment_unverified", message: "individual paid fees cannot be verified for this order" })
     }
+    const refundView = await buildOrderRefundView(manager, orderId, order.amountFen)
     try {
       const quote = calculateParticipantRefund(lines.map((line) => ({
-        lineId: line.id, paidFen: line.amountFen, refundedFen: 0, reservedFen: 0,
+        lineId: line.id, paidFen: line.amountFen,
+        refundedFen: refundView.participants.get(line.id)?.refundedFen ?? 0,
+        reservedFen: refundView.participants.get(line.id)?.pendingFen ?? 0,
       })), selection.lineIds)
       return {
         mode: "local_validation", settlementPerformed: false, orderId, amountFen: quote.amountFen,
         participantCount: quote.lines.length,
         lines: lines.filter((line) => selection.lineIds.includes(line.id)).map((line) => ({
-          lineId: line.id, displayName: line.displayNameSnapshot, amountFen: line.amountFen,
+          lineId: line.id, displayName: line.displayNameSnapshot,
+          amountFen: quote.lines.find((quotedLine) => quotedLine.lineId === line.id)?.amountFen ?? 0,
         })),
       }
     } catch (error) {

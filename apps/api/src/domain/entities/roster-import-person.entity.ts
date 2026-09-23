@@ -76,6 +76,18 @@ export class RosterImportPersonEntity {
   @Column({ name: "created_by", type: "varchar", length: 64 })
   createdBy = ""
 
+  @Column({ type: "varchar", length: 16, default: "active" })
+  status: "active" | "disabled" = "active"
+
+  @Column({ type: "int", unsigned: true, default: 1 })
+  version = 1
+
+  @Column({ name: "eligibility_status", type: "varchar", length: 16, default: "pending" })
+  eligibilityStatus: "pending" | "confirmed" = "pending"
+
+  @Column({ name: "eligibility_reason", type: "varchar", length: 500, nullable: true })
+  eligibilityReason: string | null = null
+
   @CreateDateColumn({ name: "created_at", type: "datetime", precision: 6 })
   createdAt = new Date(0)
 }

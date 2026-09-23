@@ -107,7 +107,9 @@ export class RosterImportService {
   }
 
   private async validateScope(manager: EntityManager, input: RosterImportScopeInput): Promise<{ readonly session: TourSessionEntity }> {
-    const session = await manager.findOneBy(TourSessionEntity, { id: input.tourSessionId })
+    const session = await manager.findOne(TourSessionEntity, {
+      where: { id: input.tourSessionId }, lock: { mode: "pessimistic_write" },
+    })
     if (session === null) {
       throw rosterSessionNotFound()
     }

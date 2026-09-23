@@ -1,4 +1,4 @@
-import { ORDER_STATUS, PAYMENT_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
+import { ORDER_STATUS, PAYMENT_STATUS, ROSTER_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
 import { Inject, Injectable } from "@nestjs/common"
 import { CatalogItemEntity, OrganizationEntity, TourSessionEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
@@ -44,8 +44,8 @@ export class WorkbenchService {
       where orders.status = ?
         and exists (select 1 from payments payment where payment.order_id = orders.id and payment.status = ?)
         and exists (select 1 from roster_entries roster where roster.enrollment_id = enrollment.id
-          and roster.enrollment_participant_id = line.enrollment_participant_id)
-    `, [ORDER_STATUS.paid, PAYMENT_STATUS.succeeded])
+          and roster.enrollment_participant_id = line.enrollment_participant_id and roster.status != ?)
+    `, [ORDER_STATUS.paid, PAYMENT_STATUS.succeeded, ROSTER_STATUS.cancelled])
     return {
       generatedAt: from.toISOString(), upcomingFrom: from.toISOString(), upcomingUntil: until.toISOString(),
       activeActivityCount, upcomingSessionCount: sessions.length,

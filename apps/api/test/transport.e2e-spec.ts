@@ -151,7 +151,7 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
     expect(read.body.vehicles[0].warnings).toContain("1号车未满载：容量2人，已安排1人")
   })
 
-  it("rejects cross-session classes and sensitive contacts without the sensitive grant", async () => {
+	  it("rejects cross-session classes and sensitive contacts without the sensitive grant", async () => {
     const catalog = await createCatalog(app, scope)
     const other = await createCatalog(app, `${scope}-other`)
     await request(app.getHttpServer())
@@ -167,8 +167,78 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
       .set("Origin", ORIGIN)
       .send({ vehicles: [vehicleWithContact(catalog.classId)] })
       .expect(403)
-  })
-})
+	  })
+
+	  it("keeps vehicle ids stable and protects person assignments with plan and roster versions", async () => {
+	    const catalog = await createCatalog(app, scope)
+	    await seedImportedTeacher(catalog, scope)
+	    const saved = await request(app.getHttpServer())
+	      .put(`/transport/sessions/${catalog.tourSessionId}/plan`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .set("Origin", ORIGIN)
+	      .send({ vehicles: [blankVehicle(catalog.classId, 1, 2)] })
+	      .expect(200)
+	    const vehicleId = saved.body.vehicles[0].id
+
+	    const peoplePlan = await request(app.getHttpServer())
+	      .get(`/transport/sessions/${catalog.tourSessionId}/people-plan`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .expect(200)
+	    expect(peoplePlan.body.unassigned[0]).toMatchObject({ personRef: `imported:teacher-${scope}`, active: true })
+
+	    const assigned = await request(app.getHttpServer())
+	      .put(`/transport/sessions/${catalog.tourSessionId}/person-allocations`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .set("Origin", ORIGIN)
+	      .send({
+	        expectedPlanVersion: peoplePlan.body.planVersion,
+	        expectedRosterVersion: peoplePlan.body.rosterVersion,
+	        assignments: [{ personRef: `imported:teacher-${scope}`, vehicleId }],
+	      })
+	      .expect(200)
+	    expect(assigned.body.vehicles[0]).toMatchObject({ id: vehicleId, actualOccupancy: 1, estimatedOccupancy: 1 })
+
+	    const confirmed = await request(app.getHttpServer())
+	      .post(`/transport/sessions/${catalog.tourSessionId}/confirmations`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .set("Origin", ORIGIN)
+	      .send({ expectedPlanVersion: assigned.body.planVersion, expectedRosterVersion: assigned.body.rosterVersion })
+	      .expect(201)
+	    expect(confirmed.body.confirmation).toMatchObject({ status: "current", planVersion: assigned.body.planVersion })
+
+	    const resaved = await request(app.getHttpServer())
+	      .put(`/transport/sessions/${catalog.tourSessionId}/plan`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .set("Origin", ORIGIN)
+	      .send({ vehicles: [blankVehicle(catalog.classId, 1, 3)] })
+	      .expect(200)
+	    expect(resaved.body.vehicles[0].id).toBe(vehicleId)
+
+	    const stale = await request(app.getHttpServer())
+	      .get(`/transport/sessions/${catalog.tourSessionId}/people-plan`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .expect(200)
+	    expect(stale.body.confirmation).toMatchObject({ status: "stale" })
+
+	    await request(app.getHttpServer())
+	      .put(`/transport/sessions/${catalog.tourSessionId}/person-allocations`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .set("Origin", ORIGIN)
+	      .send({
+	        expectedPlanVersion: assigned.body.planVersion,
+	        expectedRosterVersion: assigned.body.rosterVersion,
+	        assignments: [{ personRef: `imported:teacher-${scope}`, vehicleId }],
+	      })
+	      .expect(409)
+
+	    await request(app.getHttpServer())
+	      .put(`/transport/sessions/${catalog.tourSessionId}/plan`)
+	      .set(DEV_ADMIN_HEADERS)
+	      .set("Origin", ORIGIN)
+	      .send({ vehicles: [] })
+	      .expect(409)
+	  })
+	})
 
 function transportPlan(classOne: string, classTwo: string) {
   return {
@@ -232,8 +302,14 @@ async function createClass(app: INestApplication, gradeId: string, code: string,
 }
 
 async function cleanup(scope: string): Promise<void> {
+  await dataSource.query("update transport_plans p join tour_sessions ts on ts.id = p.tour_session_id set p.current_confirmation_id = null where ts.code like ?", [`session-${scope}%`])
+  await dataSource.query("delete c from transport_confirmations c join tour_sessions ts on ts.id = c.tour_session_id where ts.code like ?", [`session-${scope}%`])
+  await dataSource.query("delete p from transport_person_allocations p join tour_sessions ts on ts.id = p.tour_session_id where ts.code like ?", [`session-${scope}%`])
+  await dataSource.query("delete p from transport_plans p join tour_sessions ts on ts.id = p.tour_session_id where ts.code like ?", [`session-${scope}%`])
   await dataSource.query("delete a from transport_class_allocations a join transport_session_vehicles v on v.id = a.vehicle_id join tour_sessions ts on ts.id = v.tour_session_id where ts.code like ?", [`session-${scope}%`])
   await dataSource.query("delete v from transport_session_vehicles v join tour_sessions ts on ts.id = v.tour_session_id where ts.code like ?", [`session-${scope}%`])
+  await dataSource.query("delete p from roster_import_people p join roster_import_batches b on b.id = p.batch_id where b.file_name like ?", [`transport-${scope}%`])
+  await dataSource.query("delete from roster_import_batches where file_name like ?", [`transport-${scope}%`])
   await dataSource.query("delete from audit_logs where organization_id in (select id from organizations where code like ?)", [`school-${scope}%`])
   await dataSource.query("update tour_sessions set active_notice_id = null where code like ?", [`session-${scope}%`])
   await dataSource.query("delete nv from notice_versions nv join tour_sessions ts on ts.id = nv.tour_session_id where ts.code like ?", [`session-${scope}%`])
@@ -242,6 +318,22 @@ async function cleanup(scope: string): Promise<void> {
   await dataSource.query("delete from school_classes where grade_id in (select id from school_grades where code like ?)", [`grade-${scope}%`])
   await dataSource.query("delete from school_grades where code like ?", [`grade-${scope}%`])
   await dataSource.query("delete from organizations where code like ?", [`school-${scope}%`])
+}
+
+async function seedImportedTeacher(catalog: { readonly schoolId: string; readonly tourSessionId: string; readonly gradeId: string; readonly classId: string }, scope: string): Promise<void> {
+  await dataSource.query(`
+    insert into roster_import_batches
+      (id, organization_id, tour_session_id, grade_id, class_id, source_template, file_name, created_by, total_rows, imported_count, duplicate_count, error_count, policy_version)
+    values (?, ?, ?, ?, ?, 'teacher', ?, 'dev-admin', 1, 1, 0, 0, 'test')
+  `, [`batch-${scope}`, catalog.schoolId, catalog.tourSessionId, catalog.gradeId, catalog.classId, `transport-${scope}.xlsx`])
+  await dataSource.query(`
+    insert into roster_import_people
+      (id, batch_id, organization_id, tour_session_id, grade_id, class_id, source_row_number, source_class_name, role, display_name,
+       identity_ciphertext, identity_hash, identity_masked, phone_ciphertext, phone_hash, phone_masked, person_data_key_version,
+       created_by, status, version, eligibility_status, eligibility_reason)
+    values (?, ?, ?, ?, ?, ?, 2, '一班', 'teacher', '带队老师',
+      'cipher', ?, '********0001', null, null, null, 'v1', 'dev-admin', 'active', 1, 'pending', null)
+  `, [`teacher-${scope}`, `batch-${scope}`, catalog.schoolId, catalog.tourSessionId, catalog.gradeId, catalog.classId, `${scope.padEnd(64, "0").slice(0, 64)}`])
 }
 
 function restoreOrigin(value: string | undefined): void {

@@ -1,10 +1,12 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common"
-import { DOMAIN_POLICY_VERSION, TOUR_SESSION_STATUS } from "@linan/contracts"
+import { DOMAIN_POLICY_VERSION, ORDER_STATUS, ROSTER_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
 import { In } from "typeorm"
 import {
   CatalogItemEntity,
   NoticeVersionEntity,
+  OrderEntity,
   OrganizationEntity,
+  RosterEntryEntity,
   SchoolClassEntity,
   SchoolGradeEntity,
   TourSessionEntity,
@@ -317,7 +319,17 @@ export class ConfigurationService {
       throw new BadRequestException({ code: "stale_state", message: "tour session is outside enrollment window" })
     }
 
-    return { available: true, tourSessionId: id, at: at.toISOString() }
+    const dataSource = await this.database.getDataSource()
+    const occupiedCapacity = await dataSource.getRepository(RosterEntryEntity).createQueryBuilder("roster")
+      .innerJoin(OrderEntity, "paid_order", "paid_order.enrollment_id = roster.enrollment_id and paid_order.status = :paid", { paid: ORDER_STATUS.paid })
+      .where("roster.tour_session_id = :id", { id })
+      .andWhere("roster.status != :cancelled", { cancelled: ROSTER_STATUS.cancelled })
+      .getCount()
+    const capacity = { capacity: session.capacity, occupiedCapacity, remainingCapacity: Math.max(0, session.capacity - occupiedCapacity) }
+    if (capacity.remainingCapacity === 0) {
+      throw new BadRequestException({ code: "stale_state", message: "tour session is full", ...capacity })
+    }
+    return { available: true, tourSessionId: id, at: at.toISOString(), ...capacity }
   }
 
   private async findTourSession(id: string): Promise<TourSessionResponse> {

@@ -1,4 +1,4 @@
-import { ORDER_STATUS, PAYMENT_STATUS } from "@linan/contracts"
+import { ORDER_STATUS, PAYMENT_STATUS, ROSTER_STATUS } from "@linan/contracts"
 import { ForbiddenException, Inject, Injectable } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
 import { TourSessionEntity } from "../../domain/entities/index.js"
@@ -164,8 +164,9 @@ function buildSqlParts(filters: RosterFilters): SqlParts {
     "where e.tour_session_id = ?",
     "and o.status = ?",
     "and exists (select 1 from payments p where p.order_id = o.id and p.status = ?)",
+    "and re.status != ?",
   ]
-  const params: unknown[] = [filters.tourSessionId, ORDER_STATUS.paid, PAYMENT_STATUS.succeeded]
+  const params: unknown[] = [filters.tourSessionId, ORDER_STATUS.paid, PAYMENT_STATUS.succeeded, ROSTER_STATUS.cancelled]
   if (filters.schoolId !== null) {
     clauses.push("and ol.organization_id = ?")
     params.push(filters.schoolId)

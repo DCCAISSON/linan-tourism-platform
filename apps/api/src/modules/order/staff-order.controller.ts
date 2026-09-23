@@ -3,8 +3,10 @@ import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import { parseRefundSelection, parseRefundSimulation } from "./local-refund.parser.js"
 import { LocalRefundService, type LocalRefundPreview } from "./local-refund.service.js"
 import { parseOrderId } from "./order.parser.js"
+import { parseStaffRefundRequest, parseStaffRefundResult } from "./refund-request.parser.js"
+import { StaffRefundService } from "./staff-refund.service.js"
 import { parseStaffOrderFilters, StaffOrderService } from "./staff-order.service.js"
-import type { OrderDetailResponse, StaffOrderListResponse } from "./order.types.js"
+import type { OrderDetailResponse, StaffOrderListResponse, StaffRefundResponse } from "./order.types.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -14,6 +16,7 @@ export class StaffOrderController {
     @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
     @Inject(StaffOrderService) private readonly orders: StaffOrderService,
     @Inject(LocalRefundService) private readonly refunds: LocalRefundService,
+    @Inject(StaffRefundService) private readonly staffRefunds: StaffRefundService,
   ) {}
 
   @Get()
@@ -41,5 +44,21 @@ export class StaffOrderController {
     this.staffAccess.assertRefundSimulationScope(await this.staffAccess.resolve(headers))
     const input = parseRefundSimulation(body)
     return { ...await this.refunds.previewStaff(parseOrderId(id), input), outcome: input.outcome }
+  }
+
+  @Post(":id/refunds")
+  async createRefund(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<StaffRefundResponse> {
+    this.staffAccess.assertUnsafeOrigin(headers)
+    const access = await this.staffAccess.resolve(headers)
+    this.staffAccess.assertRefundManageScope(access)
+    return this.staffRefunds.create(parseOrderId(id), parseStaffRefundRequest(body), access.actorId)
+  }
+
+  @Post(":id/refunds/:refundId/local-result")
+  async processRefund(@Headers() headers: RequestHeaders, @Param("id") id: string, @Param("refundId") refundId: string, @Body() body: unknown): Promise<StaffRefundResponse> {
+    this.staffAccess.assertUnsafeOrigin(headers)
+    const access = await this.staffAccess.resolve(headers)
+    this.staffAccess.assertRefundManageScope(access)
+    return this.staffRefunds.processLocalResult(parseOrderId(id), parseOrderId(refundId), parseStaffRefundResult(body), access.actorId)
   }
 }

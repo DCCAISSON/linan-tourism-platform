@@ -105,12 +105,33 @@ export class DevStaffAccessService {
     throw scopeForbidden("staff identity cannot export transport plan")
   }
 
+  assertPretripManageScope(access: StaffAccess, scope: StaffRosterScope): void {
+    requirePermission(access, "pretrip.write", "staff identity cannot manage pretrip records")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "summary"))) {
+      return
+    }
+    throw scopeForbidden("staff identity cannot manage pretrip records")
+  }
+
+  assertPretripSchoolConfirmScope(access: StaffAccess, scope: StaffRosterScope): void {
+    requirePermission(access, "pretrip.school_confirm", "staff identity cannot confirm pretrip records")
+    if (access.scopes.some((candidate) => scopeMatches(candidate, scope, "summary"))) {
+      return
+    }
+    throw scopeForbidden("staff identity cannot confirm pretrip records")
+  }
+
   assertPaymentSummaryScope(access: StaffAccess): void {
     if (access.permissionKeys.has("orders.read") || access.permissionKeys.has("workbench.read")) {
       requireAllScope(access, "staff identity cannot access global payment totals")
       return
     }
     throw scopeForbidden("staff identity cannot access payment totals")
+  }
+
+  assertPaymentReconcileScope(access: StaffAccess): void {
+    requirePermission(access, "payments.reconcile", "staff identity cannot reconcile payments")
+    requireAllScope(access, "staff identity cannot reconcile global payments")
   }
 
   assertWorkbenchScope(access: StaffAccess): void {
@@ -131,6 +152,11 @@ export class DevStaffAccessService {
   assertRefundSimulationScope(access: StaffAccess): void {
     requirePermission(access, "refunds.simulate", "staff identity cannot simulate refunds")
     requireAllScope(access, "staff identity cannot simulate global refunds")
+  }
+
+  assertRefundManageScope(access: StaffAccess): void {
+    requirePermission(access, "refunds.manage", "staff identity cannot manage refunds")
+    requireAllScope(access, "staff identity cannot manage global refunds")
   }
 
   assertStaffAccountManagement(access: StaffAccess): void {

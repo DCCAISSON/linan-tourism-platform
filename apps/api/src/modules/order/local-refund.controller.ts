@@ -16,13 +16,13 @@ export class LocalRefundController {
   @Post("refund-preview")
   async preview(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<LocalRefundPreview> {
     this.refunds.ensureAvailable()
-    return this.refunds.preview(this.identity.resolve(headers), parseOrderId(id), parseRefundSelection(body))
+    return this.refunds.preview(await this.identity.resolve(headers), parseOrderId(id), parseRefundSelection(body))
   }
 
   @Post("refund-simulation")
   async simulate(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<LocalRefundPreview & { readonly outcome: "succeeded" | "failed" }> {
     this.refunds.ensureAvailable()
     const input = parseRefundSimulation(body)
-    return { ...await this.refunds.preview(this.identity.resolve(headers), parseOrderId(id), input), outcome: input.outcome }
+    return { ...await this.refunds.preview(await this.identity.resolve(headers), parseOrderId(id), input), outcome: input.outcome }
   }
 }

@@ -11,13 +11,24 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import { makeId } from "../configuration/configuration.persistence.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
 import { DevStaffAccessService, type StaffAccess } from "../iam/dev-staff-access.service.js"
-import { malformedTransportInput, transportForbidden, transportSessionNotFound } from "./transport.errors.js"
+import { malformedTransportInput, transportConflict, transportForbidden, transportSessionNotFound } from "./transport.errors.js"
+import { bumpTransportPlanVersion, ensureTransportPlan } from "./transport-plan-store.js"
 import { hasContactValue, redactContactSnapshots, sessionScope, textOrNull, toPlan, validateAllocation, validateVehicle, vehicleOccupancy } from "./transport.plan.js"
 import type {
   TransportAllocationRecord,
   TransportPlanInput,
   TransportPlanResponse,
+  TransportVehicleInput,
 } from "./transport.types.js"
+
+type VehicleRow = {
+  readonly id: string
+  readonly sequence: number | string
+}
+
+type CountRow = {
+  readonly count: number | string
+}
 
 @Injectable()
 export class TransportService {
@@ -38,35 +49,12 @@ export class TransportService {
   async savePlan(access: StaffAccess, tourSessionId: string, input: TransportPlanInput): Promise<TransportPlanResponse> {
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
-      const session = await this.requireSession(manager, tourSessionId)
-      this.staffAccess.assertTransportWriteScope(access, sessionScope(session))
-      await this.validatePlan(manager, access, session, input)
-      await manager.delete(TransportSessionVehicleEntity, { tourSessionId: session.id })
-      for (const vehicle of input.vehicles) {
-        const saved = await manager.save(TransportSessionVehicleEntity, {
-          id: makeId("vehicle"),
-          organizationId: session.organizationId,
-          tourSessionId: session.id,
-          sequence: vehicle.sequence,
-          seatCapacity: vehicle.seatCapacity,
-          plateNumber: textOrNull(vehicle.plateNumber),
-          contactSnapshotJson: vehicle.contactSnapshot,
-          createdBy: access.actorId,
-        })
-        if (vehicle.allocations.length > 0) {
-          await manager.save(TransportClassAllocationEntity, vehicle.allocations.map((allocation) => ({
-            id: makeId("allocation"),
-            vehicleId: saved.id,
-            classId: allocation.classId,
-            studentCount: allocation.studentCount,
-            guardianCount: allocation.guardianCount,
-            teacherCount: allocation.teacherCount,
-            otherCount: allocation.otherCount,
-            note: textOrNull(allocation.note),
-          })))
-        }
-      }
-      await this.audit.record(manager, {
+	      const session = await this.requireSession(manager, tourSessionId)
+	      this.staffAccess.assertTransportWriteScope(access, sessionScope(session))
+	      await this.validatePlan(manager, access, session, input)
+	      await this.upsertVehicles(manager, session, access.actorId, input)
+	      await bumpTransportPlanVersion(manager, session.id)
+	      await this.audit.record(manager, {
         organizationId: session.organizationId,
         actorId: access.actorId,
         action: "transport.plan.saved",
@@ -160,8 +148,9 @@ export class TransportService {
     }
   }
 
-  private async loadPlan(manager: EntityManager, session: TourSessionEntity): Promise<TransportPlanResponse> {
-    const records: readonly TransportAllocationRecord[] = await manager.query(`
+	  private async loadPlan(manager: EntityManager, session: TourSessionEntity): Promise<TransportPlanResponse> {
+	    const planVersion = await ensureTransportPlan(manager, session.id)
+	    const records: readonly TransportAllocationRecord[] = await manager.query(`
       select
         a.id as allocationId, v.id as vehicleId, v.sequence, v.seat_capacity as seatCapacity,
         v.plate_number as plateNumber, v.contact_snapshot_json as contactSnapshotJson,
@@ -175,6 +164,79 @@ export class TransportService {
       where v.tour_session_id = ?
       order by v.sequence, g.code, c.code, a.id
     `, [session.id])
-    return toPlan(session, records)
-  }
-}
+	    return toPlan(session, records, planVersion)
+	  }
+
+	  private async upsertVehicles(
+	    manager: EntityManager,
+	    session: TourSessionEntity,
+	    actorId: string,
+	    input: TransportPlanInput,
+	  ): Promise<void> {
+	    const existingRows: readonly VehicleRow[] = await manager.query(
+	      "select id, sequence from transport_session_vehicles where tour_session_id = ? order by sequence",
+	      [session.id],
+	    )
+	    const existingBySequence = new Map(existingRows.map((row) => [Number(row.sequence), row.id]))
+	    const inputSequences = new Set(input.vehicles.map((vehicle) => vehicle.sequence))
+	    for (const row of existingRows) {
+	      if (!inputSequences.has(Number(row.sequence))) {
+	        await this.deleteVehicleIfUnused(manager, session.id, row.id, Number(row.sequence))
+	      }
+	    }
+	    for (const vehicle of input.vehicles) {
+	      const vehicleId = existingBySequence.get(vehicle.sequence) ?? makeId("vehicle")
+	      if (existingBySequence.has(vehicle.sequence)) {
+	        await manager.update(TransportSessionVehicleEntity, { id: vehicleId }, {
+	          seatCapacity: vehicle.seatCapacity,
+	          plateNumber: textOrNull(vehicle.plateNumber),
+	          contactSnapshotJson: vehicle.contactSnapshot,
+	        })
+	      } else {
+	        await manager.save(TransportSessionVehicleEntity, {
+	          id: vehicleId,
+	          organizationId: session.organizationId,
+	          tourSessionId: session.id,
+	          sequence: vehicle.sequence,
+	          seatCapacity: vehicle.seatCapacity,
+	          plateNumber: textOrNull(vehicle.plateNumber),
+	          contactSnapshotJson: vehicle.contactSnapshot,
+	          createdBy: actorId,
+	        })
+	      }
+	      await this.replaceClassAllocations(manager, vehicleId, vehicle)
+	    }
+	  }
+
+	  private async deleteVehicleIfUnused(manager: EntityManager, tourSessionId: string, vehicleId: string, sequence: number): Promise<void> {
+	    const [assignmentCount, confirmationCount] = await Promise.all([
+	      this.countRows(manager, "select count(*) as count from transport_person_allocations where vehicle_id = ?", [vehicleId]),
+	      this.countRows(manager, "select count(*) as count from transport_confirmations where tour_session_id = ?", [tourSessionId]),
+	    ])
+	    if (assignmentCount > 0 || confirmationCount > 0) {
+	      throw transportConflict("vehicle_in_use", `${sequence}号车已有人员分配或历史确认，不能通过保存安排悄然删除。`)
+	    }
+	    await manager.delete(TransportClassAllocationEntity, { vehicleId })
+	    await manager.delete(TransportSessionVehicleEntity, { id: vehicleId })
+	  }
+
+	  private async replaceClassAllocations(manager: EntityManager, vehicleId: string, vehicle: TransportVehicleInput): Promise<void> {
+	    await manager.delete(TransportClassAllocationEntity, { vehicleId })
+	    if (vehicle.allocations.length === 0) return
+	    await manager.save(TransportClassAllocationEntity, vehicle.allocations.map((allocation) => ({
+	      id: makeId("allocation"),
+	      vehicleId,
+	      classId: allocation.classId,
+	      studentCount: allocation.studentCount,
+	      guardianCount: allocation.guardianCount,
+	      teacherCount: allocation.teacherCount,
+	      otherCount: allocation.otherCount,
+	      note: textOrNull(allocation.note),
+	    })))
+	  }
+
+	  private async countRows(manager: EntityManager, sql: string, params: readonly string[]): Promise<number> {
+	    const rows: readonly CountRow[] = await manager.query(sql, params)
+	    return Number(rows[0]?.count ?? 0)
+	  }
+	}
