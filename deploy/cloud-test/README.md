@@ -9,6 +9,20 @@
 - API 只监听服务器回环地址，管理后台通过 Nginx 受保护入口访问；ICP 备案完成后为受保护测试入口配置公网 HTTPS。
 - 业务库：云数据库测试库 `linan_platform_test`。
 - 后台构建时使用 `VITE_API_BASE_URL=/api`，由同源 Nginx 转发 API。
+- 公众官网由 `apps/site/dist` 提供，根域名和 `www` 不启用 Basic Auth。备案号、公安备案号和公开联系方式由构建环境变量注入，未提供时页面只显示待同步说明。
+
+公众官网构建示例：
+
+```bash
+SITE_ICP_NUMBER='<网站 ICP 备案号>' \
+SITE_PUBLIC_SECURITY_NUMBER='<公安联网备案号>' \
+SITE_PUBLIC_SECURITY_URL='<公安备案查询链接>' \
+SITE_CONTACT_PHONE='<公开业务电话>' \
+SITE_CONTACT_EMAIL='<公开业务邮箱>' \
+corepack pnpm --filter @linan/site build
+```
+
+根域名上线前须将 `linantravel.cn` 和需要启用的 `www.linantravel.cn` 解析到服务器公网 IP，并重新签发包含根域名、`www`、`admin`、`api` 的证书，再替换 Nginx 配置并执行 `nginx -t`。未完成证书签发时不要提前启用根域名 HTTPS server block。
 
 ## `/etc/linan-test/api.env` 必填项
 
@@ -22,6 +36,13 @@ PORT=3000
 ADMIN_WEB_ORIGIN=http://127.0.0.1:8080
 PERSON_DATA_ENCRYPTION_KEY_BASE64=<32-byte-random-base64>
 REVISION=<deployed-git-sha>
+```
+
+启用小程序体验版真实微信身份前，还需把服务切换到 `NODE_ENV=production`，安装正式 AppID/AppSecret，并使用 `nginx-miniapp-experience.conf` 让小程序可直接访问 API。该配置取消 API 域名的 Basic Auth，因此必须先确认开发身份头和模拟资金接口已由生产环境保护。
+
+```bash
+WECHAT_MINIAPP_APP_ID=<正式AppID>
+WECHAT_MINIAPP_APP_SECRET=<正式AppSecret>
 ```
 
 首次创建测试主管理员时，还需要临时写入并执行 bootstrap，完成后可移除：
