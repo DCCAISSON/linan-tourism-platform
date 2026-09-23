@@ -1,6 +1,8 @@
 {
   "pages": [
     { "path": "pages/index/index", "style": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F8FC", "navigationBarTextStyle": "black", "backgroundColor": "#F5F8FC" } },
+    { "path": "pages/login/index", "style": { "navigationBarTitleText": "微信登录", "navigationBarBackgroundColor": "#F5F8FC", "navigationBarTextStyle": "black", "backgroundColor": "#F5F8FC", "navigationStyle": "default" } },
+    { "path": "pages/webview/index", "style": { "navigationBarTitleText": "活动影像" } },
     { "path": "pages/activities/index", "style": { "navigationBarTitleText": "研学活动" } },
     { "path": "pages/activities/detail", "style": { "navigationBarTitleText": "活动详情" } },
     { "path": "pages/enrollment/index", "style": { "navigationBarTitleText": "研学报名" } },

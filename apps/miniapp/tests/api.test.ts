@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   ApiError,
   createMiniappApi,
@@ -10,6 +10,8 @@ import {
 } from "../src/api"
 
 describe("miniapp API client", () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
   it("creates members before posting enrollment payload with the family id header", async () => {
     const requests: MiniappRequestOptions[] = []
     const request: RequestTransport = async (options) => {
@@ -98,5 +100,29 @@ describe("miniapp API client", () => {
     await expect(api.checkEnrollmentAvailability("session-1", "2026-09-19T01:00:00.000Z")).rejects.toEqual(
       new ApiError(400, "tour session is outside enrollment window"),
     )
+  })
+
+  it("binds a WeChat identity to the supplied family code and stores the session response", async () => {
+    const setStorageSync = vi.fn()
+    vi.stubGlobal("uni", { setStorageSync })
+    const requests: MiniappRequestOptions[] = []
+    const api = createMiniappApi({
+      baseUrl: "https://api.example.test",
+      request: async (options) => {
+        requests.push(options)
+        return { data: { token: "session-token", familyCode: "family-a", expiresAt: "2026-10-23T00:00:00.000Z" }, statusCode: 201 }
+      },
+    })
+
+    const response = await api.bindWechatCode("wx-code", "family-a")
+
+    expect(response.familyCode).toBe("family-a")
+    expect(setStorageSync).toHaveBeenCalledWith("linan_wechat_session_token", "session-token")
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      url: "https://api.example.test/wechat/miniapp/bind",
+      method: "POST",
+      data: { code: "wx-code", familyCode: "family-a" },
+    })
   })
 })

@@ -1,6 +1,7 @@
 ﻿import { ApiError } from "./api-error"
 import { DEV_FAMILY_IDENTITY_HEADER, FALLBACK_API_BASE_URL, type MiniappRequestOptions, type MiniappRequestResult, type RequestTransport } from "./api-types"
 import { readCollection, readRecord, readString } from "./api-parsers"
+import { getWechatSessionToken } from "./wechat-token"
 
 export type PersonRef = `paid:${string}` | `imported:${string}`
 export type FamilyPublicExecutionSummary = {
@@ -11,14 +12,15 @@ export type FamilyPublicExecutionSummary = {
 export type HealthAuthorization = { readonly id: string; readonly tourSessionId: string; readonly orderId: string; readonly personRef: PersonRef; readonly active: boolean; readonly version: number; readonly authorizedAt: string; readonly revokedAt: string | null }
 export type HealthAuthorizationPayload = { readonly personRef: PersonRef; readonly allergies: string; readonly medicalNotes: string; readonly emergencyMedicine: string }
 
-export function createExecutionHealthClient(options: { readonly baseUrl?: string; readonly familyIdentityHeader?: string; readonly request?: RequestTransport } = {}) {
+export function createExecutionHealthClient(options: { readonly baseUrl?: string; readonly familyIdentityHeader?: string; readonly wechatSessionToken?: string; readonly request?: RequestTransport } = {}) {
   const baseUrl = (options.baseUrl ?? import.meta.env["VITE_API_BASE_URL"] ?? FALLBACK_API_BASE_URL).replace(/\/$/, "")
   const familyIdentityHeader = options.familyIdentityHeader ?? import.meta.env["VITE_DEV_FAMILY_IDENTITY_HEADER"]
+  const wechatSessionToken = options.wechatSessionToken ?? getWechatSessionToken()
   const request = options.request ?? requestWithUni
   return {
-    publicSummary: async (orderId: string) => parsePublicSummary(await requestJson(request, baseUrl, familyIdentityHeader, `/orders/${encodeURIComponent(orderId)}/execution/public-summary`, "GET")),
-    authorizeHealth: async (orderId: string, payload: HealthAuthorizationPayload) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations`, "POST", payload)),
-    revokeHealth: async (orderId: string, personRef: PersonRef) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations/${encodeURIComponent(personRef)}/revoke`, "POST", {})),
+    publicSummary: async (orderId: string) => parsePublicSummary(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/public-summary`, "GET")),
+    authorizeHealth: async (orderId: string, payload: HealthAuthorizationPayload) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations`, "POST", payload)),
+    revokeHealth: async (orderId: string, personRef: PersonRef) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations/${encodeURIComponent(personRef)}/revoke`, "POST", {})),
   }
 }
 
@@ -30,10 +32,11 @@ async function requestWithUni(options: MiniappRequestOptions): Promise<MiniappRe
   })
 }
 
-async function requestJson(request: RequestTransport, baseUrl: string, familyIdentityHeader: string | undefined, path: string, method: MiniappRequestOptions["method"], data?: object): Promise<unknown> {
+async function requestJson(request: RequestTransport, baseUrl: string, familyIdentityHeader: string | undefined, wechatSessionToken: string | undefined, path: string, method: MiniappRequestOptions["method"], data?: object): Promise<unknown> {
   const header: Record<string, string> = {}
   if (data !== undefined) header["Content-Type"] = "application/json"
   if (familyIdentityHeader !== undefined && familyIdentityHeader.length > 0) header[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
+  if (wechatSessionToken !== undefined) header["Authorization"] = `Bearer ${wechatSessionToken}`
   const response = await request(data === undefined ? { url: `${baseUrl}${path}`, method, header } : { url: `${baseUrl}${path}`, method, header, data })
   if (response.statusCode < 200 || response.statusCode >= 300) throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
   return response.data

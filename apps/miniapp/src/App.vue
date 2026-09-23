@@ -1,5 +1,11 @@
-<script lang="ts">
-export default {}
+<script setup lang="ts">
+import { onLaunch } from "@dcloudio/uni-app"
+import { getWechatSessionToken } from "./wechat-token"
+
+onLaunch(() => {
+  if (import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || getWechatSessionToken() !== undefined) return
+  uni.reLaunch({ url: "/pages/login/index" })
+})
 </script>
 
 <style>

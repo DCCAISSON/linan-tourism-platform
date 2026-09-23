@@ -1,6 +1,7 @@
 import { ApiError } from "./api-error"
 import { DEV_FAMILY_IDENTITY_HEADER, FALLBACK_API_BASE_URL, type MiniappRequestOptions, type MiniappRequestResult, type RequestTransport } from "./api-types"
 import { readCollection, readNonNegativeInteger, readRecord, readString } from "./api-parsers"
+import { getWechatSessionToken } from "./wechat-token"
 
 export type RefundApplicationStatus = "submitted" | "approved" | "rejected" | "cancelled"
 
@@ -32,15 +33,17 @@ export type FamilyRefundApplicationClient = {
 export function createRefundApplicationClient(options: {
   readonly baseUrl?: string
   readonly familyIdentityHeader?: string
+  readonly wechatSessionToken?: string
   readonly request?: RequestTransport
 } = {}): FamilyRefundApplicationClient {
   const baseUrl = (options.baseUrl ?? import.meta.env["VITE_API_BASE_URL"] ?? FALLBACK_API_BASE_URL).replace(/\/$/, "")
   const familyIdentityHeader = options.familyIdentityHeader ?? import.meta.env["VITE_DEV_FAMILY_IDENTITY_HEADER"]
+  const wechatSessionToken = options.wechatSessionToken ?? getWechatSessionToken()
   const request = options.request ?? requestWithUni
   return {
-    submitRefundApplication: (orderId, payload) => requestApplication(request, baseUrl, familyIdentityHeader, `/orders/${encodeURIComponent(orderId)}/refund-applications`, "POST", payload),
-    listRefundApplications: async (orderId) => readCollection(await requestJson(request, baseUrl, familyIdentityHeader, `/orders/${encodeURIComponent(orderId)}/refund-applications`, "GET"), parseRefundApplication),
-    cancelRefundApplication: (orderId, applicationId) => requestApplication(request, baseUrl, familyIdentityHeader, `/orders/${encodeURIComponent(orderId)}/refund-applications/${encodeURIComponent(applicationId)}/cancel`, "POST", {}),
+    submitRefundApplication: (orderId, payload) => requestApplication(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/refund-applications`, "POST", payload),
+    listRefundApplications: async (orderId) => readCollection(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/refund-applications`, "GET"), parseRefundApplication),
+    cancelRefundApplication: (orderId, applicationId) => requestApplication(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/refund-applications/${encodeURIComponent(applicationId)}/cancel`, "POST", {}),
   }
 }
 
@@ -48,11 +51,12 @@ async function requestApplication(
   request: RequestTransport,
   baseUrl: string,
   familyIdentityHeader: string | undefined,
+  wechatSessionToken: string | undefined,
   path: string,
   method: MiniappRequestOptions["method"],
   data: object,
 ): Promise<RefundApplication> {
-  return parseRefundApplication(await requestJson(request, baseUrl, familyIdentityHeader, path, method, data))
+  return parseRefundApplication(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, path, method, data))
 }
 
 async function requestWithUni(options: MiniappRequestOptions): Promise<MiniappRequestResult> {
@@ -67,6 +71,7 @@ async function requestJson(
   request: RequestTransport,
   baseUrl: string,
   familyIdentityHeader: string | undefined,
+  wechatSessionToken: string | undefined,
   path: string,
   method: MiniappRequestOptions["method"],
   data?: object,
@@ -74,6 +79,7 @@ async function requestJson(
   const header: Record<string, string> = {}
   if (data !== undefined) header["Content-Type"] = "application/json"
   if (familyIdentityHeader !== undefined && familyIdentityHeader.length > 0) header[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
+  if (wechatSessionToken !== undefined) header["Authorization"] = `Bearer ${wechatSessionToken}`
   const options: MiniappRequestOptions = data === undefined
     ? { url: `${baseUrl}${path}`, method, header }
     : { url: `${baseUrl}${path}`, method, header, data }

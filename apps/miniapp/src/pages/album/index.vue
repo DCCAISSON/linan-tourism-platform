@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed, nextTick, ref } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
-import { albumContentUrl, createAlbumApi, type AlbumAsset, type AlbumCollection, type AlbumProvider } from "../../album-api"
+import { createAlbumApi, type AlbumCollection, type AlbumProvider } from "../../album-api"
 import DiscoveryState from "../../components/DiscoveryState.vue"
 import { formatDateLabel, type LoadState } from "../../enrollment-flow"
 import { readableError } from "../index/page-helpers"
@@ -35,12 +35,8 @@ async function load(): Promise<void> {
   }
 }
 
-function contentUrl(asset: AlbumAsset): string {
-  return albumContentUrl(undefined, orderId.value, asset.id)
-}
-
-function copyProviderUrl(provider: AlbumProvider): void {
-  uni.setClipboardData({ data: provider.url })
+function openProvider(provider: AlbumProvider): void {
+  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(provider.url)}` })
 }
 </script>
 
@@ -52,12 +48,12 @@ function copyProviderUrl(provider: AlbumProvider): void {
       <view class="info-card album-card">
         <text class="card-title">图片直播入口</text>
         <text v-if="albumProviders.length === 0" class="body-secondary">图片直播入口尚未配置，活动后开放时会在这里显示。</text>
-        <button v-for="provider in albumProviders" :key="provider.kind" class="button-secondary action-gap" @tap="copyProviderUrl(provider)">{{ provider.label }}</button>
+        <button v-for="provider in albumProviders" :key="provider.kind" class="button-secondary action-gap" @tap="openProvider(provider)">打开{{ provider.label }}</button>
       </view>
       <view class="info-card album-card">
         <text class="card-title">视频直播入口</text>
         <text v-if="liveProviders.length === 0" class="body-secondary">直播入口尚未配置或未购买服务。</text>
-        <button v-for="provider in liveProviders" :key="provider.kind" class="button-secondary action-gap" @tap="copyProviderUrl(provider)">{{ provider.label }}</button>
+        <button v-for="provider in liveProviders" :key="provider.kind" class="button-secondary action-gap" @tap="openProvider(provider)">打开{{ provider.label }}</button>
       </view>
       <view v-if="!hasMedia" class="info-card album-card">
         <text class="body-secondary">管理员尚未发布照片或视频。</text>
@@ -65,8 +61,8 @@ function copyProviderUrl(provider: AlbumProvider): void {
       <view v-for="asset in album.assets" :key="asset.id" class="info-card album-asset">
         <text class="card-title">{{ asset.title }}</text>
         <text class="detail-line">发布时间：{{ formatDateLabel(asset.createdAt) }}</text>
-        <image v-if="asset.kind === 'image'" class="album-media" :src="contentUrl(asset)" mode="aspectFill" />
-        <video v-else class="album-media" :src="contentUrl(asset)" controls />
+        <image v-if="asset.kind === 'image'" class="album-media" :src="asset.contentUrl" mode="aspectFill" />
+        <video v-else class="album-media" :src="asset.contentUrl" controls />
       </view>
     </view>
   </view>

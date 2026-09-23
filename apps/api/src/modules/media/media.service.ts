@@ -13,6 +13,11 @@ import { MediaAccessService } from "./media-access.service.js"
 import { MediaStorageService } from "./media-storage.service.js"
 import type { MediaProviderInput, MediaUpload } from "./media.parser.js"
 
+type FamilyMediaCollection = {
+  readonly assets: readonly (MediaAsset & { readonly contentUrl: string })[]
+  readonly providers: readonly MediaProvider[]
+}
+
 @Injectable()
 export class MediaService {
   constructor(
@@ -122,14 +127,17 @@ export class MediaService {
     return { asset, body: await this.storage.getObject(asset.objectKey) }
   }
 
-  async familyList(identity: EnrollmentIdentity, orderId: string): Promise<MediaCollection> {
+  async familyList(identity: EnrollmentIdentity, orderId: string): Promise<FamilyMediaCollection> {
     const source = await this.database.getDataSource()
     const sessionId = await this.access.familySession(source.manager, identity, orderId)
     const [assets, providers] = await Promise.all([
       source.manager.find(MediaAssetEntity, { where: { tourSessionId: sessionId, status: "published" }, order: { createdAt: "DESC" } }),
       source.manager.findBy(MediaProviderEntity, { tourSessionId: sessionId, enabled: true }),
     ])
-    return { assets: assets.map(toMediaAsset), providers: providers.map(toMediaProvider) }
+    return {
+      assets: assets.map((asset) => ({ ...toMediaAsset(asset), contentUrl: this.storage.getSignedObjectUrl(asset.objectKey) })),
+      providers: providers.map(toMediaProvider),
+    }
   }
 
   async familyContent(identity: EnrollmentIdentity, orderId: string, assetId: string): Promise<{ readonly asset: MediaAssetEntity; readonly body: Buffer }> {

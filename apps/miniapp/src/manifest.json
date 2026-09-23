@@ -2,12 +2,12 @@
   "name": "临安旅游通",
   "appid": "wxc5342b9c2405431b",
   "description": "临安旅游通微信小程序",
-  "versionName": "0.0.0",
-  "versionCode": "1",
+  "versionName": "0.3.0",
+  "versionCode": "3",
   "mp-weixin": {
     "appid": "wxc5342b9c2405431b",
     "setting": {
-      "urlCheck": false,
+      "urlCheck": true,
       "es6": true
     },
     "usingComponents": true

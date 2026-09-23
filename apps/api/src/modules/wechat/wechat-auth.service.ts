@@ -154,7 +154,7 @@ function readBearer(headers: Record<string, string | readonly string[] | undefin
 
 export async function exchangeCode2Session(code: string): Promise<Code2SessionResponse> {
   const appId = process.env["WECHAT_MINIAPP_APP_ID"]
-  const secret = process.env["WECHAT_MINIAPP_SECRET"]
+  const secret = process.env["WECHAT_MINIAPP_APP_SECRET"]
   if (appId === undefined || secret === undefined || appId.length === 0 || secret.length === 0) {
     throw new BadRequestException({ code: "wechat_login_unconfigured", message: "wechat miniapp credentials are not configured" })
   }

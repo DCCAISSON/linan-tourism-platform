@@ -256,6 +256,7 @@ export type MiniappApi = {
   readonly getOrder: (orderId: string) => Promise<Order>
   readonly createMockPayment: (orderId: string) => Promise<MockPayment>
   readonly loginWithWechatCode: (code: string, familyCode?: string) => Promise<WechatLoginResponse>
+  readonly bindWechatCode: (code: string, familyCode: string) => Promise<WechatLoginResponse>
   readonly createWechatPayment: (orderId: string, code: string) => Promise<WechatMiniappPayment>
 }
 

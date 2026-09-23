@@ -72,6 +72,17 @@ export class TencentCosObjectStorage {
     return result.Body
   }
 
+  getSignedObjectUrl(key: string, expiresSeconds = 15 * 60): string {
+    return this.#client.getObjectUrl({
+      Bucket: this.#bucket,
+      Expires: expiresSeconds,
+      Key: key,
+      Protocol: "https:",
+      Region: this.#region,
+      Sign: true,
+    })
+  }
+
   async deleteObject(key: string): Promise<void> {
     await this.#client.deleteObject({
       Bucket: this.#bucket,

@@ -24,6 +24,7 @@ describe("family refund application API", () => {
     const api = createRefundApplicationClient({
       baseUrl: "https://api.example.test",
       familyIdentityHeader: "family-a",
+      wechatSessionToken: "session-a",
       request: async (options) => {
         requests.push(options)
         return { statusCode: 201, data: application }
@@ -34,7 +35,7 @@ describe("family refund application API", () => {
     expect(requests[0]).toEqual({
       url: "https://api.example.test/orders/order%2Fa/refund-applications",
       method: "POST",
-      header: { "Content-Type": "application/json", "x-linan-dev-family-identity": "family-a" },
+      header: { "Content-Type": "application/json", "x-linan-dev-family-identity": "family-a", Authorization: "Bearer session-a" },
       data: { lineIds: ["line-1"], reason: "行程调整", idempotencyKey: "request-1" },
     })
   })

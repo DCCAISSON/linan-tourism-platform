@@ -8,6 +8,7 @@ export class MediaStorageService {
 
   async putObject(input: PutCosObject): Promise<void> { await this.storage().putObject(input) }
   async getObject(key: string): Promise<Buffer> { return this.storage().getObject(key) }
+  getSignedObjectUrl(key: string): string { return this.storage().getSignedObjectUrl(key) }
   async deleteObject(key: string): Promise<void> { await this.storage().deleteObject(key) }
 
   private storage(): TencentCosObjectStorage {

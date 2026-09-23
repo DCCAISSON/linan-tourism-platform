@@ -37,7 +37,7 @@ describe("media service", () => {
     const service = createService(manager)
 
     await expect(service.familyList(identity, "order-a")).resolves.toEqual({
-      assets: [{ id: "asset-a", tourSessionId: "session-a", title: "合影", kind: "image", contentType: "image/png", byteSize: 12, status: "published", version: 2, authorStaffId: "staff-a", createdAt: "2026-09-22T00:00:00.000Z", cleanupPending: false }],
+      assets: [{ id: "asset-a", tourSessionId: "session-a", title: "合影", kind: "image", contentType: "image/png", byteSize: 12, status: "published", version: 2, authorStaffId: "staff-a", createdAt: "2026-09-22T00:00:00.000Z", cleanupPending: false, contentUrl: "https://cos.example.test/media/session-a/asset-a.png" }],
       providers: [{ kind: "album", label: "图片直播", url: "https://album.example.test/a", enabled: true, version: 1 }],
     })
     expect(manager.find).toHaveBeenCalledWith(MediaAssetEntity, { where: { tourSessionId: "session-a", status: "published" }, order: { createdAt: "DESC" } })
@@ -71,11 +71,11 @@ describe("media service", () => {
   })
 })
 
-function createService(manager: object, storageOverrides: Partial<{ putObject: (input: unknown) => Promise<void>; getObject: (key: string) => Promise<Buffer>; deleteObject: (key: string) => Promise<void> }> = {}): MediaService {
+function createService(manager: object, storageOverrides: Partial<{ putObject: (input: unknown) => Promise<void>; getObject: (key: string) => Promise<Buffer>; getSignedObjectUrl: (key: string) => string; deleteObject: (key: string) => Promise<void> }> = {}): MediaService {
   const source = { manager, transaction: async (work: (transactionManager: EntityManager) => Promise<unknown>) => work(manager as EntityManager) }
   const database = { getDataSource: vi.fn(async () => source as DataSource) }
   const access = { familySession: vi.fn(async () => "session-a"), staffSession: vi.fn(async () => ({ id: "session-a", organizationId: "school-a" })) }
-  const storage = { putObject: vi.fn(async () => undefined), getObject: vi.fn(async () => Buffer.from("")), deleteObject: vi.fn(async () => undefined), ...storageOverrides }
+  const storage = { putObject: vi.fn(async () => undefined), getObject: vi.fn(async () => Buffer.from("")), getSignedObjectUrl: vi.fn((key: string) => `https://cos.example.test/${key}`), deleteObject: vi.fn(async () => undefined), ...storageOverrides }
   return new MediaService(database as never, access as never, storage as never)
 }
 

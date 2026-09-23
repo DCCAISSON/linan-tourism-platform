@@ -7,6 +7,7 @@ import {
   type RequestTransport,
 } from "./api-types"
 import { resolveApiBaseUrl, resolveDevFamilyIdentityHeader } from "./api"
+import { getWechatSessionToken } from "./wechat-token"
 
 export type AlbumAsset = {
   readonly id: string
@@ -20,6 +21,7 @@ export type AlbumAsset = {
   readonly authorStaffId: string
   readonly createdAt: string
   readonly cleanupPending: false
+  readonly contentUrl: string
 }
 
 export type AlbumProvider = {
@@ -38,6 +40,7 @@ export type AlbumCollection = {
 export type AlbumApiOptions = {
   readonly baseUrl?: string
   readonly familyIdentityHeader?: string
+  readonly wechatSessionToken?: string
   readonly request?: RequestTransport
 }
 
@@ -48,6 +51,7 @@ export type AlbumApi = {
 export function createAlbumApi(options: AlbumApiOptions = {}): AlbumApi {
   const baseUrl = resolveApiBaseUrl(options.baseUrl)
   const familyIdentityHeader = resolveDevFamilyIdentityHeader(options.familyIdentityHeader)
+  const wechatSessionToken = options.wechatSessionToken ?? getWechatSessionToken()
   const request = options.request ?? requestWithUni
 
   return {
@@ -56,6 +60,7 @@ export function createAlbumApi(options: AlbumApiOptions = {}): AlbumApi {
       baseUrl,
       `/orders/${encodeURIComponent(orderId)}/media`,
       familyIdentityHeader,
+      wechatSessionToken,
     )),
   }
 }
@@ -77,9 +82,11 @@ function parseAlbumAsset(value: unknown): AlbumAsset {
   const kind = readString(record, "kind")
   const status = readString(record, "status")
   const cleanupPending = record["cleanupPending"]
+  const contentUrl = readString(record, "contentUrl")
   if (kind !== "image" && kind !== "video") throw new ApiError(0, "media kind 响应格式不正确")
   if (status !== "published") throw new ApiError(0, "media status 响应格式不正确")
   if (cleanupPending !== false) throw new ApiError(0, "cleanupPending 响应格式不正确")
+  if (!contentUrl.startsWith("https://")) throw new ApiError(0, "contentUrl 响应格式不正确")
   return {
     id: readString(record, "id"),
     tourSessionId: readString(record, "tourSessionId"),
@@ -92,6 +99,7 @@ function parseAlbumAsset(value: unknown): AlbumAsset {
     authorStaffId: readString(record, "authorStaffId"),
     createdAt: readString(record, "createdAt"),
     cleanupPending,
+    contentUrl,
   }
 }
 
@@ -135,11 +143,12 @@ async function requestJson(
   baseUrl: string,
   path: string,
   familyIdentityHeader: string | undefined,
+  wechatSessionToken: string | undefined,
 ): Promise<unknown> {
   const response = await request({
     url: `${baseUrl}${path}`,
     method: "GET",
-    header: buildHeaders(familyIdentityHeader),
+    header: buildHeaders(familyIdentityHeader, wechatSessionToken),
   })
   if (response.statusCode < 200 || response.statusCode >= 300) {
     throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
@@ -147,6 +156,9 @@ async function requestJson(
   return response.data
 }
 
-function buildHeaders(familyIdentityHeader: string | undefined): Record<string, string> {
-  return familyIdentityHeader === undefined ? {} : { [DEV_FAMILY_IDENTITY_HEADER]: familyIdentityHeader }
+function buildHeaders(familyIdentityHeader: string | undefined, wechatSessionToken: string | undefined): Record<string, string> {
+  const headers: Record<string, string> = {}
+  if (familyIdentityHeader !== undefined) headers[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
+  if (wechatSessionToken !== undefined) headers["Authorization"] = `Bearer ${wechatSessionToken}`
+  return headers
 }

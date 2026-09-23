@@ -7,6 +7,7 @@ import {
   type RequestTransport,
 } from "./api-types"
 import { readErrorMessage, readRecord, readString } from "./api-parsers"
+import { getWechatSessionToken } from "./wechat-token"
 
 export type ServiceFeedbackPayload = {
   readonly tourSessionId: string
@@ -31,15 +32,17 @@ export type ServiceFeedbackClient = {
 export type ServiceFeedbackClientOptions = {
   readonly baseUrl?: string
   readonly familyIdentityHeader?: string
+  readonly wechatSessionToken?: string
   readonly request?: RequestTransport
 }
 
 export function createServiceFeedbackClient(options: ServiceFeedbackClientOptions = {}): ServiceFeedbackClient {
   const baseUrl = resolveApiBaseUrl(options.baseUrl)
   const familyIdentityHeader = resolveDevFamilyIdentityHeader(options.familyIdentityHeader)
+  const wechatSessionToken = options.wechatSessionToken ?? getWechatSessionToken()
   const request = options.request ?? requestWithUni
   return {
-    submit: async (payload) => parseResult(await requestJson(request, baseUrl, "/feedback/family", familyIdentityHeader, { ...payload, source: "family" })),
+    submit: async (payload) => parseResult(await requestJson(request, baseUrl, "/feedback/family", familyIdentityHeader, wechatSessionToken, { ...payload, source: "family" })),
   }
 }
 
@@ -60,11 +63,11 @@ async function requestWithUni(options: MiniappRequestOptions): Promise<MiniappRe
   })
 }
 
-async function requestJson(request: RequestTransport, baseUrl: string, path: string, familyIdentityHeader: string | undefined, data: object): Promise<unknown> {
+async function requestJson(request: RequestTransport, baseUrl: string, path: string, familyIdentityHeader: string | undefined, wechatSessionToken: string | undefined, data: object): Promise<unknown> {
   const response = await request({
     url: `${baseUrl}${path}`,
     method: "POST",
-    header: buildHeaders(familyIdentityHeader),
+    header: buildHeaders(familyIdentityHeader, wechatSessionToken),
     data,
   })
   if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -73,9 +76,10 @@ async function requestJson(request: RequestTransport, baseUrl: string, path: str
   return response.data
 }
 
-function buildHeaders(familyIdentityHeader: string | undefined): Record<string, string> {
+function buildHeaders(familyIdentityHeader: string | undefined, wechatSessionToken: string | undefined): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (familyIdentityHeader !== undefined) headers[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
+  if (wechatSessionToken !== undefined) headers["Authorization"] = `Bearer ${wechatSessionToken}`
   return headers
 }
 

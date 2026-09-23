@@ -15,6 +15,7 @@ const asset = {
   authorStaffId: "staff-a",
   createdAt: "2026-09-22T00:00:00.000Z",
   cleanupPending: false,
+  contentUrl: "https://linantravel-test.cos.ap-shanghai.myqcloud.com/media/asset-a.png?q-signature=test",
 } as const
 
 const provider = {
@@ -31,6 +32,7 @@ describe("album API", () => {
     const api = createAlbumApi({
       baseUrl: "https://api.example.test",
       familyIdentityHeader: "family-a",
+      wechatSessionToken: "session-a",
       request: async (options) => {
         requests.push(options)
         return { statusCode: 200, data: { assets: [asset], providers: [provider] } }
@@ -38,7 +40,7 @@ describe("album API", () => {
     })
 
     await expect(api.getOrderAlbum("order/a")).resolves.toEqual({ assets: [asset], providers: [provider] })
-    expect(requests).toEqual([{ url: "https://api.example.test/orders/order%2Fa/media", method: "GET", header: { "x-linan-dev-family-identity": "family-a" } }])
+    expect(requests).toEqual([{ url: "https://api.example.test/orders/order%2Fa/media", method: "GET", header: { "x-linan-dev-family-identity": "family-a", Authorization: "Bearer session-a" } }])
   })
 
   it("keeps an unconfigured provider state empty", () => {

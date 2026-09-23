@@ -8,6 +8,7 @@ describe("miniapp service feedback API", () => {
     const api = createServiceFeedbackClient({
       baseUrl: "https://api.example.test",
       familyIdentityHeader: "family-a",
+      wechatSessionToken: "session-a",
       request: async (options) => {
         requests.push(options)
         return { statusCode: 200, data: { id: "feedback-a", status: "submitted", public: false } }
@@ -33,5 +34,6 @@ describe("miniapp service feedback API", () => {
       idempotencyKey: "feedback-a",
       source: "family",
     })
+    expect(requests[0]?.header).toEqual({ "Content-Type": "application/json", "x-linan-dev-family-identity": "family-a", Authorization: "Bearer session-a" })
   })
 })

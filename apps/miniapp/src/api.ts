@@ -148,6 +148,11 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
       saveWechatSessionToken(response.token)
       return response
     },
+    bindWechatCode: async (code: string, familyCode: string) => {
+      const response = parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/bind", "POST", familyIdentityHeader, wechatSessionToken, { code, familyCode }))
+      saveWechatSessionToken(response.token)
+      return response
+    },
     createWechatPayment: async (orderId: string, code: string) =>
       parseWechatPayment(await requestJson(request, baseUrl, `/wechat/payments/${encodeURIComponent(orderId)}/miniapp`, "POST", familyIdentityHeader, wechatSessionToken, { code })),
   }
