@@ -9,14 +9,55 @@ export type StaffPermissionKey =
   | "configuration.write"
   | "roster.read"
   | "roster.import"
+  | "roster.correct"
   | "roster.export"
   | "roster.export_sensitive"
   | "orders.read"
   | "refunds.preview"
   | "refunds.simulate"
+  | "refunds.manage"
+  | "refunds.review"
+  | "refunds.execute"
+  | "payments.reconcile"
+  | "execution.read"
+  | "execution.write"
+  | "execution.manage"
+  | "execution.publish"
+  | "health.read"
+  | "health.manage"
+  | "evaluations.read"
+  | "evaluations.write"
+  | "evaluations.confirm"
+  | "evaluations.standard.write"
+  | "evaluations.standard.confirm"
+  | "evaluations.school_report"
+  | "feedback.read"
+  | "feedback.submit"
+  | "feedback.review"
+  | "insurance.read"
+  | "insurance.write"
+  | "insurance.export"
+  | "insurance.sensitive.export"
+  | "media.read"
+  | "media.upload"
+  | "media.publish"
+  | "media.delete"
+  | "crm.read"
+  | "crm.write"
+  | "crm.export"
+  | "crm.contact.read"
+  | "business.read"
+  | "business.write"
+  | "business.followup"
   | "transport.read"
   | "transport.write"
   | "transport.export"
+  | "pretrip.read"
+  | "pretrip.write"
+  | "pretrip.school_confirm"
+  | "notifications.read"
+  | "notifications.write"
+  | "notifications.send"
   | "staff_accounts.manage"
   | "audit.read"
   | "sensitive_data.read"
@@ -27,14 +68,55 @@ export const staffPermissionKeys: readonly StaffPermissionKey[] = [
   "configuration.write",
   "roster.read",
   "roster.import",
+  "roster.correct",
   "roster.export",
   "roster.export_sensitive",
   "orders.read",
   "refunds.preview",
   "refunds.simulate",
+  "refunds.manage",
+  "refunds.review",
+  "refunds.execute",
+  "payments.reconcile",
+  "execution.read",
+  "execution.write",
+  "execution.manage",
+  "execution.publish",
+  "health.read",
+  "health.manage",
+  "evaluations.read",
+  "evaluations.write",
+  "evaluations.confirm",
+  "evaluations.standard.write",
+  "evaluations.standard.confirm",
+  "evaluations.school_report",
+  "feedback.read",
+  "feedback.submit",
+  "feedback.review",
+  "insurance.read",
+  "insurance.write",
+  "insurance.export",
+  "insurance.sensitive.export",
+  "media.read",
+  "media.upload",
+  "media.publish",
+  "media.delete",
+  "crm.read",
+  "crm.write",
+  "crm.export",
+  "crm.contact.read",
+  "business.read",
+  "business.write",
+  "business.followup",
   "transport.read",
   "transport.write",
   "transport.export",
+  "pretrip.read",
+  "pretrip.write",
+  "pretrip.school_confirm",
+  "notifications.read",
+  "notifications.write",
+  "notifications.send",
   "staff_accounts.manage",
   "audit.read",
   "sensitive_data.read",

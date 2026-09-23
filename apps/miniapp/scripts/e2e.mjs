@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { execFileSync, spawn } from "node:child_process"
 import { createRequire } from "node:module"
 import fs from "node:fs"
 import path from "node:path"
@@ -6,7 +6,7 @@ import process from "node:process"
 import { fileURLToPath } from "node:url"
 import { closeServer, createFixtureServer, listen } from "./e2e-fixture.mjs"
 import { runDiscoveryAfter, runDiscoveryBefore } from "./discovery-journey.mjs"
-import { assertIncludes, assertNoHorizontalOverflow, evidenceDir, required, screenshot } from "./e2e-ui.mjs"
+import { assertIncludes, assertNoHorizontalOverflow, evidenceDir, required, screenshot, waitForRoute } from "./e2e-ui.mjs"
 
 const cliPath = process.env.WECHAT_DEVTOOLS_CLI
 if (!cliPath) fail("E2E blocked: WECHAT_DEVTOOLS_CLI is not set; WeChat DevTools automation was not run.")
@@ -17,12 +17,18 @@ if (!path.isAbsolute(cliPath) || path.extname(cliPath).toLowerCase() !== ".bat" 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const appDir = path.resolve(currentDir, "..")
 const projectPath = path.resolve(appDir, "dist/build/mp-weixin")
-const fixturePort = 3310
+const fixturePort = readPort("MINIAPP_E2E_FIXTURE_PORT", 3310)
 const fixtureBaseUrl = `http://127.0.0.1:${fixturePort}`
-const automationEndpoint = "ws://127.0.0.1:9421"
+const automationPort = readPort("MINIAPP_E2E_AUTOMATION_PORT", 9421)
+const automationEndpoint = `ws://127.0.0.1:${automationPort}`
+const task14EvidenceRoot = path.resolve(appDir, "../../.omo/evidence/linan-remaining-business-20260922/task-14-miniapp-uat")
+const task14RunId = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-")
+const task14EvidenceDir = path.join(task14EvidenceRoot, `devtools-${task14RunId}`)
+const businessProductId = "business-e2e-tourism"
 const require = createRequire(import.meta.url)
 const automator = require("miniprogram-automator")
 const { fixture, server } = createFixtureServer(fixtureBaseUrl)
+const existingDevToolsProcessIds = listDevToolsProcessIds()
 
 let miniProgram
 let serverStarted = false
@@ -32,22 +38,183 @@ try {
   serverStarted = true
   fs.mkdirSync(evidenceDir, { recursive: true })
   await buildMiniapp()
-  await runCli(["close", "--project", projectPath], 15_000)
-  await runCli(["auto", "--project", projectPath, "--auto-port", "9421", "--trust-project"], 45_000)
+  await runCli(["close", "--project", projectPath], 60_000)
+  await runCli(["auto", "--project", projectPath, "--auto-port", String(automationPort), "--trust-project"], 60_000)
   projectOpened = true
   miniProgram = await connectWhenReady(60_000)
+  await new Promise((resolve) => setTimeout(resolve, 5_000))
+  console.log("E2E_STAGE connected")
   await runDiscoveryBefore(miniProgram, fixture)
+  console.log("E2E_STAGE discovery-before")
   const journeyEvidence = await runJourney(miniProgram)
+  console.log("E2E_STAGE baseline-journey")
   await runDiscoveryAfter(miniProgram)
-  console.log(JSON.stringify({ screenshots: 24, members: 2, amountFen: 25_600, status: "paid", localMock: true, ...journeyEvidence }))
+  console.log("E2E_STAGE discovery-after")
+  const task14Evidence = await runRemainingBusinessSurfaces(miniProgram)
+  console.log(JSON.stringify({ screenshots: 24 + task14Evidence.screenshots.length, members: 2, amountFen: 25_600, status: "paid", localMock: true, ...journeyEvidence, task14Evidence }))
 } finally {
   miniProgram?.disconnect()
-  if (projectOpened) await runCli(["close", "--project", projectPath], 15_000)
+  if (projectOpened) await runCli(["close", "--project", projectPath], 60_000)
   if (serverStarted) {
     fixture.catalogBlocked = false
     server.closeAllConnections()
     await closeServer(server)
   }
+  await closeOwnedDevToolsProcesses(existingDevToolsProcessIds)
+}
+
+async function runRemainingBusinessSurfaces(program) {
+  fs.mkdirSync(task14EvidenceDir, { recursive: true })
+  const exceptions = []
+  const consoleErrors = []
+  const onException = (event) => exceptions.push(eventText(event))
+  const onConsole = (event) => {
+    if (event?.type === "error") consoleErrors.push(eventText(event))
+  }
+  program.on("exception", onException)
+  program.on("console", onConsole)
+
+  const screenshots = []
+  const surfaces = []
+  try {
+    surfaces.push(await verifySurface(program, screenshots, {
+      name: "pretrip",
+      route: "/pages/orders/pretrip?orderId=order-e2e",
+      pagePath: "pages/orders/pretrip",
+      root: ".discovery-page",
+      texts: ["行前服务", "集合信息", "车辆安排已过期", "演示学生甲"],
+      screenshots: ["23-pretrip.png"],
+    }))
+    surfaces.push(await verifySurface(program, screenshots, {
+      name: "refund-application",
+      route: "/pages/orders/refund?orderId=order-e2e",
+      pagePath: "pages/orders/refund",
+      root: ".discovery-page",
+      texts: ["退款申请", "申请金额由服务器", "演示学生甲", "申请记录", "已拒绝"],
+      screenshots: ["24-refund-application.png", "25-refund-history.png"],
+    }))
+    surfaces.push(await verifySurface(program, screenshots, {
+      name: "album",
+      route: "/pages/album/index?orderId=order-e2e",
+      pagePath: "pages/album/index",
+      root: ".album-page",
+      texts: ["活动相册", "图片直播入口", "视频直播入口", "管理员尚未发布照片或视频"],
+      screenshots: ["26-album.png"],
+    }))
+    surfaces.push(await verifySurface(program, screenshots, {
+      name: "notification-authorization",
+      route: "/pages/notifications/index?orderId=order-e2e",
+      pagePath: "pages/notifications/index",
+      root: ".notification-page",
+      texts: ["接收人授权与服务入口", "付款人不会自动成为通知接收人", "演示监护人", "服务入口", "已撤回记录"],
+      screenshots: ["27-notifications-top.png", "28-notifications-entries.png"],
+    }))
+    surfaces.push(await verifyFeedbackSurface(program, screenshots))
+    surfaces.push(await verifySurface(program, screenshots, {
+      name: "business-products",
+      route: "/pages/business/index",
+      pagePath: "pages/business/index",
+      root: ".business-page",
+      texts: ["临安文旅服务", "旅游", "演示]临安山水两日行", "不代表已预订、已付款或实时库存"],
+      screenshots: ["30-business-products.png"],
+    }))
+    surfaces.push(await verifySurface(program, screenshots, {
+      name: "business-product-detail",
+      route: `/pages/business/detail?id=${encodeURIComponent(businessProductId)}`,
+      pagePath: "pages/business/detail",
+      root: ".business-detail-page",
+      texts: ["演示]临安山水两日行", "咨询需求", "不代表已付款、已预订或有房"],
+      screenshots: ["31-business-detail-top.png", "32-business-detail-form.png"],
+    }))
+    surfaces.push(await verifySurface(program, screenshots, {
+      name: "health-authorization",
+      route: "/pages/health/index?orderId=order-e2e",
+      pagePath: "pages/health/index",
+      root: ".health-page",
+      texts: ["公开摘要与健康授权", "健康原文需要单独授权", "演示]队伍已完成集合", "提交授权", "撤回授权"],
+      screenshots: ["33-health-top.png", "34-health-authorization.png"],
+    }))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    if (exceptions.length > 0) throw new Error(`Task 14 page exceptions: ${exceptions.join(" | ")}`)
+    if (consoleErrors.length > 0) throw new Error(`Task 14 console errors: ${consoleErrors.join(" | ")}`)
+  } finally {
+    program.off("exception", onException)
+    program.off("console", onConsole)
+  }
+
+  const report = {
+    runId: task14RunId,
+    fixtureBaseUrl,
+    automationPort,
+    fictionalFixture: true,
+    externalWrites: false,
+    surfaces,
+    screenshots,
+    exceptions,
+    consoleErrors,
+  }
+  fs.writeFileSync(path.join(task14EvidenceDir, "result.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8")
+  return report
+}
+
+async function verifySurface(program, screenshots, spec) {
+  console.log(`E2E_STAGE task14-${spec.name}`)
+  await program.reLaunch(spec.route)
+  const page = await waitForRoute(program, spec.pagePath)
+  const text = await waitForPageText(page, spec.root, spec.texts)
+  await assertNoHorizontalOverflow(program, page)
+  await program.pageScrollTo(0)
+  await task14Screenshot(program, screenshots, spec.screenshots[0])
+  if (spec.screenshots[1]) {
+    await program.pageScrollTo(10_000)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    await task14Screenshot(program, screenshots, spec.screenshots[1])
+    await program.pageScrollTo(0)
+  }
+  return { name: spec.name, route: spec.pagePath, visible: spec.texts, horizontalOverflow: false, textLength: text.length }
+}
+
+async function verifyFeedbackSurface(program, screenshots) {
+  console.log("E2E_STAGE task14-service-feedback")
+  const route = "/pages/feedback/index?tourSessionId=session-open-e2e&orderId=order-e2e"
+  await program.reLaunch(route)
+  const page = await waitForRoute(program, "pages/feedback/index")
+  const text = await waitForPageText(page, ".feedback-page", ["服务反馈", "不影响学生评价等级", "允许审核后公开摘要", "提交反馈"])
+  const component = await required(page, ".feedback-page")
+  const inputs = await component.$$("input")
+  const textareas = await component.$$("textarea")
+  if (inputs.length < 2 || textareas.length < 1) throw new Error("Feedback form controls were not rendered")
+  await inputs[0].input("演示联系人")
+  await textareas[0].input("[演示]希望集合提醒更清楚。")
+  await assertNoHorizontalOverflow(program, page)
+  await task14Screenshot(program, screenshots, "29-service-feedback.png")
+  return { name: "service-feedback", route: "pages/feedback/index", visible: ["服务反馈", "允许审核后公开摘要", "提交反馈"], horizontalOverflow: false, textLength: text.length, submitted: false }
+}
+
+async function waitForPageText(page, rootSelector, expectedTexts) {
+  const deadline = Date.now() + 5_000
+  let lastText = ""
+  while (Date.now() < deadline) {
+    const component = await page.$(rootSelector)
+    if (component !== null) {
+      lastText = await component.text()
+      if (expectedTexts.every((expected) => lastText.includes(expected))) return lastText
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  const missing = expectedTexts.filter((expected) => !lastText.includes(expected))
+  throw new Error(`Page text missing: ${missing.join(", ")}; received ${lastText}`)
+}
+
+async function task14Screenshot(program, screenshots, name) {
+  const screenshotPath = path.join(task14EvidenceDir, name)
+  await program.screenshot({ path: screenshotPath })
+  screenshots.push(screenshotPath)
+}
+
+function eventText(event) {
+  try { return JSON.stringify(event) }
+  catch { return String(event) }
 }
 
 async function runJourney(program) {
@@ -192,10 +359,10 @@ async function runJourney(program) {
 async function buildMiniapp() {
   const env = { ...process.env, VITE_API_BASE_URL: fixtureBaseUrl, VITE_DEV_FAMILY_IDENTITY_HEADER: "family-e2e" }
   if (process.platform === "win32") {
-    await runProcess(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "corepack pnpm build:mp-weixin"], 120_000, env)
+    await runProcess(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "corepack pnpm build:mp-weixin"], 300_000, env)
     return
   }
-  await runProcess("corepack", ["pnpm", "build:mp-weixin"], 120_000, env)
+  await runProcess("corepack", ["pnpm", "build:mp-weixin"], 300_000, env)
 }
 
 async function runCli(args, timeout) {
@@ -234,6 +401,37 @@ async function connectWhenReady(timeout) {
 }
 
 function fail(message) { console.error(message); process.exit(1) }
+
+function readPort(name, fallback) {
+  const raw = process.env[name]
+  if (raw === undefined) return fallback
+  const value = Number.parseInt(raw, 10)
+  if (!Number.isInteger(value) || value < 1024 || value > 65_535) fail(`${name} must be an integer port between 1024 and 65535.`)
+  return value
+}
+
+function listDevToolsProcessIds() {
+  if (process.platform !== "win32") return new Set()
+  try {
+    const output = execFileSync("powershell.exe", [
+      "-NoProfile",
+      "-Command",
+      "(Get-Process -Name '微信开发者工具' -ErrorAction SilentlyContinue | Where-Object { -not $_.HasExited }).Id",
+    ], { encoding: "utf8", windowsHide: true })
+    return new Set(output.split(/\s+/u).map(Number).filter(Number.isSafeInteger))
+  } catch {
+    return new Set()
+  }
+}
+
+async function closeOwnedDevToolsProcesses(existingProcessIds) {
+  if (process.platform !== "win32") return
+  const ownedProcessIds = [...listDevToolsProcessIds()].filter((processId) => !existingProcessIds.has(processId))
+  for (const processId of ownedProcessIds) {
+    try { await runProcess("taskkill.exe", ["/PID", String(processId), "/T", "/F"], 15_000, process.env) }
+    catch {}
+  }
+}
 
 function virtualPhone(seed) {
   return `1990000${String(seed).padStart(4, "0")}`

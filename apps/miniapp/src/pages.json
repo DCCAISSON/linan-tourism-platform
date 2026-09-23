@@ -1,27 +1,22 @@
 {
   "pages": [
-    {
-      "path": "pages/index/index",
-      "style": {
-        "navigationBarTitleText": "临安文旅",
-        "navigationBarBackgroundColor": "#F5F8FC",
-        "navigationBarTextStyle": "black",
-        "backgroundColor": "#F5F8FC"
-      }
-    },
+    { "path": "pages/index/index", "style": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F8FC", "navigationBarTextStyle": "black", "backgroundColor": "#F5F8FC" } },
     { "path": "pages/activities/index", "style": { "navigationBarTitleText": "研学活动" } },
     { "path": "pages/activities/detail", "style": { "navigationBarTitleText": "活动详情" } },
     { "path": "pages/enrollment/index", "style": { "navigationBarTitleText": "研学报名" } },
     { "path": "pages/orders/index", "style": { "navigationBarTitleText": "我的订单" } },
     { "path": "pages/orders/detail", "style": { "navigationBarTitleText": "订单详情" } },
+    { "path": "pages/orders/pretrip", "style": { "navigationBarTitleText": "行前服务" } },
+    { "path": "pages/orders/refund", "style": { "navigationBarTitleText": "退款申请" } },
+    { "path": "pages/album/index", "style": { "navigationBarTitleText": "活动影像" } },
+    { "path": "pages/business/index", "style": { "navigationBarTitleText": "商旅服务" } },
+    { "path": "pages/business/detail", "style": { "navigationBarTitleText": "商旅详情" } },
+    { "path": "pages/feedback/index", "style": { "navigationBarTitleText": "服务反馈" } },
+    { "path": "pages/health/index", "style": { "navigationBarTitleText": "健康授权" } },
+    { "path": "pages/notifications/index", "style": { "navigationBarTitleText": "通知授权" } },
     { "path": "pages/family/index", "style": { "navigationBarTitleText": "我的家庭" } }
   ],
-  "globalStyle": {
-    "navigationBarTitleText": "临安文旅",
-    "navigationBarBackgroundColor": "#F5F8FC",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#F5F8FC"
-  },
+  "globalStyle": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F8FC", "navigationBarTextStyle": "black", "backgroundColor": "#F5F8FC" },
   "tabBar": {
     "color": "#546B7D", "selectedColor": "#1468C0", "backgroundColor": "#FFFFFF", "borderStyle": "white",
     "list": [

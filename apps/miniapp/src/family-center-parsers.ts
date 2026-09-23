@@ -1,6 +1,6 @@
 import { ApiError } from "./api-error"
 import { parseEnrollmentMember, parseOrder, readCollection, readIsoString, readNonNegativeInteger, readRecord, readString } from "./api-parsers"
-import type { CatalogItem, OrderDetail, OrderHistoryItem, OrderParticipant, SavedEnrollmentMember } from "./api-types"
+import type { CatalogItem, OrderDetail, OrderHistoryItem, OrderParticipant, RefundHistoryItem, RefundSummary, SavedEnrollmentMember } from "./api-types"
 
 function readParticipantKind(record: Record<string, unknown>): "student" | "adult" {
   const value = readString(record, "participantKind")
@@ -44,6 +44,8 @@ export function parseOrderDetail(value: unknown): OrderDetail {
     emergencyContactName: readNullableText(record, "emergencyContactName"),
     emergencyContactPhone: readNullableText(record, "emergencyContactPhone"),
     participants: readCollection(record["participants"], parseOrderParticipant),
+    refundSummary: parseRefundSummary(record["refundSummary"]),
+    refundHistory: readCollection(record["refundHistory"], parseRefundHistoryItem),
   }
 }
 
@@ -54,6 +56,45 @@ function parseOrderParticipant(value: unknown): OrderParticipant {
     displayName: readString(record, "displayName"), participantKind: readParticipantKind(record),
     gradeName: readNullableText(record, "gradeName"),
     className: readNullableText(record, "className"), amountFen: readNonNegativeInteger(record, "amountFen"),
+    refundedFen: readNonNegativeInteger(record, "refundedFen"),
+    refundStatus: readParticipantRefundStatus(record),
+  }
+}
+
+function readParticipantRefundStatus(record: Record<string, unknown>): OrderParticipant["refundStatus"] {
+  const status = readString(record, "refundStatus")
+  switch (status) {
+    case "none": case "pending": case "refunded": case "failed": return status
+    default: throw new ApiError(0, "refundStatus 响应格式不正确")
+  }
+}
+
+function parseRefundSummary(value: unknown): RefundSummary {
+  const record = readRecord(value)
+  const status = readString(record, "status")
+  switch (status) {
+    case "none": case "partial": case "full":
+      return { status, refundedFen: readNonNegativeInteger(record, "refundedFen"),
+        pendingFen: readNonNegativeInteger(record, "pendingFen"), failedCount: readNonNegativeInteger(record, "failedCount") }
+    default: throw new ApiError(0, "status 响应格式不正确")
+  }
+}
+
+function parseRefundHistoryItem(value: unknown): RefundHistoryItem {
+  const record = readRecord(value)
+  const status = readString(record, "status")
+  switch (status) {
+    case "pending": case "succeeded": case "failed":
+      return {
+        id: readString(record, "id"), status, amountFen: readNonNegativeInteger(record, "amountFen"),
+        requestedAt: readIsoString(record, "requestedAt"),
+        processedAt: record["processedAt"] === null ? null : readIsoString(record, "processedAt"),
+        lines: readCollection(record["lines"], (line) => {
+          const item = readRecord(line)
+          return { lineId: readString(item, "lineId"), displayName: readString(item, "displayName"), amountFen: readNonNegativeInteger(item, "amountFen") }
+        }),
+      }
+    default: throw new ApiError(0, "status 响应格式不正确")
   }
 }
 

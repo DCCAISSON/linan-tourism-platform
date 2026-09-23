@@ -2,7 +2,7 @@ import { computed, onMounted, reactive, ref } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
 import {
   createMiniappApi, type Grade, type MockPayment,
-  type Order, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession,
+  type Order, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatMiniappPayment,
 } from "../../api"
 import {
   buildCreateOrderPayload, canStartPayment, createOrderRequestKey,
@@ -30,7 +30,7 @@ export function useEnrollmentPage() {
   const submissionCode = ref("")
   const currentTimeIso = ref(new Date().toISOString())
   const order = ref<Order | null>(null)
-  const payment = ref<MockPayment | null>(null)
+  const payment = ref<MockPayment | WechatMiniappPayment | null>(null)
   const wantedSessionId = ref("")
   const savedMembers = ref<readonly SavedEnrollmentMember[]>([])
   onLoad((query) => { wantedSessionId.value = query?.["sessionId"] ?? "" })
@@ -70,6 +70,8 @@ export function useEnrollmentPage() {
   const loadStateLabel = computed(() => stateLabel(loadState.value, pageMode.value))
   const stateTone = computed(() => readStateTone(loadState.value, pageMode.value))
   const orderLabel = computed(() => orderStatusLabel(order.value))
+  const wechatPayEnabled = import.meta.env["VITE_WECHAT_PAY_ENABLED"] === "true"
+  const productionBuild = import.meta.env["PROD"] === true
 
   onMounted(() => {
     void loadCatalog()
@@ -224,12 +226,34 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
     pageMode.value = "paymentPending"
     try {
-      payment.value = await api.createMockPayment(currentOrder.id)
+      if (wechatPayEnabled) {
+        const wechatPayment = await api.createWechatPayment(currentOrder.id, await loginForWechatPayment())
+        await requestWechatPayment(wechatPayment.miniappPayment)
+        payment.value = wechatPayment
+      } else {
+        if (productionBuild) throw new Error("微信支付未启用")
+        payment.value = await api.createMockPayment(currentOrder.id)
+      }
       await refreshOrder()
     } catch (error) {
       errorMessage.value = readableError(error, "支付发起失败，请重试")
     }
   }
+
+async function loginForWechatPayment(): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    uni.login({ provider: "weixin", success: (result) => {
+      if (typeof result.code === "string" && result.code.length > 0) resolve(result.code)
+      else reject(new Error("微信登录未返回 code"))
+    }, fail: reject })
+  })
+}
+
+async function requestWechatPayment(payment: WechatMiniappPayment["miniappPayment"]): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    uni.requestPayment({ provider: "wxpay", ...payment, success: () => resolve(), fail: reject })
+  })
+}
 
   async function refreshOrder(): Promise<void> {
     const currentOrder = order.value

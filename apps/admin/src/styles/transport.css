@@ -76,6 +76,7 @@
 
 .transport-filter select,
 .transport-vehicle input,
+.transport-people-panel input,
 .transport-table input,
 .transport-table select {
   width: 100%;
@@ -90,6 +91,7 @@
 
 .transport-filter select:focus,
 .transport-vehicle input:focus,
+.transport-people-panel input:focus,
 .transport-table input:focus,
 .transport-table select:focus {
   border-color: var(--accent-primary);
@@ -110,6 +112,7 @@
 
 .transport-actions button,
 .transport-allocation-actions button,
+.transport-people-panel button,
 .transport-table button {
   min-height: var(--size-touch-target);
   padding: var(--space-2) var(--space-4);
@@ -124,12 +127,14 @@
 
 .transport-actions button:hover,
 .transport-allocation-actions button:hover,
+.transport-people-panel button:hover,
 .transport-table button:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
 
-.transport-actions button:disabled {
+.transport-actions button:disabled,
+.transport-people-panel button:disabled {
   background: var(--text-tertiary);
   border-color: var(--text-tertiary);
   cursor: not-allowed;
@@ -156,7 +161,7 @@
 
 .transport-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
 }
 
@@ -186,6 +191,40 @@
   display: flex;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+.transport-people-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.transport-people-panel {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-control);
+}
+
+.transport-people-panel h4 {
+  margin: 0;
+  font-size: var(--font-h3);
+  line-height: 1.4;
+}
+
+.transport-people-panel label,
+.transport-checkbox {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.transport-checkbox {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
 }
 
 .transport-warning-list {
@@ -230,6 +269,7 @@
 @media (max-width: 1024px) {
   .transport-filter fieldset,
   .transport-vehicle__grid,
+  .transport-people-grid,
   .transport-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -250,6 +290,7 @@
 
   .transport-filter fieldset,
   .transport-vehicle__grid,
+  .transport-people-grid,
   .transport-summary {
     grid-template-columns: 1fr;
   }

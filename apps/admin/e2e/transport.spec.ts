@@ -1,11 +1,15 @@
 ﻿import { expect, test } from "@playwright/test"
+import type { PersonRef, TransportPeoplePlan, TransportPlan, TransportSuggestion, TransportTraveler } from "../src/api/transport.types"
 import { installStaffAuthMock } from "./staff-auth-mock"
 
 const apiBase = "http://127.0.0.1:3000"
 
+test.setTimeout(60_000)
+
 test("plans transport vehicles manually and exports the contact sheet", async ({ page }, testInfo) => {
   await installStaffAuthMock(page)
   await installOptions(page)
+  let peoplePlan = emptyPeoplePlan()
   await page.route(`${apiBase}/transport/sessions/session-1/plan`, async route => {
     if (route.request().method() === "GET") {
       await route.fulfill({ json: emptyPlan() })
@@ -14,7 +18,28 @@ test("plans transport vehicles manually and exports the contact sheet", async ({
     const payload = await route.request().postDataJSON()
     expect(payload.vehicles[0].sequence).toBe(1)
     expect(payload.vehicles[0].allocations[0].classId).toBe("class-1")
+    peoplePlan = peoplePlanWithVehicle()
     await route.fulfill({ json: savedPlan() })
+  })
+  await page.route(`${apiBase}/transport/sessions/session-1/people-plan`, async route => {
+    await route.fulfill({ json: peoplePlan })
+  })
+  await page.route(`${apiBase}/transport/sessions/session-1/person-allocations`, async route => {
+    const payload = await route.request().postDataJSON()
+    expect(payload).toMatchObject({ expectedPlanVersion: 2, expectedRosterVersion: "roster-v1" })
+    peoplePlan = assignedPeoplePlan()
+    await route.fulfill({ json: peoplePlan })
+  })
+  await page.route(`${apiBase}/transport/sessions/session-1/confirmations`, async route => {
+    const payload = await route.request().postDataJSON()
+    expect(payload).toMatchObject({ expectedPlanVersion: 3, expectedRosterVersion: "roster-v1" })
+    peoplePlan = confirmedPeoplePlan()
+    await route.fulfill({ status: 201, json: peoplePlan })
+  })
+  await page.route(`${apiBase}/transport/sessions/session-1/suggestions`, async route => {
+    const payload = await route.request().postDataJSON()
+    expect(payload).toMatchObject({ keepFamilyTogether: false, allowClassSplit: true })
+    await route.fulfill({ json: draftSuggestion() })
   })
   await page.route(`${apiBase}/transport/sessions/session-1/export.xlsx`, async route => {
     await route.fulfill({ headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }, body: "xlsx" })
@@ -39,8 +64,16 @@ test("plans transport vehicles manually and exports the contact sheet", async ({
   await page.getByRole("button", { name: "保存安排" }).click()
 
   await expect(page.getByText("3 人", { exact: true })).toBeVisible()
-  await expect(page.getByText("样表合计488人与需求口径492人存在差异")).toBeVisible()
-  await expect(page.getByText("1 辆车", { exact: true })).toBeVisible()
+	  await expect(page.getByText("样表合计488人与需求口径492人存在差异")).toBeVisible()
+	  await expect(page.getByText("1 辆车", { exact: true })).toBeVisible()
+  await expect(page.getByText("学生一")).toBeVisible()
+  await page.locator('[aria-label="逐人车辆分配表"] select').selectOption("vehicle-1")
+  await page.getByRole("button", { name: "保存逐人分配" }).click()
+  await expect(page.getByText("实际 1/3")).toBeVisible()
+  await page.getByRole("button", { name: "生成可调整草案" }).click()
+  await expect(page.getByText("结果：可调整草案")).toBeVisible()
+  await page.getByRole("button", { name: "确认当前安排" }).click()
+  await expect(page.getByText("确认 有效")).toBeVisible()
 
   for (const size of [{ width: 1280, height: 900 }, { width: 768, height: 900 }, { width: 375, height: 900 }]) {
     await page.setViewportSize(size)
@@ -63,10 +96,47 @@ async function installOptions(page: Parameters<typeof installStaffAuthMock>[0]):
   await Promise.all(Object.entries(collections).map(([path, json]) => page.route(`${apiBase}${path}`, route => route.fulfill({ json }))))
 }
 
-function emptyPlan() {
-  return { tourSessionId: "session-1", organizationId: "school-1", vehicles: [], totals: { studentCount: 0, guardianCount: 0, teacherCount: 0, otherCount: 0, occupancy: 0, seatCapacity: 0 }, warnings: ["样表合计488人与需求口径492人存在差异，本演示保留该差异，正式上线前请按最终名单核准。"] }
+function emptyPlan(): TransportPlan {
+  return { tourSessionId: "session-1", organizationId: "school-1", planVersion: 1, vehicles: [], totals: { studentCount: 0, guardianCount: 0, teacherCount: 0, otherCount: 0, occupancy: 0, seatCapacity: 0 }, warnings: ["样表合计488人与需求口径492人存在差异，本演示保留该差异，正式上线前请按最终名单核准。"] }
 }
 
-function savedPlan() {
-  return { tourSessionId: "session-1", organizationId: "school-1", vehicles: [{ id: "vehicle-1", sequence: 1, seatCapacity: 3, plateNumber: "浙A12345", contactSnapshot: { driverName: "驾驶员一", driverPhone: "19900000001", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" }, allocations: [{ id: "allocation-1", classId: "class-1", className: "一（1）班", gradeName: "一年级", studentCount: 1, guardianCount: 1, teacherCount: 1, otherCount: 0, note: "", occupancy: 3 }], occupancy: 3, remainingSeats: 0, warnings: [] }], totals: { studentCount: 1, guardianCount: 1, teacherCount: 1, otherCount: 0, occupancy: 3, seatCapacity: 3 }, warnings: ["样表合计488人与需求口径492人存在差异，本演示保留该差异，正式上线前请按最终名单核准。"] }
+function savedPlan(): TransportPlan {
+  return { ...emptyPlan(), planVersion: 2, vehicles: [savedVehicle()], totals: { studentCount: 1, guardianCount: 1, teacherCount: 1, otherCount: 0, occupancy: 3, seatCapacity: 3 } }
+}
+
+function savedVehicle() {
+  return { id: "vehicle-1", sequence: 1, seatCapacity: 3, plateNumber: "浙A12345", contactSnapshot: { driverName: "驾驶员一", driverPhone: "19900000001", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" }, allocations: [{ id: "allocation-1", classId: "class-1", className: "一（1）班", gradeName: "一年级", studentCount: 1, guardianCount: 1, teacherCount: 1, otherCount: 0, note: "", occupancy: 3 }], occupancy: 3, remainingSeats: 0, warnings: [] }
+}
+
+function emptyPeoplePlan(): TransportPeoplePlan {
+  return { tourSessionId: "session-1", organizationId: "school-1", planVersion: 1, rosterVersion: "roster-v1", vehicles: [], assignments: [], unassigned: [], conflicts: [], confirmation: null }
+}
+
+function peoplePlanWithVehicle(): TransportPeoplePlan {
+  return { ...emptyPeoplePlan(), planVersion: 2, vehicles: [{ ...savedVehicle(), estimatedOccupancy: 3, actualOccupancy: 0, actualRemainingSeats: 3 }], unassigned: [teacher()] }
+}
+
+function assignedPeoplePlan(): TransportPeoplePlan {
+  return { ...peoplePlanWithVehicle(), planVersion: 3, vehicles: [{ ...savedVehicle(), estimatedOccupancy: 3, actualOccupancy: 1, actualRemainingSeats: 2 }], assignments: [{ ...teacher(), vehicleId: "vehicle-1", conflict: null }], unassigned: [] }
+}
+
+function confirmedPeoplePlan(): TransportPeoplePlan {
+  return { ...assignedPeoplePlan(), confirmation: { id: "confirmation-1", planVersion: 3, rosterVersion: "roster-v1", status: "current", confirmedAt: "2026-09-23T00:00:00.000Z", confirmedBy: "dev-admin" } }
+}
+
+function draftSuggestion(): TransportSuggestion {
+  return {
+    kind: "draft",
+    assignments: [{ personRef: teacherPersonRef(), sequence: 1 }],
+    explanations: ["1号车可用座位3，预留0，教师/导游占位0，实际可分配3。"],
+    conflicts: [],
+  }
+}
+
+function teacher(): TransportTraveler {
+  return { personRef: teacherPersonRef(), displayName: "学生一", className: "一（1）班", importedRole: "teacher", active: true }
+}
+
+function teacherPersonRef(): PersonRef {
+  return "imported:teacher-1"
 }

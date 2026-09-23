@@ -8,6 +8,7 @@ const { state, error, trips, load } = useActivityCatalog()
 const featured = computed(() => trips.value.slice(0, 3))
 onShow(() => { void load() })
 function activities(): void { uni.switchTab({ url: "/pages/activities/index" }) }
+function business(): void { uni.navigateTo({ url: "/pages/business/index" }) }
 function orders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
 function family(): void { uni.switchTab({ url: "/pages/family/index" }) }
 </script>
@@ -23,6 +24,7 @@ function family(): void { uni.switchTab({ url: "/pages/family/index" }) }
     <view class="home-shortcuts">
       <button class="button-secondary" @tap="orders">我的订单</button>
       <button class="button-secondary" @tap="family">家庭成员</button>
+      <button class="button-secondary" @tap="business">商旅服务</button>
     </view>
     <view class="row-between home-section"><text class="section-heading">研学活动</text><button class="button-secondary home-more-entry" @tap="activities">查看全部</button></view>
     <DiscoveryState :state="state" :message="error" empty-title="暂无已发布活动" @retry="load" />

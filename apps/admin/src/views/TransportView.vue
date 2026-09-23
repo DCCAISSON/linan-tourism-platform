@@ -53,6 +53,7 @@
       <article><span>已安排人数</span><strong>{{ totals.occupancy }} 人</strong></article>
       <article><span>座位合计</span><strong>{{ totals.seatCapacity }} 座</strong></article>
       <article><span>学生/家长/教师/其他</span><strong>{{ totals.studentCount }}/{{ totals.guardianCount }}/{{ totals.teacherCount }}/{{ totals.otherCount }}</strong></article>
+      <article><span>车辆计划版本</span><strong>v{{ planVersion }}</strong></article>
     </section>
 
     <section class="transport-card" aria-labelledby="transport-warning-title">
@@ -104,6 +105,81 @@
         </div>
       </article>
     </section>
+
+    <section class="transport-card" aria-labelledby="transport-people-title">
+      <div class="transport-card__heading">
+        <div>
+          <h3 id="transport-people-title">逐人分配与确认快照</h3>
+          <p v-if="peoplePlan" class="transport-state">名单版本 {{ peoplePlan.rosterVersion }}；实际占用与上方班级人数估计分列。</p>
+          <p v-else class="transport-state">读取团期后显示可分配人员。</p>
+        </div>
+        <span v-if="peoplePlan?.confirmation">确认 {{ peoplePlan.confirmation.status === "current" ? "有效" : "已过期" }}</span>
+      </div>
+
+      <div v-if="peoplePlan" class="transport-people-grid">
+        <article class="transport-people-panel">
+          <h4>车辆实际占用</h4>
+          <ul class="transport-warning-list">
+            <li v-for="vehicle in peoplePlan.vehicles" :key="vehicle.id">
+              {{ vehicle.sequence }}号车：实际 {{ vehicle.actualOccupancy }}/{{ vehicle.seatCapacity }}，班级估计 {{ vehicle.estimatedOccupancy }}
+            </li>
+          </ul>
+        </article>
+        <article class="transport-people-panel">
+          <h4>版本操作</h4>
+          <p v-if="peoplePlan.confirmation" class="transport-state">
+            最近确认：v{{ peoplePlan.confirmation.planVersion }} / {{ peoplePlan.confirmation.rosterVersion }}
+          </p>
+          <p v-else class="transport-state">当前车辆安排尚未确认。</p>
+          <button type="button" :disabled="!canWrite || confirming" @click="confirmPeoplePlan">{{ confirming ? "确认中..." : "确认当前安排" }}</button>
+        </article>
+      </div>
+
+      <div v-if="peoplePlan" class="transport-people-grid">
+        <article class="transport-people-panel">
+          <h4>规则建议参数</h4>
+          <label>每车预留位<input v-model.number="reservedSeats" type="number" min="0"></label>
+          <label>每车教师/导游占位<input v-model.number="staffSeats" type="number" min="0"></label>
+          <label class="transport-checkbox"><input v-model="keepFamilyTogether" type="checkbox">要求亲子同车</label>
+          <label class="transport-checkbox"><input v-model="allowClassSplit" type="checkbox">允许拆班</label>
+          <button type="button" :disabled="!canWrite || suggesting" @click="suggestPeoplePlan">{{ suggesting ? "生成中..." : "生成可调整草案" }}</button>
+        </article>
+        <article class="transport-people-panel">
+          <h4>建议结果</h4>
+          <p v-if="suggestion === null" class="transport-state">尚未生成建议。</p>
+          <template v-else>
+            <p class="transport-state">结果：{{ suggestion.kind === "draft" ? "可调整草案" : "存在冲突" }}</p>
+            <ul class="transport-warning-list">
+              <li v-for="message in [...suggestion.explanations, ...suggestion.conflicts]" :key="message">{{ message }}</li>
+            </ul>
+            <button type="button" :disabled="suggestion.kind !== 'draft'" @click="applySuggestion">应用草案到页面</button>
+          </template>
+        </article>
+      </div>
+
+      <div v-if="peoplePlan" class="transport-table-wrap">
+        <table class="transport-table" aria-label="逐人车辆分配表">
+          <thead><tr><th>人员</th><th>班级/角色</th><th>状态</th><th>车辆</th></tr></thead>
+          <tbody>
+            <tr v-for="person in peopleRows" :key="person.personRef">
+              <td data-label="人员">{{ person.displayName }}</td>
+              <td data-label="班级/角色">{{ person.className ?? person.importedRole ?? "未分班" }}</td>
+              <td data-label="状态">{{ person.active ? "可分配" : "已失效" }}</td>
+              <td data-label="车辆">
+                <select v-model="peopleAssignments[person.personRef]" :disabled="!person.active">
+                  <option value="">未分配</option>
+                  <option v-for="vehicle in peoplePlan.vehicles" :key="vehicle.id" :value="vehicle.id">{{ vehicle.sequence }}号车</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-if="peoplePlan?.conflicts.length" class="transport-state transport-state--error">存在名单冲突，请先核对 travelers 后再确认车辆安排。</p>
+      <div v-if="peoplePlan" class="transport-actions">
+        <button type="button" :disabled="!canWrite || savingPeople" @click="savePeopleAssignments">{{ savingPeople ? "保存中..." : "保存逐人分配" }}</button>
+      </div>
+    </section>
   </section>
 </template>
 
@@ -112,8 +188,17 @@ import { computed, onMounted, ref, watch } from "vue"
 import { getCurrentStaff } from "@/api/auth"
 import { listClasses, listGrades, listSchools, listTourSessions } from "@/api/configuration"
 import type { Grade, School, SchoolClass, TourSession } from "@/api/configuration"
-import { downloadTransportPlan, getTransportPlan, readableTransportError, saveTransportPlan } from "@/api/transport"
-import type { TransportPlan } from "@/api/transport"
+import {
+  confirmTransportPlan,
+  downloadTransportPlan,
+  getTransportPeoplePlan,
+  getTransportPlan,
+  readableTransportError,
+  saveTransportAssignments,
+  saveTransportPlan,
+  suggestTransportAssignments,
+} from "@/api/transport"
+import type { PersonRef, TransportPeoplePlan, TransportPlan, TransportSuggestion } from "@/api/transport"
 import "@/styles/transport.css"
 
 type EditableAllocation = { localId: string; classId: string; studentCount: number; guardianCount: number; teacherCount: number; otherCount: number; note: string }
@@ -138,6 +223,17 @@ const exporting = ref(false)
 const canWrite = ref(false)
 const canExport = ref(false)
 const serverWarnings = ref<readonly string[]>([])
+const planVersion = ref(1)
+const peoplePlan = ref<TransportPeoplePlan | null>(null)
+const peopleAssignments = ref<Record<string, string>>({})
+const savingPeople = ref(false)
+const confirming = ref(false)
+const suggesting = ref(false)
+const reservedSeats = ref(0)
+const staffSeats = ref(0)
+const keepFamilyTogether = ref(false)
+const allowClassSplit = ref(true)
+const suggestion = ref<TransportSuggestion | null>(null)
 
 const totals = computed(() => vehicles.value.reduce((total, vehicle) => ({
   studentCount: total.studentCount + sum(vehicle, "studentCount"),
@@ -150,13 +246,26 @@ const totals = computed(() => vehicles.value.reduce((total, vehicle) => ({
 const warnings = computed(() => [...serverWarnings.value, ...vehicles.value.flatMap(vehicleWarnings)])
 const saveDisabled = computed(() => tourSessionId.value === "" || !canWrite.value || saving.value || loadingPlan.value)
 const exportDisabled = computed(() => tourSessionId.value === "" || !canExport.value || exporting.value)
+const peopleRows = computed(() => peoplePlan.value === null ? [] : [
+  ...peoplePlan.value.assignments.map((assignment) => ({
+    personRef: assignment.personRef,
+    displayName: assignment.displayName,
+    className: assignment.className,
+    importedRole: assignment.importedRole,
+    active: assignment.active,
+  })),
+  ...peoplePlan.value.unassigned,
+])
 
 watch(tourSessionId, () => {
   const session = sessions.value.find((item) => item.id === tourSessionId.value)
   schoolId.value = session?.organizationId ?? ""
-  vehicles.value = []
-  serverWarnings.value = []
-})
+	  vehicles.value = []
+	  serverWarnings.value = []
+  peoplePlan.value = null
+  peopleAssignments.value = {}
+  suggestion.value = null
+	})
 watch(schoolId, async () => { gradeId.value = ""; classId.value = ""; classes.value = []; await loadGrades() })
 watch(gradeId, async () => { classId.value = ""; await loadClasses() })
 
@@ -197,8 +306,11 @@ async function loadPlan(): Promise<void> {
   if (tourSessionId.value === "") return
   loadingPlan.value = true
   formError.value = ""
-  try { applyPlan(await getTransportPlan(tourSessionId.value)) }
-  catch (caught) { formError.value = readableTransportError(caught) }
+	  try {
+    applyPlan(await getTransportPlan(tourSessionId.value))
+    await loadPeoplePlan()
+  }
+	  catch (caught) { formError.value = readableTransportError(caught) }
   finally { loadingPlan.value = false }
 }
 
@@ -206,8 +318,11 @@ async function submitPlan(): Promise<void> {
   if (tourSessionId.value === "") return
   saving.value = true
   formError.value = ""
-  try { applyPlan(await saveTransportPlan(tourSessionId.value, { vehicles: vehicles.value.map(toPayloadVehicle) })) }
-  catch (caught) { formError.value = readableTransportError(caught) }
+	  try {
+    applyPlan(await saveTransportPlan(tourSessionId.value, { vehicles: vehicles.value.map(toPayloadVehicle) }))
+    await loadPeoplePlan()
+  }
+	  catch (caught) { formError.value = readableTransportError(caught) }
   finally { saving.value = false }
 }
 
@@ -220,6 +335,7 @@ async function exportPlan(): Promise<void> {
 }
 
 function applyPlan(plan: TransportPlan): void {
+  planVersion.value = plan.planVersion
   serverWarnings.value = plan.warnings
   vehicles.value = plan.vehicles.map((vehicle) => ({
     localId: vehicle.id ?? crypto.randomUUID(),
@@ -239,6 +355,78 @@ function applyPlan(plan: TransportPlan): void {
   }))
 }
 
+async function loadPeoplePlan(): Promise<void> {
+  if (tourSessionId.value === "") return
+  const nextPlan = await getTransportPeoplePlan(tourSessionId.value)
+  applyPeoplePlan(nextPlan)
+}
+
+async function savePeopleAssignments(): Promise<void> {
+  if (tourSessionId.value === "" || peoplePlan.value === null) return
+  savingPeople.value = true
+  formError.value = ""
+  try {
+    applyPeoplePlan(await saveTransportAssignments(tourSessionId.value, {
+      expectedPlanVersion: peoplePlan.value.planVersion,
+      expectedRosterVersion: peoplePlan.value.rosterVersion,
+      assignments: Object.entries(peopleAssignments.value)
+        .filter((entry) => entry[1] !== "")
+        .flatMap((entry) => isPersonRef(entry[0]) ? [{ personRef: entry[0], vehicleId: entry[1] }] : []),
+    }))
+  } catch (caught) { formError.value = readableTransportError(caught) }
+  finally { savingPeople.value = false }
+}
+
+async function confirmPeoplePlan(): Promise<void> {
+  if (tourSessionId.value === "" || peoplePlan.value === null) return
+  confirming.value = true
+  formError.value = ""
+  try {
+    applyPeoplePlan(await confirmTransportPlan(tourSessionId.value, {
+      expectedPlanVersion: peoplePlan.value.planVersion,
+      expectedRosterVersion: peoplePlan.value.rosterVersion,
+    }))
+  } catch (caught) { formError.value = readableTransportError(caught) }
+  finally { confirming.value = false }
+}
+
+async function suggestPeoplePlan(): Promise<void> {
+  if (tourSessionId.value === "" || peoplePlan.value === null) return
+  suggesting.value = true
+  formError.value = ""
+  try {
+    const availableSeatsBySequence = sequenceMap((vehicle) => vehicle.seatCapacity)
+    const reservedSeatsBySequence = sequenceMap(() => reservedSeats.value)
+    const staffSeatsBySequence = sequenceMap(() => staffSeats.value)
+    suggestion.value = await suggestTransportAssignments(tourSessionId.value, {
+      availableSeatsBySequence,
+      reservedSeatsBySequence,
+      staffSeatsBySequence,
+      keepFamilyTogether: keepFamilyTogether.value,
+      allowClassSplit: allowClassSplit.value,
+    })
+  } catch (caught) { formError.value = readableTransportError(caught) }
+  finally { suggesting.value = false }
+}
+
+function applyPeoplePlan(plan: TransportPeoplePlan): void {
+  peoplePlan.value = plan
+  planVersion.value = plan.planVersion
+  peopleAssignments.value = Object.fromEntries(plan.assignments.map((assignment) => [assignment.personRef, assignment.vehicleId]))
+}
+
+function applySuggestion(): void {
+  if (peoplePlan.value === null || suggestion.value?.kind !== "draft") return
+  const vehicleBySequence = new Map(peoplePlan.value.vehicles.map((vehicle) => [vehicle.sequence, vehicle.id]))
+  peopleAssignments.value = {
+    ...peopleAssignments.value,
+    ...Object.fromEntries(suggestion.value.assignments.flatMap((assignment) => {
+      const vehicleId = vehicleBySequence.get(assignment.sequence)
+      return vehicleId === undefined ? [] : [[assignment.personRef, vehicleId]]
+    })),
+  }
+}
+
 function addVehicle(): void {
   vehicles.value.push({ localId: crypto.randomUUID(), sequence: nextSequence(), seatCapacity: 48, plateNumber: "", contactSnapshot: emptyContact(), allocations: [] })
 }
@@ -249,6 +437,15 @@ function addAllocation(vehicle: EditableVehicle): void {
 
 function toPayloadVehicle(vehicle: EditableVehicle) {
   return { sequence: vehicle.sequence, seatCapacity: vehicle.seatCapacity, plateNumber: vehicle.plateNumber, contactSnapshot: vehicle.contactSnapshot, allocations: vehicle.allocations }
+}
+
+function sequenceMap(read: (vehicle: TransportPeoplePlan["vehicles"][number]) => number): Readonly<Record<number, number>> {
+  if (peoplePlan.value === null) return {}
+  return Object.fromEntries(peoplePlan.value.vehicles.map((vehicle) => [vehicle.sequence, read(vehicle)]))
+}
+
+function isPersonRef(value: string): value is PersonRef {
+  return value.startsWith("paid:") || value.startsWith("imported:")
 }
 
 function vehicleOccupancy(vehicle: EditableVehicle): number {

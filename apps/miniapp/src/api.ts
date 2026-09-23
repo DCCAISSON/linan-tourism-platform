@@ -12,6 +12,7 @@ import {
   readErrorMessage,
 } from "./api-parsers"
 import { ApiError } from "./api-error"
+import { getWechatSessionToken, saveWechatSessionToken } from "./wechat-token"
 import { parseCatalogItem, parseOrderDetail, parseOrderHistoryItem, parseSavedEnrollmentMember } from "./family-center-parsers"
 import {
   DEV_FAMILY_IDENTITY_HEADER,
@@ -24,6 +25,8 @@ import {
   type MiniappRequestOptions,
   type MiniappRequestResult,
   type RequestTransport,
+  type WechatLoginResponse,
+  type WechatMiniappPayment,
 } from "./api-types"
 
 export { ApiError } from "./api-error"
@@ -52,6 +55,8 @@ export type {
   Order,
   OrderParticipant,
   RequestTransport,
+  WechatLoginResponse,
+  WechatMiniappPayment,
   School,
   SchoolClass,
   TourSession,
@@ -74,29 +79,30 @@ export function resolveDevFamilyIdentityHeader(value?: string): string | undefin
 export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
   const baseUrl = resolveApiBaseUrl(options.baseUrl)
   const familyIdentityHeader = resolveDevFamilyIdentityHeader(options.familyIdentityHeader)
+  const wechatSessionToken = options.wechatSessionToken ?? getWechatSessionToken()
   const request = options.request ?? requestWithUni
 
   return {
-    listCatalogItems: async () => readCollection(await requestJson(request, baseUrl, "/catalog-items", "GET", familyIdentityHeader), parseCatalogItem),
-    listEnrollmentMembers: async () => readCollection(await requestJson(request, baseUrl, "/enrollment/members", "GET", familyIdentityHeader), parseSavedEnrollmentMember),
-    listOrders: async () => readCollection(await requestJson(request, baseUrl, "/orders", "GET", familyIdentityHeader), parseOrderHistoryItem),
-    getOrderDetail: async (orderId: string) => parseOrderDetail(await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}/detail`, "GET", familyIdentityHeader)),
-    listSchools: async () => readCollection(await requestJson(request, baseUrl, "/schools", "GET", familyIdentityHeader), parseSchool),
+    listCatalogItems: async () => readCollection(await requestJson(request, baseUrl, "/catalog-items", "GET", familyIdentityHeader, wechatSessionToken), parseCatalogItem),
+    listEnrollmentMembers: async () => readCollection(await requestJson(request, baseUrl, "/enrollment/members", "GET", familyIdentityHeader, wechatSessionToken), parseSavedEnrollmentMember),
+    listOrders: async () => readCollection(await requestJson(request, baseUrl, "/orders", "GET", familyIdentityHeader, wechatSessionToken), parseOrderHistoryItem),
+    getOrderDetail: async (orderId: string) => parseOrderDetail(await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}/detail`, "GET", familyIdentityHeader, wechatSessionToken)),
+    listSchools: async () => readCollection(await requestJson(request, baseUrl, "/schools", "GET", familyIdentityHeader, wechatSessionToken), parseSchool),
     listGrades: async (schoolId: string) =>
       readCollection(
-        await requestJson(request, baseUrl, `/schools/${encodeURIComponent(schoolId)}/grades`, "GET", familyIdentityHeader),
+        await requestJson(request, baseUrl, `/schools/${encodeURIComponent(schoolId)}/grades`, "GET", familyIdentityHeader, wechatSessionToken),
         parseGrade,
       ),
     listClasses: async (gradeId: string) =>
       readCollection(
-        await requestJson(request, baseUrl, `/grades/${encodeURIComponent(gradeId)}/classes`, "GET", familyIdentityHeader),
+        await requestJson(request, baseUrl, `/grades/${encodeURIComponent(gradeId)}/classes`, "GET", familyIdentityHeader, wechatSessionToken),
         parseSchoolClass,
       ),
     listTourSessions: async () =>
-      readCollection(await requestJson(request, baseUrl, "/tour-sessions", "GET", familyIdentityHeader), parseTourSession),
+      readCollection(await requestJson(request, baseUrl, "/tour-sessions", "GET", familyIdentityHeader, wechatSessionToken), parseTourSession),
     createEnrollmentMember: async (payload: EnrollmentMemberPayload) =>
       parseEnrollmentMember(
-        await requestJson(request, baseUrl, "/enrollment/members", "POST", familyIdentityHeader, payload),
+        await requestJson(request, baseUrl, "/enrollment/members", "POST", familyIdentityHeader, wechatSessionToken, payload),
       ),
     checkEnrollmentAvailability: async (tourSessionId: string, atIso: string) =>
       parseEnrollmentAvailability(
@@ -106,15 +112,16 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
           `/tour-sessions/${encodeURIComponent(tourSessionId)}/enrollment-availability?at=${encodeURIComponent(atIso)}`,
           "GET",
           familyIdentityHeader,
+          wechatSessionToken,
         ),
       ),
     submitEnrollment: async (payload: EnrollmentPayload) =>
       parseEnrollmentSubmission(
-        await requestJson(request, baseUrl, "/enrollments", "POST", familyIdentityHeader, payload),
+        await requestJson(request, baseUrl, "/enrollments", "POST", familyIdentityHeader, wechatSessionToken, payload),
       ),
     createOrder: async (payload: CreateOrderPayload) =>
       parseOrder(
-        await requestJson(request, baseUrl, "/orders", "POST", familyIdentityHeader, {
+        await requestJson(request, baseUrl, "/orders", "POST", familyIdentityHeader, wechatSessionToken, {
           enrollmentId: payload.enrollmentId,
           payerName: payload.payerName,
           requestIdempotencyKey: payload.requestIdempotencyKey,
@@ -122,7 +129,7 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
       ),
     getOrder: async (orderId: string) =>
       parseOrder(
-        await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}`, "GET", familyIdentityHeader),
+        await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}`, "GET", familyIdentityHeader, wechatSessionToken),
       ),
     createMockPayment: async (orderId: string) =>
       parseMockPayment(
@@ -132,9 +139,17 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
           `/payments/mock/${encodeURIComponent(orderId)}`,
           "POST",
           familyIdentityHeader,
+          wechatSessionToken,
           {},
         ),
       ),
+    loginWithWechatCode: async (code: string, familyCode?: string) => {
+      const response = parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/login", "POST", familyIdentityHeader, wechatSessionToken, familyCode === undefined ? { code } : { code, familyCode }))
+      saveWechatSessionToken(response.token)
+      return response
+    },
+    createWechatPayment: async (orderId: string, code: string) =>
+      parseWechatPayment(await requestJson(request, baseUrl, `/wechat/payments/${encodeURIComponent(orderId)}/miniapp`, "POST", familyIdentityHeader, wechatSessionToken, { code })),
   }
 }
 
@@ -160,16 +175,17 @@ async function requestJson(
   path: string,
   method: MiniappRequestOptions["method"],
   familyIdentityHeader: string | undefined,
+  wechatSessionToken: string | undefined,
   data?: object,
 ): Promise<unknown> {
   const options: MiniappRequestOptions = data === undefined ? {
     url: `${baseUrl}${path}`,
     method,
-    header: buildHeaders(familyIdentityHeader, false),
+    header: buildHeaders(familyIdentityHeader, wechatSessionToken, false),
   } : {
     url: `${baseUrl}${path}`,
     method,
-    header: buildHeaders(familyIdentityHeader, true),
+    header: buildHeaders(familyIdentityHeader, wechatSessionToken, true),
     data,
   }
   const response = await request(options)
@@ -181,7 +197,7 @@ async function requestJson(
   return response.data
 }
 
-function buildHeaders(familyIdentityHeader: string | undefined, withJsonBody: boolean): Record<string, string> {
+function buildHeaders(familyIdentityHeader: string | undefined, wechatSessionToken: string | undefined, withJsonBody: boolean): Record<string, string> {
   const headers: Record<string, string> = {}
   if (withJsonBody) {
     headers["Content-Type"] = "application/json"
@@ -189,6 +205,46 @@ function buildHeaders(familyIdentityHeader: string | undefined, withJsonBody: bo
   if (familyIdentityHeader !== undefined) {
     headers[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
   }
+  if (wechatSessionToken !== undefined) {
+    headers["Authorization"] = `Bearer ${wechatSessionToken}`
+  }
 
   return headers
+}
+
+function parseWechatLogin(value: unknown): WechatLoginResponse {
+  const record = readRecord(value)
+  return { token: readText(record, "token"), familyCode: readText(record, "familyCode"), expiresAt: readText(record, "expiresAt") }
+}
+
+function parseWechatPayment(value: unknown): WechatMiniappPayment {
+  const record = readRecord(value)
+  const miniappPayment = readRecord(record["miniappPayment"])
+  if (readText(record, "provider") !== "wechat_pay" || readText(miniappPayment, "signType") !== "RSA") throw new ApiError(0, "invalid wechat payment response")
+  return {
+    id: readText(record, "id"), orderId: readText(record, "orderId"), paymentNo: readText(record, "paymentNo"),
+    provider: "wechat_pay", status: readPaymentStatus(record), amountFen: readCount(record, "amountFen"),
+    miniappPayment: { timeStamp: readText(miniappPayment, "timeStamp"), nonceStr: readText(miniappPayment, "nonceStr"), package: readText(miniappPayment, "package"), signType: "RSA", paySign: readText(miniappPayment, "paySign") },
+  }
+}
+
+function readPaymentStatus(record: Record<string, unknown>): WechatMiniappPayment["status"] {
+  const status = readText(record, "status")
+  if (status === "pending" || status === "succeeded" || status === "failed" || status === "refunded") return status
+  throw new ApiError(0, "invalid wechat payment response")
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) return Object.fromEntries(Object.entries(value))
+  throw new ApiError(0, "invalid response")
+}
+function readText(record: Record<string, unknown>, key: string): string {
+  const value = record[key]
+  if (typeof value === "string") return value
+  throw new ApiError(0, "invalid response")
+}
+function readCount(record: Record<string, unknown>, key: string): number {
+  const value = record[key]
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value
+  throw new ApiError(0, "invalid response")
 }

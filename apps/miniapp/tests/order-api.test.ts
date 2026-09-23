@@ -123,6 +123,33 @@ describe("miniapp order API client", () => {
     expect(requests[0]?.data).not.toHaveProperty("paidFen")
   })
 
+
+  it("starts a WeChat payment with a login code and bearer token", async () => {
+    // Given
+    const requests: MiniappRequestOptions[] = []
+    const wechatPaymentResponse = {
+      id: "payment-1", orderId: "order-1", paymentNo: "PAYMENT-1", provider: "wechat_pay", status: "pending", amountFen: 39_600,
+      miniappPayment: { timeStamp: "1", nonceStr: "nonce", package: "prepay_id=wx", signType: "RSA", paySign: "sig" },
+    }
+    const request: RequestTransport = async (options) => {
+      requests.push(options)
+      return { data: wechatPaymentResponse, statusCode: 201 }
+    }
+    const api = createMiniappApi({ baseUrl: "https://api.example.test", wechatSessionToken: "server-token", request })
+
+    // When
+    const payment = await api.createWechatPayment("order-1", "wx-code")
+
+    // Then
+    expect(payment).toEqual(wechatPaymentResponse)
+    expect(requests).toEqual([{
+      url: "https://api.example.test/wechat/payments/order-1/miniapp",
+      method: "POST",
+      header: { "Content-Type": "application/json", Authorization: "Bearer server-token" },
+      data: { code: "wx-code" },
+    }])
+  })
+
   it("rejects malformed order responses", async () => {
     // Given
     const request: RequestTransport = async () => ({

@@ -1,8 +1,26 @@
-﻿import { ApiError } from "./configuration.errors"
-import { parseTransportPlan } from "./transport.parsers"
-import type { TransportPlan, TransportPlanPayload } from "./transport.types"
+import { ApiError } from "./configuration.errors"
+import { parseTransportPeoplePlan, parseTransportPlan, parseTransportSuggestion } from "./transport.parsers"
+import type {
+  TransportAssignmentsPayload,
+  TransportConfirmationPayload,
+  TransportPeoplePlan,
+  TransportPlan,
+  TransportPlanPayload,
+  TransportSuggestion,
+  TransportSuggestionPayload,
+} from "./transport.types"
 
-export type { TransportAllocation, TransportContactSnapshot, TransportPlan, TransportPlanPayload, TransportVehicle } from "./transport.types"
+export type {
+  PersonRef,
+  TransportAllocation,
+  TransportAssignment,
+  TransportContactSnapshot,
+  TransportPeoplePlan,
+  TransportPlan,
+  TransportPlanPayload,
+  TransportSuggestion,
+  TransportVehicle,
+} from "./transport.types"
 
 const fallbackApiBaseUrl = "http://127.0.0.1:3000"
 const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
@@ -14,6 +32,34 @@ export async function getTransportPlan(tourSessionId: string): Promise<Transport
 export async function saveTransportPlan(tourSessionId: string, payload: TransportPlanPayload): Promise<TransportPlan> {
   return parseTransportPlan(await requestJson(`/transport/sessions/${encodeURIComponent(tourSessionId)}/plan`, {
     method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }))
+}
+
+export async function getTransportPeoplePlan(tourSessionId: string): Promise<TransportPeoplePlan> {
+  return parseTransportPeoplePlan(await requestJson(`/transport/sessions/${encodeURIComponent(tourSessionId)}/people-plan`, { method: "GET" }))
+}
+
+export async function saveTransportAssignments(tourSessionId: string, payload: TransportAssignmentsPayload): Promise<TransportPeoplePlan> {
+  return parseTransportPeoplePlan(await requestJson(`/transport/sessions/${encodeURIComponent(tourSessionId)}/person-allocations`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }))
+}
+
+export async function confirmTransportPlan(tourSessionId: string, payload: TransportConfirmationPayload): Promise<TransportPeoplePlan> {
+  return parseTransportPeoplePlan(await requestJson(`/transport/sessions/${encodeURIComponent(tourSessionId)}/confirmations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }))
+}
+
+export async function suggestTransportAssignments(tourSessionId: string, payload: TransportSuggestionPayload): Promise<TransportSuggestion> {
+  return parseTransportSuggestion(await requestJson(`/transport/sessions/${encodeURIComponent(tourSessionId)}/suggestions`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }))

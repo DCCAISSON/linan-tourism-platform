@@ -125,12 +125,36 @@ export type OrderParticipant = {
   readonly gradeName: string | null
   readonly className: string | null
   readonly amountFen: number
+  readonly refundedFen: number
+  readonly refundStatus: "none" | "pending" | "refunded" | "failed"
+}
+
+export type RefundSummary = {
+  readonly status: "none" | "partial" | "full"
+  readonly refundedFen: number
+  readonly pendingFen: number
+  readonly failedCount: number
+}
+
+export type RefundHistoryItem = {
+  readonly id: string
+  readonly status: "pending" | "succeeded" | "failed"
+  readonly amountFen: number
+  readonly requestedAt: string
+  readonly processedAt: string | null
+  readonly lines: readonly {
+    readonly lineId: string
+    readonly displayName: string
+    readonly amountFen: number
+  }[]
 }
 
 export type OrderDetail = OrderHistoryItem & {
   readonly contactName: string
   readonly emergencyContactName: string | null
   readonly emergencyContactPhone: string | null
+  readonly refundSummary: RefundSummary
+  readonly refundHistory: readonly RefundHistoryItem[]
   readonly participants: readonly OrderParticipant[]
 }
 
@@ -171,6 +195,28 @@ export type MockPayment = {
   readonly amountFen: number
 }
 
+export type WechatLoginResponse = {
+  readonly token: string
+  readonly familyCode: string
+  readonly expiresAt: string
+}
+
+export type WechatMiniappPayment = {
+  readonly id: string
+  readonly orderId: string
+  readonly paymentNo: string
+  readonly provider: "wechat_pay"
+  readonly status: PaymentStatus
+  readonly amountFen: number
+  readonly miniappPayment: {
+    readonly timeStamp: string
+    readonly nonceStr: string
+    readonly package: string
+    readonly signType: "RSA"
+    readonly paySign: string
+  }
+}
+
 export type MiniappRequestOptions = {
   readonly url: string
   readonly method: "GET" | "POST"
@@ -209,11 +255,14 @@ export type MiniappApi = {
   readonly createOrder: (payload: CreateOrderPayload) => Promise<Order>
   readonly getOrder: (orderId: string) => Promise<Order>
   readonly createMockPayment: (orderId: string) => Promise<MockPayment>
+  readonly loginWithWechatCode: (code: string, familyCode?: string) => Promise<WechatLoginResponse>
+  readonly createWechatPayment: (orderId: string, code: string) => Promise<WechatMiniappPayment>
 }
 
 export type MiniappApiOptions = {
   readonly baseUrl?: string
   readonly familyIdentityHeader?: string
+  readonly wechatSessionToken?: string
   readonly request?: RequestTransport
 }
 

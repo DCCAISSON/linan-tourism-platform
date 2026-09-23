@@ -13,8 +13,23 @@
         <router-link v-if="hasPermission('workbench.read')" class="admin-nav__item" to="/home">工作台</router-link>
         <router-link v-if="hasPermission('configuration.read')" class="admin-nav__item" to="/configuration">活动配置</router-link>
         <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/roster">名单统计</router-link>
+        <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/travelers">出行人员</router-link>
         <router-link v-if="hasPermission('orders.read')" class="admin-nav__item" to="/orders">订单管理</router-link>
+        <router-link v-if="hasPermission('refunds.review') || hasPermission('refunds.execute')" class="admin-nav__item" to="/refund-applications">退款申请</router-link>
+        <router-link v-if="hasPermission('payments.reconcile')" class="admin-nav__item" to="/payments/reconciliation">支付对账</router-link>
         <router-link v-if="hasPermission('transport.read')" class="admin-nav__item" to="/transport">车辆安排</router-link>
+        <router-link v-if="hasPermission('pretrip.write')" class="admin-nav__item" to="/pretrip">行前配置</router-link>
+        <router-link v-if="hasPermission('pretrip.school_confirm')" class="admin-nav__item" to="/school-confirmation">学校行前签认</router-link>
+        <router-link v-if="hasPermission('notifications.read') && hasPermission('notifications.write') && hasPermission('notifications.send')" class="admin-nav__item" to="/notifications">通知管理</router-link>
+        <router-link v-if="hasPermission('execution.read')" class="admin-nav__item" to="/execution">导游执行</router-link>
+        <router-link v-if="hasPermission('health.read')" class="admin-nav__item" to="/health-access">健康授权</router-link>
+        <router-link v-if="hasPermission('evaluations.read')" class="admin-nav__item" to="/evaluations">学生评价</router-link>
+        <router-link v-if="hasPermission('evaluations.standard.write')" class="admin-nav__item" to="/evaluation-standards">评价标准</router-link>
+        <router-link v-if="hasPermission('feedback.read')" class="admin-nav__item" to="/feedback">服务反馈</router-link>
+        <router-link v-if="hasPermission('insurance.read')" class="admin-nav__item" to="/insurance">保险工作台</router-link>
+        <router-link v-if="hasPermission('media.read')" class="admin-nav__item" to="/media">影像管理</router-link>
+        <router-link v-if="hasPermission('crm.read')" class="admin-nav__item" to="/crm">客户管理</router-link>
+        <router-link v-if="hasPermission('business.read')" class="admin-nav__item" to="/business">商旅业务</router-link>
         <router-link v-if="hasPermission('staff_accounts.manage')" class="admin-nav__item" to="/staff-accounts">账号权限</router-link>
       </nav>
     </aside>

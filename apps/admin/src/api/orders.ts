@@ -18,13 +18,41 @@ export type StaffOrderDetail = StaffOrder & {
   readonly contactName: string
   readonly emergencyContactName: string | null
   readonly emergencyContactPhone: string | null
+  readonly refundSummary: RefundSummary
+  readonly refundHistory: readonly RefundHistoryItem[]
   readonly participants: readonly {
     readonly id: string
     readonly displayName: string
     readonly gradeName: string | null
     readonly className: string | null
     readonly amountFen: number
+    readonly refundedFen: number
+    readonly refundStatus: "none" | "pending" | "refunded" | "failed"
   }[]
+}
+
+export type RefundSummary = {
+  readonly status: "none" | "partial" | "full"
+  readonly refundedFen: number
+  readonly pendingFen: number
+  readonly failedCount: number
+}
+export type RefundHistoryItem = {
+  readonly id: string
+  readonly status: "pending" | "succeeded" | "failed"
+  readonly amountFen: number
+  readonly reason: string
+  readonly note: string | null
+  readonly requestedAt: string
+  readonly processedAt: string | null
+  readonly failureMessage: string | null
+  readonly lines: readonly { readonly lineId: string; readonly displayName: string; readonly amountFen: number }[]
+}
+export type StaffRefundInput = {
+  readonly lineIds: readonly string[]
+  readonly reason: string
+  readonly note?: string
+  readonly idempotencyKey: string
 }
 
 export type StaffOrderList = { readonly orders: readonly StaffOrder[]; readonly total: number; readonly page: number; readonly pageSize: number }
@@ -48,16 +76,49 @@ export async function listStaffOrders(keyword: string, status: string, page: num
 export async function getStaffOrder(id: string): Promise<StaffOrderDetail> {
   const record = readRecord(await request(`/staff/orders/${encodeURIComponent(id)}`))
   const participants = record["participants"]
-  if (!Array.isArray(participants)) throw invalidResponse()
+  const history = record["refundHistory"]
+  if (!Array.isArray(participants) || !Array.isArray(history)) throw invalidResponse()
   return {
     ...parseOrder(record), contactName: readText(record, "contactName"),
     emergencyContactName: readNullableText(record, "emergencyContactName"),
     emergencyContactPhone: readNullableText(record, "emergencyContactPhone"),
+    refundSummary: parseRefundSummary(record["refundSummary"]),
+    refundHistory: history.map(parseRefundHistory),
     participants: participants.map((value) => {
       const line = readRecord(value)
+      const refundStatus = line["refundStatus"]
+      if (refundStatus !== "none" && refundStatus !== "pending" && refundStatus !== "refunded" && refundStatus !== "failed") throw invalidResponse()
       return { id: readText(line, "id"), displayName: readText(line, "displayName"),
-        gradeName: readNullableText(line, "gradeName"), className: readNullableText(line, "className"), amountFen: readCount(line, "amountFen") }
+        gradeName: readNullableText(line, "gradeName"), className: readNullableText(line, "className"), amountFen: readCount(line, "amountFen"),
+        refundedFen: readCount(line, "refundedFen"), refundStatus }
     }),
+  }
+}
+
+export async function createStaffRefund(id: string, input: StaffRefundInput): Promise<RefundHistoryItem> {
+  return parseRefundHistory(await request(`/staff/orders/${encodeURIComponent(id)}/refunds`, input))
+}
+
+export async function processStaffRefund(id: string, refundId: string, outcome: "succeeded" | "failed"): Promise<RefundHistoryItem> {
+  return parseRefundHistory(await request(`/staff/orders/${encodeURIComponent(id)}/refunds/${encodeURIComponent(refundId)}/local-result`, { outcome }))
+}
+
+function parseRefundSummary(value: unknown): RefundSummary {
+  const record = readRecord(value)
+  const status = record["status"]
+  if (status !== "none" && status !== "partial" && status !== "full") throw invalidResponse()
+  return { status, refundedFen: readCount(record, "refundedFen"), pendingFen: readCount(record, "pendingFen"), failedCount: readCount(record, "failedCount") }
+}
+
+function parseRefundHistory(value: unknown): RefundHistoryItem {
+  const record = readRecord(value)
+  const status = record["status"]
+  const lines = record["lines"]
+  if ((status !== "pending" && status !== "succeeded" && status !== "failed") || !Array.isArray(lines)) throw invalidResponse()
+  return {
+    id: readText(record, "id"), status, amountFen: readCount(record, "amountFen"), reason: readText(record, "reason"),
+    note: readNullableText(record, "note"), requestedAt: readText(record, "requestedAt"), processedAt: readNullableText(record, "processedAt"), failureMessage: readNullableText(record, "failureMessage"),
+    lines: lines.map(value => { const line = readRecord(value); return { lineId: readText(line, "lineId"), displayName: readText(line, "displayName"), amountFen: readCount(line, "amountFen") } }),
   }
 }
 
