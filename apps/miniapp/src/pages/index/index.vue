@@ -29,7 +29,7 @@ function family(): void { uni.switchTab({ url: "/pages/family/index" }) }
     <view class="row-between home-section"><text class="section-heading">研学活动</text><button class="button-secondary home-more-entry" @tap="activities">查看全部</button></view>
     <DiscoveryState :state="state" :message="error" empty-title="暂无已发布活动" @retry="load" />
     <view v-if="state === 'ready'"><ActivityCard v-for="trip in featured" :key="trip.session.id" :trip="trip" /></view>
-    <text class="test-notice">当前为本地流程验证。报名、模拟支付和家庭订单可体验，模拟支付不产生真实扣款。</text>
+    <text class="test-notice">当前为开发体验版。报名和家庭订单可体验；真实支付暂未启用，不会产生扣款。</text>
   </view>
 </template>
 

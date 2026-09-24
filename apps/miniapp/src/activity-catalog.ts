@@ -9,6 +9,28 @@ export type ActivityTrip = {
   readonly canEnroll: boolean
 }
 
+export function activeEnrollmentOptions(
+  activities: readonly CatalogItem[],
+  sessions: readonly TourSession[],
+  schools: readonly School[],
+): { readonly schools: readonly School[]; readonly sessions: readonly TourSession[] } {
+  const activeCatalogKeys = new Set(
+    activities
+      .filter((activity) => activity.status === "active")
+      .map((activity) => `${activity.organizationId}:${activity.id}`),
+  )
+  const visibleSessions = sessions.filter((session) =>
+    session.status !== "draft"
+    && session.status !== "cancelled"
+    && activeCatalogKeys.has(`${session.organizationId}:${session.catalogItemId}`),
+  )
+  const visibleSchoolIds = new Set(visibleSessions.map((session) => session.organizationId))
+  return {
+    schools: schools.filter((school) => visibleSchoolIds.has(school.id)),
+    sessions: visibleSessions,
+  }
+}
+
 export function activityTrips(activities: readonly CatalogItem[], sessions: readonly TourSession[], schools: readonly School[]): readonly ActivityTrip[] {
   return sessions.flatMap((session) => {
     const activity = activities.find((item) => item.id === session.catalogItemId && item.organizationId === session.organizationId && item.status === "active")

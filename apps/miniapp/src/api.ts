@@ -12,7 +12,7 @@ import {
   readErrorMessage,
 } from "./api-parsers"
 import { ApiError } from "./api-error"
-import { getWechatSessionToken, saveWechatSessionToken } from "./wechat-token"
+import { clearWechatSessionToken, getWechatSessionToken, saveWechatSessionToken } from "./wechat-token"
 import { parseCatalogItem, parseOrderDetail, parseOrderHistoryItem, parseSavedEnrollmentMember } from "./family-center-parsers"
 import {
   DEV_FAMILY_IDENTITY_HEADER,
@@ -196,6 +196,11 @@ async function requestJson(
   const response = await request(options)
 
   if (response.statusCode < 200 || response.statusCode >= 300) {
+    if (response.statusCode === 401 && !path.startsWith("/wechat/miniapp/")) {
+      clearWechatSessionToken()
+      uni.reLaunch({ url: "/pages/login/index" })
+      throw new ApiError(401, "登录状态已失效，请重新登录")
+    }
     throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
   }
 

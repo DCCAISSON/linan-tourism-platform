@@ -4,6 +4,7 @@ import {
   createMiniappApi, type Grade, type MockPayment,
   type Order, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatMiniappPayment,
 } from "../../api"
+import { activeEnrollmentOptions } from "../../activity-catalog"
 import {
   buildCreateOrderPayload, canStartPayment, createOrderRequestKey,
   nextPageModeForOrder, orderStatusLabel, readTripGate,
@@ -83,10 +84,16 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
     resetCheckout()
     try {
-      const [schools, sessions, members] = await Promise.all([api.listSchools(), api.listTourSessions(), api.listEnrollmentMembers()])
+      const [activities, schools, sessions, members] = await Promise.all([
+        api.listCatalogItems(),
+        api.listSchools(),
+        api.listTourSessions(),
+        api.listEnrollmentMembers(),
+      ])
+      const options = activeEnrollmentOptions(activities, sessions, schools)
       savedMembers.value = members
-      catalog.schools = [...schools]
-      catalog.sessions = [...sessions]
+      catalog.schools = [...options.schools]
+      catalog.sessions = [...options.sessions]
       catalog.grades = []
       catalog.classes = []
       draft.selectedSchoolId = ""
@@ -95,8 +102,8 @@ export function useEnrollmentPage() {
       draft.selectedTourSessionId = ""
       currentTimeIso.value = new Date().toISOString()
       loadState.value = catalog.schools.length === 0 || catalog.sessions.length === 0 ? "empty" : "ready"
-      const wantedSession = sessions.find((session) => session.id === wantedSessionId.value)
-      const schoolIndex = schools.findIndex((school) => school.id === wantedSession?.organizationId)
+      const wantedSession = options.sessions.find((session) => session.id === wantedSessionId.value)
+      const schoolIndex = options.schools.findIndex((school) => school.id === wantedSession?.organizationId)
       if (schoolIndex >= 0) await onSchoolChange({ detail: { value: schoolIndex } })
     } catch (error) {
       loadState.value = "error"

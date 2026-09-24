@@ -37,7 +37,7 @@ function orders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
     <text class="section-heading">家庭成员</text>
     <DiscoveryState :state="state" :message="error" empty-title="本家庭暂无成员" @retry="load" />
     <view v-if="state === 'ready'"><view v-for="member in members" :key="member.id" class="info-card family-member-card"><text class="card-title">{{ member.displayName }}</text><text class="body-secondary">成员编号：{{ member.code }}</text><text class="detail-line">{{ member.schoolName }} · {{ member.gradeName }} · {{ member.className }}</text></view></view>
-    <text class="test-notice">报名页可以选择已有成员，也可填写成员编号和称呼添加。当前为本地流程验证，请使用演示资料。</text>
+    <text class="test-notice">报名页可以选择已有成员，也可添加家庭成员。当前为开发体验版，请使用虚构测试资料。</text>
   </view>
 </template>
 

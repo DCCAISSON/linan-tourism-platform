@@ -54,7 +54,7 @@ function enroll(): void {
         </view>
       </view>
       <view v-else class="info-card parent-notice-card"><text class="card-title">家长告知书</text><text class="detail-line">该团期尚未配置家长告知书，暂不可提交报名。</text></view>
-      <text class="test-notice">当前用于本地流程验证。模拟支付不产生真实扣款。</text>
+      <text class="test-notice">当前为开发体验版。真实支付暂未启用。</text>
       <view class="detail-cta"><button class="button-primary enrollment-entry" :disabled="!trip.canEnroll" @tap="enroll">{{ trip.canEnroll ? '立即报名' : trip.registrationLabel }}</button></view>
     </view>
   </view>

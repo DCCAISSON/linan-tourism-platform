@@ -102,6 +102,27 @@ describe("miniapp API client", () => {
     )
   })
 
+  it("returns expired family sessions to WeChat login before enrollment fails", async () => {
+    const removeStorageSync = vi.fn()
+    const reLaunch = vi.fn()
+    vi.stubGlobal("uni", {
+      getStorageSync: () => "expired-session-token",
+      removeStorageSync,
+      reLaunch,
+    })
+    const api = createMiniappApi({
+      baseUrl: "https://api.example.test",
+      request: async () => ({
+        data: { message: "wechat session is expired" },
+        statusCode: 401,
+      }),
+    })
+
+    await expect(api.listEnrollmentMembers()).rejects.toEqual(new ApiError(401, "登录状态已失效，请重新登录"))
+    expect(removeStorageSync).toHaveBeenCalledWith("linan_wechat_session_token")
+    expect(reLaunch).toHaveBeenCalledWith({ url: "/pages/login/index" })
+  })
+
   it("binds a WeChat identity to the supplied family code and stores the session response", async () => {
     const setStorageSync = vi.fn()
     vi.stubGlobal("uni", { setStorageSync })
