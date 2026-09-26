@@ -11,6 +11,25 @@ import { StaffAuthService } from "./staff-auth.service.js"
 import type { StaffAccess } from "./dev-staff-access.service.js"
 
 describe("StaffAuthService account lifecycle audit", () => {
+  it("uses a Chinese login failure message", async () => {
+    const dataSource = {
+      getRepository: vi.fn((entity: unknown) => {
+        if (entity === StaffAccountEntity) {
+          return { findOneBy: vi.fn().mockResolvedValue(null) }
+        }
+        throw new Error("unexpected repository")
+      }),
+    }
+    const service = new StaffAuthService(
+      { getDataSource: vi.fn().mockResolvedValue(dataSource) } as unknown as ConfigurationDatabaseService,
+      { record: vi.fn() } as unknown as AuditLogService,
+    )
+
+    await expect(service.login("missing", "Wrong1234567")).rejects.toMatchObject({
+      response: { code: "staff_login_failed", message: "账号或密码不正确" },
+    })
+  })
+
   it("records the acting administrator when creating, resetting, and disabling a target account", async () => {
     const target = new StaffAccountEntity()
     target.id = "staff-target"

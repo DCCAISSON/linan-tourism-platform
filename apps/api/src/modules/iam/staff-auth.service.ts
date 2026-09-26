@@ -252,5 +252,5 @@ function malformedInput(message: string): BadRequestException {
 }
 
 function invalidLogin(): UnauthorizedException {
-  return new UnauthorizedException({ code: "staff_login_failed", message: "username or password is invalid" })
+  return new UnauthorizedException({ code: "staff_login_failed", message: "账号或密码不正确" })
 }

@@ -124,6 +124,17 @@ describe.skipIf(databaseUrl === undefined)("managed staff identity", () => {
       .expect(423)
   })
 
+  it("returns a Chinese login failure message for staff users", async () => {
+    await insertStaffAccount({ id: `staff-${scope}-message`, username: `message-${scope}`, password: "Admin1234567" })
+
+    const response = await request(app.getHttpServer())
+      .post("/staff/auth/login")
+      .send({ username: `message-${scope}`, password: "Wrong1234567" })
+      .expect(401)
+
+    expect(response.body).toMatchObject({ code: "staff_login_failed", message: "账号或密码不正确" })
+  })
+
   it("rejects development staff headers in production mode", async () => {
     const previousNodeEnv = process.env["NODE_ENV"]
     const previousAdminOrigin = process.env["ADMIN_WEB_ORIGIN"]
