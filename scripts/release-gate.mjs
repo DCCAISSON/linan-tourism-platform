@@ -126,10 +126,16 @@ function lineNumberAt(content, index) {
 }
 
 function parseArgs(argv) {
-  const injectIndex = argv.indexOf("--inject")
-  const injected = injectIndex < 0 ? [] : (argv[injectIndex + 1] ?? "").split(",").filter(Boolean)
-  const injectedArgIndexes = new Set(injectIndex < 0 ? [] : [injectIndex, injectIndex + 1])
-  const checks = argv.filter((_, index) => !injectedArgIndexes.has(index))
+  const normalized = argv.filter((argument) => argument !== "--")
+  const injectIndex = normalized.indexOf("--inject")
+  const scenarioIndex = normalized.indexOf("--scenario")
+  const injected = injectIndex < 0 ? [] : (normalized[injectIndex + 1] ?? "").split(",").filter(Boolean)
+  const consumedIndexes = new Set([
+    ...(injectIndex < 0 ? [] : [injectIndex, injectIndex + 1]),
+    ...(scenarioIndex < 0 ? [] : [scenarioIndex, scenarioIndex + 1]),
+  ])
+  const checks = normalized.filter((_, index) => !consumedIndexes.has(index))
+  if (scenarioIndex >= 0 && normalized[scenarioIndex + 1]) checks.push(normalized[scenarioIndex + 1])
   return { injected, checks: checks.length > 0 ? checks : ["formal-surface-copy"] }
 }
 

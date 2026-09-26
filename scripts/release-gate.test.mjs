@@ -95,6 +95,17 @@ test("unknown explicit release-gate check is rejected when no injection is provi
   assert.match(result.stderr, /Unknown release-gate check: no-such-check/)
 })
 
+test("package-manager scenario argument selects the formal surface check", () => {
+  const result = spawnSync(
+    process.execPath,
+    [releaseGatePath, "--", "--scenario", "formal-surface-copy"],
+    { encoding: "utf8" },
+  )
+
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(result.stdout, /Release gate ready: no blocker/)
+})
+
 function makeFixture() {
   const root = mkdtempSync(join(tmpdir(), "linan-release-gate-"))
   for (const dir of [
