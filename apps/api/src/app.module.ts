@@ -17,10 +17,11 @@ import { RosterModule } from "./modules/roster/roster.module.js"
 import { TransportModule } from "./modules/transport/transport.module.js"
 import { TravelersModule } from "./modules/travelers/travelers.module.js"
 import { WechatModule } from "./modules/wechat/wechat.module.js"
+import { CapabilitiesController } from "./capabilities.controller.js"
 import { HealthController } from "./health.controller.js"
 
 @Module({
   imports: [IamModule, ConfigurationModule, EnrollmentModule, OrderModule, RosterModule, TransportModule, TravelersModule, RefundApplicationModule, WechatModule, ExecutionModule, EvaluationsModule, FeedbackModule, InsuranceModule, MediaModule, CrmModule, BusinessModule, PretripModule, NotificationsModule],
-  controllers: [HealthController],
+  controllers: [HealthController, CapabilitiesController],
 })
 export class AppModule {}

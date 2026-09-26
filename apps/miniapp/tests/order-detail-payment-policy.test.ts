@@ -1,39 +1,39 @@
-import { readFileSync } from "node:fs"
-import { describe, expect, it } from "vitest"
+﻿import { describe, expect, it } from "vitest"
+import { decidePendingPaymentAction, paymentCapabilitiesClosed, type PaymentCapabilities } from "../src/payment-policy"
 
-const source = readFileSync(new URL("../src/pages/orders/detail.vue", import.meta.url), "utf8")
+const capabilitiesOpen: PaymentCapabilities = {
+  wechatPaymentEnabled: true,
+  wechatRefundEnabled: true,
+  paymentReconciliationEnabled: true,
+}
 
 describe("order detail payment policy", () => {
-  it("uses WeChat payment when enabled and keeps mock behind non-production fallback", () => {
-    // Given
-    const payStart = source.indexOf("async function pay()")
-    const payEnd = source.indexOf("async function loginForWechatPayment")
-    const paySource = source.slice(payStart, payEnd)
+  it("keeps a pending order pending when the server disables WeChat payment", () => {
+    const action = decidePendingPaymentAction({
+      paying: false,
+      capabilities: paymentCapabilitiesClosed,
+      buildWechatPaymentEnabled: true,
+    })
 
-    // When
-    const loginIndex = paySource.indexOf("await loginForWechatPayment()")
-    const createIndex = paySource.indexOf("api.createWechatPayment(orderId.value, code)")
-    const requestIndex = paySource.indexOf("await requestWechatPayment(payment.miniappPayment)")
-    const loadIndex = paySource.indexOf("await load()")
-
-    // Then
-    expect(source).not.toContain("?".repeat(4))
-    expect(paySource).toContain("if (wechatPayEnabled)")
-    expect(paySource).toContain("if (productionBuild) throw new Error")
-    expect(paySource).toContain("await api.createMockPayment(orderId.value)")
-    expect(loginIndex).toBeGreaterThanOrEqual(0)
-    expect(createIndex).toBeGreaterThan(loginIndex)
-    expect(requestIndex).toBeGreaterThan(createIndex)
-    expect(loadIndex).toBeGreaterThan(requestIndex)
+    expect(action.canStartWechatPayment).toBe(false)
+    expect(action.disabled).toBe(true)
+    expect(action.buttonText).toBe("微信支付暂未开放")
+    expect(action.notice).toBe("微信支付暂未开放，请联系工作人员处理。")
+    expect(action.resultingOrderStatus).toBe("pending_payment")
   })
 
-  it("renders mode-specific payment button and notice", () => {
-    // Given / When / Then
-    expect(source).toContain("const paymentButtonText = computed")
-    expect(source).toContain("const paymentActionDisabled = computed")
-    expect(source).toContain("const paymentModeNotice = computed")
-    expect(source).toContain(":disabled=\"paymentActionDisabled\"")
-    expect(source).toContain("{{ paymentButtonText }}")
-    expect(source).toContain("{{ paymentModeNotice }}")
+  it("treats the build flag only as a local upper bound", () => {
+    expect(decidePendingPaymentAction({ paying: false, capabilities: capabilitiesOpen, buildWechatPaymentEnabled: false }).canStartWechatPayment).toBe(false)
+    expect(decidePendingPaymentAction({ paying: false, capabilities: capabilitiesOpen, buildWechatPaymentEnabled: true }).canStartWechatPayment).toBe(true)
+  })
+
+  it("does not expose any local payment action or successful payment result", () => {
+    const action = decidePendingPaymentAction({
+      paying: false,
+      capabilities: paymentCapabilitiesClosed,
+      buildWechatPaymentEnabled: true,
+    })
+
+    expect(Object.values(action).join(" ")).not.toMatch(/mock|模拟|local_mock|支付成功|已支付/)
   })
 })

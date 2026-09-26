@@ -5,11 +5,18 @@ import { routeNames, routes } from "@/router/routes"
 
 describe("admin routes", () => {
   it("allows either explicitly accepted permission for a shared workflow route", () => {
-    const meta = { requiredAnyPermission: ["refunds.review", "refunds.execute"] }
+    const meta = { requiredAnyPermission: ["refunds.review", "refunds.execute"], permissionCapabilities: [{ permissionKey: "refunds.execute", capabilityKey: "wechatRefundEnabled" }] }
     expect(hasRoutePermission(["refunds.review"], meta)).toBe(true)
     expect(hasRoutePermission(["refunds.execute"], meta)).toBe(true)
+    expect(hasRoutePermission(["refunds.execute"], meta, { wechatPaymentEnabled: true, wechatRefundEnabled: false, paymentReconciliationEnabled: true })).toBe(false)
     expect(hasRoutePermission(["refunds.manage"], meta)).toBe(false)
     expect(hasRoutePermission([], meta)).toBe(false)
+  })
+
+  it("requires an enabled platform capability for payment reconciliation", () => {
+    const meta = { requiredPermission: "payments.reconcile", requiredCapability: "paymentReconciliationEnabled" }
+    expect(hasRoutePermission(["payments.reconcile"], meta)).toBe(true)
+    expect(hasRoutePermission(["payments.reconcile"], meta, { wechatPaymentEnabled: true, wechatRefundEnabled: true, paymentReconciliationEnabled: false })).toBe(false)
   })
 
   it("does not ignore a required permission when another accepted grant is present", () => {
@@ -99,12 +106,16 @@ describe("admin routes", () => {
       "refunds.review",
       "refunds.execute",
     ])
+    expect(routes[2]?.children?.find(route => route.name === routeNames.paymentReconciliation)?.meta?.["requiredCapability"]).toBe("paymentReconciliationEnabled")
   })
 
   it("chooses the first route the staff account is allowed to open", () => {
     expect(firstAuthorizedRouteName(["roster.read"])).toBe(routeNames.roster)
     expect(firstAuthorizedRouteName(["orders.read", "roster.read"])).toBe(routeNames.roster)
     expect(firstAuthorizedRouteName(["payments.reconcile"])).toBe(routeNames.paymentReconciliation)
+    expect(firstAuthorizedRouteName(["payments.reconcile"], { wechatPaymentEnabled: true, wechatRefundEnabled: true, paymentReconciliationEnabled: false })).toBeNull()
+    expect(firstAuthorizedRouteName(["refunds.execute"], { wechatPaymentEnabled: true, wechatRefundEnabled: false, paymentReconciliationEnabled: true })).toBeNull()
+    expect(firstAuthorizedRouteName(["refunds.review"], { wechatPaymentEnabled: true, wechatRefundEnabled: false, paymentReconciliationEnabled: true })).toBe(routeNames.refundApplications)
     expect(firstAuthorizedRouteName(["pretrip.write"])).toBe(routeNames.pretrip)
     expect(firstAuthorizedRouteName(["pretrip.school_confirm"])).toBe(routeNames.schoolConfirmation)
     expect(firstAuthorizedRouteName(["notifications.read"])).toBe(routeNames.notifications)

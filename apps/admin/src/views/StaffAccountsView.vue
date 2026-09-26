@@ -68,7 +68,7 @@
         </el-form-item>
         <el-form-item label="权限">
           <el-select v-model="form.permissionKeys" multiple filterable>
-            <el-option v-for="key in permissionOptions" :key="key" :label="key" :value="key" />
+            <el-option v-for="key in permissionOptions" :key="key" :label="permissionLabel(key)" :value="key" />
           </el-select>
         </el-form-item>
         <el-form-item label="数据范围">
@@ -90,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue"
+import { computed, onMounted, reactive, ref } from "vue"
 
 import {
   createStaffAccount,
@@ -103,15 +103,18 @@ import {
   type StaffPermissionKey,
   type StaffScope,
 } from "@/api/auth"
+import { enabledPlatformCapabilities, getCapabilities, type PlatformCapabilities } from "@/api/capabilities"
 import { readableApiError } from "@/api/configuration"
 
-const permissionOptions: readonly StaffPermissionKey[] = staffPermissionKeys
+const financePermissionKeys = new Set<StaffPermissionKey>(["refunds.preview", "refunds.simulate", "refunds.manage", "refunds.execute", "payments.reconcile"])
+const permissionOptions = computed(() => staffPermissionKeys.filter(isPermissionAvailable))
 
 const accounts = ref<readonly StaffAccount[]>([])
 const drawerOpen = ref(false)
 const saving = ref(false)
 const errorMessage = ref("")
 const canManageStaffAccounts = ref(false)
+const capabilities = ref<PlatformCapabilities>(enabledPlatformCapabilities)
 const form = reactive({
   username: "",
   displayName: "",
@@ -122,8 +125,10 @@ const form = reactive({
 })
 
 onMounted(async () => {
-  const staff = await getCurrentStaff()
+  const [staff, platformCapabilities] = await Promise.all([getCurrentStaff(), getCapabilities()])
+  capabilities.value = platformCapabilities
   canManageStaffAccounts.value = staff.permissionKeys.includes("staff_accounts.manage")
+  form.permissionKeys = form.permissionKeys.filter(isPermissionAvailable)
   await loadAccounts()
 })
 
@@ -143,7 +148,7 @@ async function createAccount(): Promise<void> {
       username: form.username,
       displayName: form.displayName,
       temporaryPassword: form.temporaryPassword,
-      permissionKeys: form.permissionKeys,
+      permissionKeys: form.permissionKeys.filter(isPermissionAvailable),
       scopes: [{ kind: form.scopeKind, id: form.scopeKind === "all" ? null : form.scopeId }],
     })
     drawerOpen.value = false
@@ -170,6 +175,80 @@ async function disableAccount(account: StaffAccount): Promise<void> {
 }
 
 function permissionSummary(account: StaffAccount): string {
-  return account.permissionKeys.join("、")
+  return account.permissionKeys.filter(isPermissionAvailable).map(permissionLabel).join("、")
+}
+
+function isPermissionAvailable(permissionKey: StaffPermissionKey): boolean {
+  if (!financePermissionKeys.has(permissionKey)) {
+    return true
+  }
+  if (permissionKey === "payments.reconcile") {
+    return capabilities.value.paymentReconciliationEnabled
+  }
+  return capabilities.value.wechatRefundEnabled
+}
+
+function permissionLabel(permissionKey: StaffPermissionKey): string {
+  return permissionLabels[permissionKey]
+}
+
+const permissionLabels: Record<StaffPermissionKey, string> = {
+  "workbench.read": "查看工作台",
+  "configuration.read": "查看活动配置",
+  "configuration.write": "维护活动配置",
+  "roster.read": "查看名单",
+  "roster.import": "导入名单",
+  "roster.correct": "更正名单",
+  "roster.export": "导出名单",
+  "roster.export_sensitive": "导出敏感名单",
+  "orders.read": "查看订单",
+  "refunds.preview": "退款试算",
+  "refunds.simulate": "退款核验",
+  "refunds.manage": "退款管理",
+  "refunds.review": "退款申请审核",
+  "refunds.execute": "退款执行",
+  "payments.reconcile": "支付对账",
+  "execution.read": "查看导游执行",
+  "execution.write": "填写导游执行",
+  "execution.manage": "管理导游执行",
+  "execution.publish": "发布导游执行",
+  "health.read": "查看健康授权",
+  "health.manage": "管理健康授权",
+  "evaluations.read": "查看学生评价",
+  "evaluations.write": "填写学生评价",
+  "evaluations.confirm": "确认学生评价",
+  "evaluations.standard.write": "维护评价标准",
+  "evaluations.standard.confirm": "确认评价标准",
+  "evaluations.school_report": "查看学校报告",
+  "feedback.read": "查看服务反馈",
+  "feedback.submit": "提交服务反馈",
+  "feedback.review": "审核服务反馈",
+  "insurance.read": "查看保险",
+  "insurance.write": "维护保险",
+  "insurance.export": "导出保险名单",
+  "insurance.sensitive.export": "导出保险敏感信息",
+  "media.read": "查看影像",
+  "media.upload": "上传影像",
+  "media.publish": "发布影像",
+  "media.delete": "删除影像",
+  "crm.read": "查看客户",
+  "crm.write": "维护客户",
+  "crm.export": "导出客户",
+  "crm.contact.read": "查看客户联系方式",
+  "business.read": "查看商旅业务",
+  "business.write": "维护商旅业务",
+  "business.followup": "维护跟进记录",
+  "transport.read": "查看车辆安排",
+  "transport.write": "维护车辆安排",
+  "transport.export": "导出车辆安排",
+  "pretrip.read": "查看行前服务",
+  "pretrip.write": "维护行前服务",
+  "pretrip.school_confirm": "学校行前确认",
+  "notifications.read": "查看通知",
+  "notifications.write": "编辑通知",
+  "notifications.send": "发送通知",
+  "staff_accounts.manage": "管理员工账号",
+  "audit.read": "查看审计",
+  "sensitive_data.read": "查看敏感数据",
 }
 </script>

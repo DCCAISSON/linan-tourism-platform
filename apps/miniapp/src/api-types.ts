@@ -201,6 +201,12 @@ export type WechatLoginResponse = {
   readonly expiresAt: string
 }
 
+export type ServiceCapabilities = {
+  readonly wechatPaymentEnabled: boolean
+  readonly wechatRefundEnabled: boolean
+  readonly paymentReconciliationEnabled: boolean
+}
+
 export type WechatMiniappPayment = {
   readonly id: string
   readonly orderId: string
@@ -258,6 +264,7 @@ export type MiniappApi = {
   readonly loginWithWechatCode: (code: string, familyCode?: string) => Promise<WechatLoginResponse>
   readonly bindWechatCode: (code: string, familyCode: string) => Promise<WechatLoginResponse>
   readonly createWechatPayment: (orderId: string, code: string) => Promise<WechatMiniappPayment>
+  readonly getCapabilities: () => Promise<ServiceCapabilities>
 }
 
 export type MiniappApiOptions = {

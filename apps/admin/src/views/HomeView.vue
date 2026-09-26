@@ -13,7 +13,7 @@
         <article class="workbench-stat"><span>累计已付款人数</span><strong data-testid="workbench-paid-headcount">{{ summary.paidHeadcount }} 人</strong><small>进入已付款名单的参加人员</small></article>
         <article class="workbench-stat workbench-stat--money"><span>累计已付款金额</span><strong data-testid="workbench-paid-amount">{{ formatFen(summary.paidAmountFen) }}</strong><small>成功付款对应的人员费用</small></article>
       </div>
-      <p class="workbench-caption">统计更新：{{ dateTime(summary.generatedAt) }}。本地演示付款包含模拟数据；退款验证不改变以上统计。</p>
+      <p class="workbench-caption">统计更新：{{ dateTime(summary.generatedAt) }}。退款登记不改变已付款统计。</p>
       <section class="workbench-card" aria-labelledby="upcoming-title">
         <div class="workbench-card-heading"><h3 id="upcoming-title">近期出发团期</h3><span>{{ summary.upcomingSessionCount }} 个</span></div>
         <p class="workbench-caption">范围：{{ dateTime(summary.upcomingFrom) }} 至 {{ dateTime(summary.upcomingUntil) }}，以服务器时间起算30天。</p>
@@ -36,7 +36,7 @@
       <div class="workbench-shortcuts">
         <router-link to="/configuration"><strong>管理学校、课程与团期</strong><span>维护活动内容、日期和学校价格</span></router-link>
         <router-link to="/roster"><strong>查询名单与导出 Excel</strong><span>按团期、学校、年级和班级查询</span></router-link>
-        <router-link to="/orders"><strong>查看订单与退款试算</strong><span>核对参加人员、历史金额和本地模拟结果</span></router-link>
+        <router-link to="/orders"><strong>查看订单与退款</strong><span>核对参加人员、历史金额和退款处理记录</span></router-link>
       </div>
     </section>
   </section>

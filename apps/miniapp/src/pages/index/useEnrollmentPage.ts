@@ -1,8 +1,9 @@
 import { computed, onMounted, reactive, ref } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
 import {
-  createMiniappApi, type Grade, type MockPayment,
-  type Order, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatMiniappPayment,
+  createMiniappApi, type Grade,
+  type Order,
+  type ServiceCapabilities, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatMiniappPayment,
 } from "../../api"
 import { activeEnrollmentOptions } from "../../activity-catalog"
 import {
@@ -15,12 +16,21 @@ import {
   type FamilyMember,
   type LoadState, type PageMode,
 } from "../../enrollment-flow"
+import {
+  createLocalMemberCode, readContactFieldError, readFirstEnrollmentInvalidTarget, readMemberFieldError,
+  type ContactFieldName, type MemberFieldName,
+} from "../../enrollment-validation"
 import { readableError, readPickerIndex, readStateTone, stateLabel } from "./page-helpers"
+import { canUseWechatPayment, paymentCapabilitiesClosed, paymentUnavailableNotice } from "../../payment-policy"
 
 export type PickerChangeEvent = {
   readonly detail: {
     readonly value: number | string
   }
+}
+
+export function scrollToEnrollmentAnchor(anchor: string): void {
+  uni.pageScrollTo({ selector: `#${anchor}`, duration: 200 })
 }
 
 export function useEnrollmentPage() {
@@ -31,7 +41,8 @@ export function useEnrollmentPage() {
   const submissionCode = ref("")
   const currentTimeIso = ref(new Date().toISOString())
   const order = ref<Order | null>(null)
-  const payment = ref<MockPayment | WechatMiniappPayment | null>(null)
+  const payment = ref<WechatMiniappPayment | null>(null)
+  const paymentCapabilities = ref<ServiceCapabilities>(paymentCapabilitiesClosed)
   const wantedSessionId = ref("")
   const savedMembers = ref<readonly SavedEnrollmentMember[]>([])
   onLoad((query) => { wantedSessionId.value = query?.["sessionId"] ?? "" })
@@ -65,14 +76,14 @@ export function useEnrollmentPage() {
     }
     return readEnrollmentReadiness(draft)
   })
-  const canReview = computed(() => loadState.value === "ready" && pageMode.value === "editing" && readiness.value.ready)
+  const canReview = computed(() => loadState.value === "ready" && pageMode.value === "editing")
   const canSubmit = computed(() => pageMode.value === "review" && readiness.value.ready)
-  const canRetryPayment = computed(() => canStartPayment(order.value) && pageMode.value === "paymentPending")
+  const wechatPaymentAvailable = computed(() => canUseWechatPayment({ capabilities: paymentCapabilities.value, buildWechatPaymentEnabled }))
+  const canRetryPayment = computed(() => wechatPaymentAvailable.value && canStartPayment(order.value) && pageMode.value === "paymentPending")
   const loadStateLabel = computed(() => stateLabel(loadState.value, pageMode.value))
   const stateTone = computed(() => readStateTone(loadState.value, pageMode.value))
   const orderLabel = computed(() => orderStatusLabel(order.value))
-  const wechatPayEnabled = import.meta.env["VITE_WECHAT_PAY_ENABLED"] === "true"
-  const productionBuild = import.meta.env["PROD"] === true
+  const buildWechatPaymentEnabled = import.meta.env["VITE_WECHAT_PAY_ENABLED"] === "true"
 
   onMounted(() => {
     void loadCatalog()
@@ -84,14 +95,16 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
     resetCheckout()
     try {
-      const [activities, schools, sessions, members] = await Promise.all([
+      const [activities, schools, sessions, members, capabilities] = await Promise.all([
         api.listCatalogItems(),
         api.listSchools(),
         api.listTourSessions(),
         api.listEnrollmentMembers(),
+        api.getCapabilities(),
       ])
       const options = activeEnrollmentOptions(activities, sessions, schools)
       savedMembers.value = members
+      paymentCapabilities.value = capabilities
       catalog.schools = [...options.schools]
       catalog.sessions = [...options.sessions]
       catalog.grades = []
@@ -114,20 +127,24 @@ export function useEnrollmentPage() {
   async function onSchoolChange(event: PickerChangeEvent): Promise<void> {
     const school = catalog.schools[readPickerIndex(event)]
     if (school === undefined) return
+    const localMembers = draft.familyMembers.filter((member) => member.remoteMemberId === undefined && hasMemberInput(member))
     draft.selectedSchoolId = school.id
     draft.selectedGradeId = ""
     draft.selectedClassId = ""
     draft.selectedTourSessionId = catalog.sessions.find((session) => session.id === wantedSessionId.value && session.organizationId === school.id)?.id ?? ""
-    draft.familyMembers = savedMembers.value.filter((member) => member.schoolId === school.id).map((member) => ({
-      id: member.id,
-      code: member.code,
-      displayName: member.displayName,
-      participantKind: member.participantKind ?? "student",
-      identityNumber: member.identityNumberMasked ?? "",
-      phone: member.phoneMasked ?? "",
-      remoteMemberId: member.id,
-      selected: false,
-    }))
+    draft.familyMembers = [
+      ...savedMembers.value.filter((member) => member.schoolId === school.id).map((member) => ({
+        id: member.id,
+        code: member.code,
+        displayName: member.displayName,
+        participantKind: member.participantKind ?? "student",
+        identityNumber: member.identityNumberMasked ?? "",
+        phone: member.phoneMasked ?? "",
+        remoteMemberId: member.id,
+        selected: false,
+      })),
+      ...localMembers,
+    ]
     catalog.grades = []
     catalog.classes = []
     resetCheckout()
@@ -168,9 +185,10 @@ export function useEnrollmentPage() {
   }
 
   function addMember(): void {
+    const memberId = `local-member-${Date.now()}-${draft.familyMembers.length + 1}`
     draft.familyMembers.push({
-      id: `local-member-${Date.now()}-${draft.familyMembers.length + 1}`,
-      code: "",
+      id: memberId,
+      code: createLocalMemberCode(memberId),
       displayName: "",
       participantKind: "student",
       identityNumber: "",
@@ -189,8 +207,15 @@ export function useEnrollmentPage() {
 
   function enterReview(): void {
     currentTimeIso.value = new Date().toISOString()
-    if (!readiness.value.ready) {
-      errorMessage.value = readiness.value.reason
+    if (!selectedTripGate.value.open) {
+      errorMessage.value = selectedTripGate.value.reason
+      scrollToEnrollmentAnchor("enrollment-session-field")
+      return
+    }
+    const target = readFirstEnrollmentInvalidTarget(draft)
+    if (target !== undefined) {
+      errorMessage.value = target.reason
+      scrollToEnrollmentAnchor(target.anchor)
       return
     }
     errorMessage.value = ""
@@ -218,7 +243,7 @@ export function useEnrollmentPage() {
       )
       order.value = createdOrder
       pageMode.value = nextPageModeForOrder(createdOrder)
-      if (canStartPayment(createdOrder)) {
+      if (wechatPaymentAvailable.value && canStartPayment(createdOrder)) {
         await startPayment()
       }
     } catch (error) {
@@ -233,17 +258,16 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
     pageMode.value = "paymentPending"
     try {
-      if (wechatPayEnabled) {
-        const wechatPayment = await api.createWechatPayment(currentOrder.id, await loginForWechatPayment())
-        await requestWechatPayment(wechatPayment.miniappPayment)
-        payment.value = wechatPayment
-      } else {
-        if (productionBuild) throw new Error("微信支付未启用")
-        payment.value = await api.createMockPayment(currentOrder.id)
+      if (!wechatPaymentAvailable.value) {
+        errorMessage.value = paymentUnavailableNotice
+        return
       }
+      const wechatPayment = await api.createWechatPayment(currentOrder.id, await loginForWechatPayment())
+      await requestWechatPayment(wechatPayment.miniappPayment)
+      payment.value = wechatPayment
       await refreshOrder()
     } catch (error) {
-      errorMessage.value = readableError(error, "支付发起失败，请重试")
+      errorMessage.value = readableError(error, "微信支付发起失败，请稍后重试")
     }
   }
 
@@ -275,10 +299,26 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     }
   }
 
+
   function resetCheckout(): void {
     submissionCode.value = ""
     order.value = null
     payment.value = null
+  }
+
+  function hasMemberInput(member: FamilyMember): boolean {
+    return member.selected
+      || member.displayName.trim().length > 0
+      || (member.identityNumber ?? "").trim().length > 0
+      || (member.phone ?? "").trim().length > 0
+  }
+
+  function memberFieldError(member: FamilyMember, field: MemberFieldName): string {
+    return readMemberFieldError(member, field) ?? ""
+  }
+
+  function contactFieldError(field: ContactFieldName): string {
+    return readContactFieldError(draft, field) ?? ""
   }
 
   return {
@@ -290,6 +330,7 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     canSubmit,
     catalog,
     classNames,
+    contactFieldError,
     draft,
     enterReview,
     errorMessage,
@@ -297,6 +338,7 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     loadCatalog,
     loadState,
     loadStateLabel,
+    memberFieldError,
     onClassChange,
     onGradeChange,
     onSchoolChange,
@@ -305,6 +347,8 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     orderLabel,
     pageMode,
     payment,
+    paymentCapabilities,
+    paymentUnavailableNotice,
     readiness,
     refreshOrder,
     schoolNames,
@@ -317,6 +361,7 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     startPayment,
     stateTone,
     submissionCode,
+    wechatPaymentAvailable,
     submitEnrollment,
     toggleMember,
   }

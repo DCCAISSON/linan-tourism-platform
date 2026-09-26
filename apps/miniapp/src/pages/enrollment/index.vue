@@ -8,7 +8,6 @@ import { useEnrollmentPage } from "../index/useEnrollmentPage"
 const page = useEnrollmentPage()
 const {
   backToEdit,
-  canReview,
   canSubmit,
   enterReview,
   errorMessage,
@@ -34,8 +33,8 @@ const {
 
     <view class="hero">
       <text class="hero__eyebrow">家长小程序</text>
-      <text class="hero__title flow-title">研学报名与支付</text>
-      <text class="hero__summary">选择行程和家庭成员，核对后提交报名，并以订单状态确认支付结果。</text>
+      <text class="hero__title flow-title">研学报名</text>
+      <text class="hero__summary">选择行程和参加人，核对信息后提交报名。</text>
     </view>
 
     <view class="flow-stepper" aria-label="报名步骤">
@@ -49,7 +48,7 @@ const {
       </view>
       <view class="flow-step" :class="{ 'flow-step--active': pageMode === 'paymentPending' }">
         <text class="flow-step__index">3</text>
-        <text class="flow-step__label">支付</text>
+        <text class="flow-step__label">确认</text>
       </view>
       <view class="flow-step" :class="{ 'flow-step--active': pageMode === 'paid' }">
         <text class="flow-step__index">4</text>
@@ -72,7 +71,7 @@ const {
 
       <view v-if="pageMode === 'editing' || pageMode === 'review' || pageMode === 'submitting'" class="bottom-actions">
         <button v-if="pageMode === 'review'" class="secondary-button" @tap="backToEdit">返回修改</button>
-        <button v-if="pageMode === 'editing'" class="primary-button" :disabled="!canReview" @tap="enterReview">
+        <button v-if="pageMode === 'editing'" class="primary-button" @tap="enterReview">
           核对信息
         </button>
         <button
@@ -81,7 +80,7 @@ const {
           :disabled="!canSubmit || pageMode === 'submitting'"
           @tap="submitEnrollment"
         >
-          {{ pageMode === "submitting" ? "提交中" : "确认提交并支付" }}
+          {{ pageMode === "submitting" ? "提交中" : "确认提交" }}
         </button>
       </view>
 

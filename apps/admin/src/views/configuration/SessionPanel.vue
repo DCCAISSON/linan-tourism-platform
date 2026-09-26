@@ -42,8 +42,36 @@
             <label for="notice-title">标题</label>
             <input id="notice-title" v-model="noticeTitle" required maxlength="255" />
           </div>
+          <div class="field">
+            <label for="notice-destination">目的地</label>
+            <input id="notice-destination" v-model="noticeDestination" required maxlength="255" placeholder="请输入本团期目的地" />
+          </div>
+          <div class="field">
+            <label for="notice-departure">集合地点</label>
+            <input id="notice-departure" v-model="noticeDeparturePlace" required maxlength="255" placeholder="请输入集合地点" />
+          </div>
+          <div class="field">
+            <label for="notice-meal">餐食说明</label>
+            <input id="notice-meal" v-model="noticeMealNote" required maxlength="255" placeholder="请输入餐食说明" />
+          </div>
+          <div class="field configuration-form__wide">
+            <label>行程安排（7段）</label>
+            <input v-for="(_, index) in noticeItinerary" :key="index" v-model="noticeItinerary[index]" required maxlength="255" :placeholder="`第 ${index + 1} 段行程`" />
+          </div>
+          <div class="field">
+            <label for="notice-prices">单价说明（每行一条）</label>
+            <textarea id="notice-prices" v-model="noticeUnitPricesText" required rows="4" placeholder="学生128元/人" />
+          </div>
+          <div class="field">
+            <label for="notice-packages">组合示例（每行一条）</label>
+            <textarea id="notice-packages" v-model="noticePackageExamplesText" required rows="4" placeholder="1名学生128元" />
+          </div>
+          <div class="field">
+            <label for="notice-reminders">温馨提醒（每行一条）</label>
+            <textarea id="notice-reminders" v-model="noticeRemindersText" required rows="4" placeholder="请按工作人员通知时间集合" />
+          </div>
           <p v-if="formError" class="form-error">{{ formError }}</p>
-          <button type="submit" :disabled="submitting || tourSessions.length === 0">创建演示告知书</button>
+          <button type="submit" :disabled="submitting || tourSessions.length === 0">创建告知书</button>
         </fieldset>
       </form>
     </template>
@@ -111,25 +139,14 @@ const emit = defineEmits<{
 
 const noticeSessionId = ref("")
 const noticeVersion = ref("v1")
-const noticeTitle = ref("[演示]大明山地质研学告知书 v1")
-
-const demoNoticeContent: NoticeContent = {
-  destination: "[演示]大明山地质研学",
-  departurePlace: "[演示]临安旅游集散中心门口",
-  mealNote: "[演示]含午餐，特殊餐食由家长提前备注",
-  itinerary: [
-    "[演示]1. 集合签到与安全提醒",
-    "[演示]2. 乘车前往大明山",
-    "[演示]3. 地质地貌观察",
-    "[演示]4. 午餐与休整",
-    "[演示]5. 研学任务记录",
-    "[演示]6. 分享总结",
-    "[演示]7. 返程交接",
-  ],
-  unitPrices: ["[演示]学生195元/人", "[演示]成人195元/人"],
-  packageExamples: ["[演示]1名学生195元", "[演示]1名成人195元", "[演示]1名学生+1名成人390元"],
-  reminders: ["[演示]请携带身份证件", "[演示]本内容仅用于开发演示，非实时活动安排"],
-}
+const noticeTitle = ref("")
+const noticeDestination = ref("")
+const noticeDeparturePlace = ref("")
+const noticeMealNote = ref("")
+const noticeItinerary = ref(["", "", "", "", "", "", ""])
+const noticeUnitPricesText = ref("")
+const noticePackageExamplesText = ref("")
+const noticeRemindersText = ref("")
 
 function createNotice(): void {
   emit("createNotice", {
@@ -137,9 +154,21 @@ function createNotice(): void {
     payload: {
       version: noticeVersion.value,
       title: noticeTitle.value,
-      contentJson: demoNoticeContent,
+      contentJson: {
+        destination: noticeDestination.value.trim(),
+        departurePlace: noticeDeparturePlace.value.trim(),
+        mealNote: noticeMealNote.value.trim(),
+        itinerary: noticeItinerary.value.map(item => item.trim()),
+        unitPrices: readLines(noticeUnitPricesText.value),
+        packageExamples: readLines(noticePackageExamplesText.value),
+        reminders: readLines(noticeRemindersText.value),
+      },
     },
   })
+}
+
+function readLines(value: string): readonly string[] {
+  return value.split(/\r?\n/u).map(item => item.trim()).filter(Boolean)
 }
 
 function noticeVersionsBySession(sessionId: string): readonly NoticeVersion[] {

@@ -9,8 +9,6 @@ import type {
   TransportVehicleResponse,
 } from "./transport.types.js"
 
-const DEMO_WARNING = "样表合计488人与需求口径492人存在差异，本演示保留该差异，正式上线前请按最终名单核准。"
-
 export function validateVehicle(vehicle: TransportVehicleInput, sequences: Set<number>, plates: Set<string>): void {
   if (!Number.isInteger(vehicle.sequence) || vehicle.sequence <= 0) {
     throw malformedTransportInput("车号必须是正整数")
@@ -62,7 +60,7 @@ export function toPlan(session: TourSessionEntity, records: readonly TransportAl
     planVersion,
     vehicles: vehicleList,
     totals: totalVehicles(vehicleList),
-    warnings: [DEMO_WARNING, ...vehicleList.flatMap((vehicle) => vehicle.warnings)],
+    warnings: vehicleList.flatMap((vehicle) => vehicle.warnings),
   }
 }
 

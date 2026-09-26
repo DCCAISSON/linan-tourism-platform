@@ -1,5 +1,6 @@
 ﻿<script setup lang="ts">
 import { formatDateLabel, formatFen } from "../../enrollment-flow"
+import { memberFieldAnchor } from "../../enrollment-validation"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
 const props = defineProps<{
@@ -11,8 +12,10 @@ const {
   availableSessions,
   catalog,
   classNames,
+  contactFieldError,
   draft,
   gradeNames,
+  memberFieldError,
   onClassChange,
   onGradeChange,
   onSchoolChange,
@@ -36,28 +39,28 @@ const {
     </view>
 
     <picker mode="selector" :range="schoolNames" @change="onSchoolChange">
-      <view class="field-control">
+      <view id="enrollment-school-field" class="field-control">
         <text class="field-control__label">学校</text>
         <text class="field-control__value">{{ selectedSchool?.name ?? "请选择学校" }}</text>
       </view>
     </picker>
 
     <picker mode="selector" :range="gradeNames" :disabled="catalog.grades.length === 0" @change="onGradeChange">
-      <view class="field-control" :class="{ 'field-control--disabled': catalog.grades.length === 0 }">
+      <view id="enrollment-grade-field" class="field-control" :class="{ 'field-control--disabled': catalog.grades.length === 0 }">
         <text class="field-control__label">年级</text>
         <text class="field-control__value">{{ selectedGrade?.name ?? "请选择年级" }}</text>
       </view>
     </picker>
 
     <picker mode="selector" :range="classNames" :disabled="catalog.classes.length === 0" @change="onClassChange">
-      <view class="field-control" :class="{ 'field-control--disabled': catalog.classes.length === 0 }">
+      <view id="enrollment-class-field" class="field-control" :class="{ 'field-control--disabled': catalog.classes.length === 0 }">
         <text class="field-control__label">班级</text>
         <text class="field-control__value">{{ selectedClass?.name ?? "请选择班级" }}</text>
       </view>
     </picker>
   </view>
 
-  <view class="section">
+  <view id="enrollment-members-field" class="section">
     <view class="section__header">
       <view>
         <text class="section__title">参与成员</text>
@@ -67,7 +70,7 @@ const {
     </view>
 
     <view v-if="draft.familyMembers.length === 0" class="empty-line">
-      <text>尚未添加家庭成员。请使用成员编号和称呼，不填写真实未成年人姓名。</text>
+      <text>尚未添加参与成员。请添加学生或成人参与人后继续报名。</text>
     </view>
 
     <view v-for="member in draft.familyMembers" :key="member.id" class="member-row">
@@ -76,14 +79,21 @@ const {
           <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': (member.participantKind ?? 'student') === 'student' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'student'">学生</button>
           <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': member.participantKind === 'adult' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'adult'">成人</button>
         </view>
-        <view class="input-label">成员编号</view>
-        <input v-model="member.code" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="64" placeholder="成员编号" placeholder-class="input-placeholder" />
-        <view class="input-label">成员称呼</view>
-        <input v-model="member.displayName" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="120" placeholder="成员称呼" placeholder-class="input-placeholder" />
-        <view class="input-label">证件号码</view>
-        <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="证件号码" placeholder-class="input-placeholder" />
-        <view class="input-label">联系电话</view>
-        <input v-model="member.phone" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="11" type="number" placeholder="联系电话" placeholder-class="input-placeholder" />
+        <view :id="memberFieldAnchor(member.id, 'displayName')" class="field-anchor">
+          <view class="input-label"><text class="required-mark">*</text>姓名</view>
+          <input v-model="member.displayName" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="120" placeholder="请输入姓名" placeholder-class="input-placeholder" />
+          <text v-if="memberFieldError(member, 'displayName').length > 0" class="field-error">{{ memberFieldError(member, 'displayName') }}</text>
+        </view>
+        <view :id="memberFieldAnchor(member.id, 'identityNumber')" class="field-anchor">
+          <view class="input-label"><text class="required-mark">*</text>证件号码</view>
+          <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="证件号码" placeholder-class="input-placeholder" />
+          <text v-if="memberFieldError(member, 'identityNumber').length > 0" class="field-error">{{ memberFieldError(member, 'identityNumber') }}</text>
+        </view>
+        <view :id="memberFieldAnchor(member.id, 'phone')" class="field-anchor">
+          <view class="input-label"><text class="required-mark">*</text>联系电话</view>
+          <input v-model="member.phone" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="11" type="number" placeholder="请输入11位手机号码" placeholder-class="input-placeholder" />
+          <text v-if="memberFieldError(member, 'phone').length > 0" class="field-error">{{ memberFieldError(member, 'phone') }}</text>
+        </view>
         <text v-if="member.participantKind === 'adult'" class="member-row__hint">成人参与人无需选择年级和班级</text>
       </view>
       <button class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
@@ -94,18 +104,28 @@ const {
 
   <view class="section">
     <text class="section__title">联系人</text>
-    <view class="input-label input-label--block">家长联系人</view>
-    <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="家长联系人" placeholder-class="input-placeholder" />
-    <view class="input-label input-label--block">紧急联系人姓名</view>
-    <input v-model="draft.emergencyContact.name" class="text-input text-input--block" maxlength="120" placeholder="紧急联系人姓名" placeholder-class="input-placeholder" />
-    <view class="input-label input-label--block">紧急联系人电话</view>
-    <input v-model="draft.emergencyContact.phone" class="text-input text-input--block" maxlength="32" type="number" placeholder="紧急联系人电话" placeholder-class="input-placeholder" />
+    <text class="required-note"><text class="required-mark">*</text>为必填项，用于报名核对、保险登记和行前联系。</text>
+    <view id="enrollment-contact-name-field" class="field-anchor">
+      <view class="input-label input-label--block"><text class="required-mark">*</text>家长联系人</view>
+      <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="家长联系人" placeholder-class="input-placeholder" />
+      <text v-if="contactFieldError('contactName').length > 0" class="field-error">{{ contactFieldError('contactName') }}</text>
+    </view>
+    <view id="enrollment-emergency-name-field" class="field-anchor">
+      <view class="input-label input-label--block"><text class="required-mark">*</text>紧急联系人姓名</view>
+      <input v-model="draft.emergencyContact.name" class="text-input text-input--block" maxlength="120" placeholder="紧急联系人姓名" placeholder-class="input-placeholder" />
+      <text v-if="contactFieldError('emergencyContactName').length > 0" class="field-error">{{ contactFieldError('emergencyContactName') }}</text>
+    </view>
+    <view id="enrollment-emergency-phone-field" class="field-anchor">
+      <view class="input-label input-label--block"><text class="required-mark">*</text>紧急联系人电话</view>
+      <input v-model="draft.emergencyContact.phone" class="text-input text-input--block" maxlength="11" type="number" placeholder="请输入11位手机号码" placeholder-class="input-placeholder" />
+      <text v-if="contactFieldError('emergencyContactPhone').length > 0" class="field-error">{{ contactFieldError('emergencyContactPhone') }}</text>
+    </view>
   </view>
 
   <view class="section">
     <text class="section__title">行程</text>
     <picker mode="selector" :range="sessionNames" :disabled="availableSessions.length === 0" @change="onSessionChange">
-      <view class="field-control" :class="{ 'field-control--disabled': availableSessions.length === 0 }">
+      <view id="enrollment-session-field" class="field-control" :class="{ 'field-control--disabled': availableSessions.length === 0 }">
         <text class="field-control__label">可报名团期</text>
         <text class="field-control__value">{{ selectedSession?.code ?? "请选择团期" }}</text>
       </view>
@@ -117,7 +137,7 @@ const {
     </view>
   </view>
 
-  <view class="section">
+  <view id="enrollment-agreement-field" class="section">
     <text class="section__title">协议版本确认</text>
     <button class="consent-button" :class="{ 'consent-button--on': draft.agreementAccepted }" @tap="draft.agreementAccepted = !draft.agreementAccepted">
       {{ draft.agreementAccepted ? "已同意" : "阅读并同意" }}《研学报名服务协议》（第 1 版）
@@ -214,6 +234,26 @@ const {
 
 .input-label--block {
   margin-top: 12px;
+}
+
+.required-mark {
+  color: var(--status-error);
+}
+
+.required-note {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.field-error {
+  display: block;
+  margin-top: 4px;
+  color: var(--status-error);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .text-input {

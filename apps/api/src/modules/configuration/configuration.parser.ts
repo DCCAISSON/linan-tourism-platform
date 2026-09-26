@@ -275,7 +275,6 @@ export function parseNoticeVersion(body: unknown): NewNoticeVersion {
   const title = readString(record, "title")
   const version = readString(record, "version")
   const content = readNoticeContent(record["contentJson"])
-  ensureDemoNotice(title, content)
   return { version, title, contentJson: content }
 }
 
@@ -309,20 +308,4 @@ function readStringList(record: UnknownRecord, field: string): readonly string[]
     }
     return item.trim()
   })
-}
-
-function ensureDemoNotice(title: string, content: NewNoticeVersion["contentJson"]): void {
-  const text = [
-    title,
-    content.destination,
-    content.departurePlace,
-    content.mealNote,
-    ...content.itinerary,
-    ...content.unitPrices,
-    ...content.packageExamples,
-    ...content.reminders,
-  ].join("\n")
-  if (!text.includes("[演示]大明山地质研学")) {
-    throw malformedInput("notice content must use the [演示]大明山地质研学 demo data")
-  }
 }

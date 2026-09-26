@@ -60,7 +60,7 @@ describe("enrollment flow state", () => {
     // Given
     const draft: EnrollmentDraft = {
       ...createEmptyDraft(), selectedSchoolId: "org-school-1", selectedTourSessionId: "session-1",
-      contactName: "演示家长", emergencyContact: { name: "演示联系人", phone: "10000000000" }, agreementAccepted: true,
+      contactName: "演示家长", emergencyContact: { name: "演示联系人", phone: virtualPhone("3000") }, agreementAccepted: true,
       familyMembers: [
         { id: "member-a", remoteMemberId: "member-a", code: "child-a", displayName: "演示甲", selected: true },
         { id: "member-b", remoteMemberId: "member-b", code: "child-b", displayName: "演示乙", selected: true },
@@ -88,7 +88,7 @@ describe("enrollment flow state", () => {
       contactName: "家长联系人",
       emergencyContact: {
         name: "备用联系人",
-        phone: "10000000000",
+        phone: virtualPhone("3008"),
       },
       selectedSchoolId: "org-school-1",
       selectedGradeId: "grade-1",
@@ -130,7 +130,7 @@ describe("enrollment flow state", () => {
       memberIds: ["member-real-a"],
       contactName: "家长联系人",
       emergencyContactName: "备用联系人",
-      emergencyContactPhone: "10000000000",
+      emergencyContactPhone: virtualPhone("3008"),
       agreementVersion: FAMILY_ENROLLMENT_AGREEMENT_VERSION,
       schemaVersion: DOMAIN_SCHEMA_VERSION,
       noticeVersionId: "notice-1",
@@ -261,7 +261,179 @@ describe("enrollment flow state", () => {
       ],
     }
 
-    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写证件号码和联系电话" })
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写参加人的证件号码" })
+  })
+
+  it("requires a selected member name before review", () => {
+    const draft: EnrollmentDraft = {
+      ...createEmptyDraft(),
+      selectedSchoolId: "org-school-1",
+      selectedGradeId: "grade-1",
+      selectedClassId: "class-1",
+      selectedTourSessionId: "session-1",
+      contactName: "Family Contact",
+      emergencyContact: { name: "Emergency Contact", phone: virtualPhone("3008") },
+      agreementAccepted: true,
+      familyMembers: [
+        {
+          id: "local-a",
+          code: "member-a",
+          displayName: "",
+          selected: true,
+          participantKind: "student",
+          identityNumber: virtualResidentId("20100101", "013"),
+          phone: virtualPhone("3009"),
+        },
+      ],
+    }
+
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写参加人姓名" })
+  })
+
+  it("requires valid mainland identity and mobile formats for new members", () => {
+    const draft: EnrollmentDraft = {
+      ...createEmptyDraft(),
+      selectedSchoolId: "org-school-1",
+      selectedGradeId: "grade-1",
+      selectedClassId: "class-1",
+      selectedTourSessionId: "session-1",
+      contactName: "Family Contact",
+      emergencyContact: { name: "Emergency Contact", phone: virtualPhone("3010") },
+      agreementAccepted: true,
+      familyMembers: [
+        {
+          id: "local-a",
+          code: "member-a",
+          displayName: "Virtual Student",
+          selected: true,
+          participantKind: "student",
+          identityNumber: "110105201001010031",
+          phone: "12000000000",
+        },
+      ],
+    }
+
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写有效的证件号码" })
+
+    const [member] = draft.familyMembers
+    if (member === undefined) throw new Error("missing member fixture")
+    member.identityNumber = virtualResidentId("20100101", "013")
+
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写有效的联系电话" })
+  })
+
+  it("does not require families to fill a member code", () => {
+    const draft: EnrollmentDraft = {
+      ...createEmptyDraft(),
+      selectedSchoolId: "org-school-1",
+      selectedGradeId: "grade-1",
+      selectedClassId: "class-1",
+      selectedTourSessionId: "session-1",
+      contactName: "Family Contact",
+      emergencyContact: { name: "Emergency Contact", phone: virtualPhone("3013") },
+      agreementAccepted: true,
+      familyMembers: [
+        {
+          id: "local-a",
+          code: "",
+          displayName: "Virtual Student",
+          selected: true,
+          participantKind: "student",
+          identityNumber: virtualResidentId("20100101", "015"),
+          phone: virtualPhone("3014"),
+        },
+      ],
+    }
+
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: true })
+  })
+
+  it("asks for the selected participant name before submit", () => {
+    const draft: EnrollmentDraft = {
+      ...createEmptyDraft(),
+      selectedSchoolId: "org-school-1",
+      selectedGradeId: "grade-1",
+      selectedClassId: "class-1",
+      selectedTourSessionId: "session-1",
+      contactName: "家长联系人",
+      emergencyContact: { name: "备用联系人", phone: virtualPhone("3013") },
+      agreementAccepted: true,
+      familyMembers: [
+        {
+          id: "local-a",
+          code: "",
+          displayName: "",
+          selected: true,
+          participantKind: "student",
+          identityNumber: virtualResidentId("20100101", "013"),
+          phone: virtualPhone("3014"),
+        },
+      ],
+    }
+
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写参加人姓名" })
+  })
+
+  it("generates an internal member code when the public form only collects a name", () => {
+    const draft: EnrollmentDraft = {
+      contactName: "家长联系人",
+      emergencyContact: {
+        name: "备用联系人",
+        phone: virtualPhone("3015"),
+      },
+      selectedSchoolId: "org-school-1",
+      selectedGradeId: "grade-1",
+      selectedClassId: "class-1",
+      selectedTourSessionId: "session-1",
+      agreementAccepted: true,
+      familyMembers: [
+        {
+          id: "local-member-20260926-1",
+          code: "",
+          displayName: "学生甲",
+          selected: true,
+          participantKind: "student",
+          identityNumber: virtualResidentId("20100101", "015"),
+          phone: virtualPhone("3016"),
+        },
+      ],
+    }
+
+    const [payload] = buildSelectedMemberPayloads(draft)
+    if (payload === undefined) throw new Error("missing member payload")
+    expect(payload.code).toBe("lm-calmember202609261")
+  })
+
+  it("requires phone and identity formats that can be used for enrollment contact and insurance", () => {
+    const draft: EnrollmentDraft = {
+      ...createEmptyDraft(),
+      selectedSchoolId: "org-school-1",
+      selectedGradeId: "grade-1",
+      selectedClassId: "class-1",
+      selectedTourSessionId: "session-1",
+      contactName: "家长联系人",
+      emergencyContact: { name: "备用联系人", phone: virtualPhone("3017") },
+      agreementAccepted: true,
+      familyMembers: [
+        {
+          id: "local-a",
+          code: "",
+          displayName: "学生甲",
+          selected: true,
+          participantKind: "student",
+          identityNumber: "123456201001010010",
+          phone: virtualPhone("3019"),
+        },
+      ],
+    }
+
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写有效的证件号码" })
+
+    const [member] = draft.familyMembers
+    if (member === undefined) throw new Error("missing member fixture")
+    member.identityNumber = virtualResidentId("20100101", "017")
+    member.phone = "12345"
+    expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写有效的联系电话" })
   })
 
   it("reuses saved member ids when enrollment submission is retried", async () => {
@@ -278,7 +450,7 @@ describe("enrollment flow state", () => {
       contactName: "家长联系人",
       emergencyContact: {
         name: "备用联系人",
-        phone: "10000000000",
+        phone: virtualPhone("3018"),
       },
       selectedSchoolId: "org-school-1",
       selectedGradeId: "grade-1",

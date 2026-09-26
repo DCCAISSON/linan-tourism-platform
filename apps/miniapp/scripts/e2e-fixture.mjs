@@ -61,6 +61,7 @@ export function createFixtureServer(baseUrl) {
     const body = await readJsonBody(request)
     fixture.requests.push({ method: request.method, path: url.pathname, body })
 
+    if (request.method === "GET" && url.pathname === "/capabilities") return json(response, 200, { wechatPaymentEnabled: false, wechatRefundEnabled: false, paymentReconciliationEnabled: false })
     if (request.method === "GET" && url.pathname === "/schools") {
       while (fixture.catalogBlocked) await delay(50)
       const schools = fixture.emptyCatalog ? [] : [school]

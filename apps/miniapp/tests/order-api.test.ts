@@ -189,4 +189,24 @@ describe("miniapp order API client", () => {
       new ApiError(403, "order does not belong to the current family"),
     )
   })
+  it("reads server payment capabilities from the public capabilities endpoint", async () => {
+    const requests: MiniappRequestOptions[] = []
+    const request = async (options: MiniappRequestOptions) => {
+      requests.push(options)
+      return {
+        statusCode: 200,
+        data: { wechatPaymentEnabled: false, wechatRefundEnabled: false, paymentReconciliationEnabled: true },
+      }
+    }
+    const api = createMiniappApi({ baseUrl: "https://api.example.test", request })
+
+    await expect(api.getCapabilities()).resolves.toEqual({
+      wechatPaymentEnabled: false,
+      wechatRefundEnabled: false,
+      paymentReconciliationEnabled: true,
+    })
+    expect(requests[0]?.url).toBe("https://api.example.test/capabilities")
+    expect(requests[0]?.method).toBe("GET")
+  })
+
 })

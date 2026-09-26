@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue"
 import { formatFen } from "../../enrollment-flow"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
@@ -12,19 +13,24 @@ const {
   order,
   orderLabel,
   payment,
+  paymentUnavailableNotice,
   refreshOrder,
   startPayment,
   submissionCode,
+  wechatPaymentAvailable,
 } = props.page
+const paymentButtonVisible = computed(() => canRetryPayment.value && wechatPaymentAvailable.value)
+const paymentStatusText = computed(() => {
+  if (wechatPaymentAvailable.value) return order.value?.status === "paid" ? "支付成功，报名信息已确认。" : "订单已创建，请完成微信支付。"
+  return order.value?.status === "paid" ? "订单已确认，可在我的订单查看。" : paymentUnavailableNotice
+})
 function openOrders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
 </script>
 
 <template>
   <view class="order-panel" aria-live="polite">
-    <text class="order-panel__title">{{ orderLabel }}（本地模拟）</text>
-    <text class="order-panel__body">
-      {{ order?.status === "paid" ? "本地模拟支付已确认，订单信息如下。" : "本地模拟支付不产生真实扣款，结果以订单刷新状态为准。" }}
-    </text>
+    <text class="order-panel__title">{{ orderLabel }}</text>
+    <text class="order-panel__body">{{ paymentStatusText }}</text>
 
     <view class="order-detail">
       <text class="order-detail__item">报名编号：{{ submissionCode }}</text>
@@ -33,7 +39,7 @@ function openOrders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
       <text class="order-detail__item">参与人数：{{ order?.participantCount ?? 0 }} 人</text>
       <text class="order-detail__item">应付金额：{{ order ? formatFen(order.amountFen) : "待确认" }}</text>
       <text class="order-detail__item">已付金额：{{ order ? formatFen(order.paidFen) : "待确认" }}</text>
-      <text v-if="payment" class="order-detail__item">支付单号：{{ payment.paymentNo }}</text>
+      <text v-if="payment && wechatPaymentAvailable" class="order-detail__item">支付单号：{{ payment.paymentNo }}</text>
     </view>
 
     <view v-if="errorMessage.length > 0" class="order-panel__error">
@@ -42,11 +48,11 @@ function openOrders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
 
     <view class="order-actions">
       <button
-        v-if="canRetryPayment"
+        v-if="paymentButtonVisible"
         class="secondary-button"
         @tap="startPayment"
       >
-        再次模拟支付
+        发起微信支付
       </button>
       <button class="primary-button" @tap="refreshOrder">刷新订单状态</button>
     </view>

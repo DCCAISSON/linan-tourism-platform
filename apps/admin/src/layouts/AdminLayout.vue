@@ -15,8 +15,8 @@
         <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/roster">名单统计</router-link>
         <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/travelers">出行人员</router-link>
         <router-link v-if="hasPermission('orders.read')" class="admin-nav__item" to="/orders">订单管理</router-link>
-        <router-link v-if="hasPermission('refunds.review') || hasPermission('refunds.execute')" class="admin-nav__item" to="/refund-applications">退款申请</router-link>
-        <router-link v-if="hasPermission('payments.reconcile')" class="admin-nav__item" to="/payments/reconciliation">支付对账</router-link>
+        <router-link v-if="canOpenRefundApplications" class="admin-nav__item" to="/refund-applications">退款申请</router-link>
+        <router-link v-if="hasPermission('payments.reconcile') && capabilities.paymentReconciliationEnabled" class="admin-nav__item" to="/payments/reconciliation">支付对账</router-link>
         <router-link v-if="hasPermission('transport.read')" class="admin-nav__item" to="/transport">车辆安排</router-link>
         <router-link v-if="hasPermission('pretrip.write')" class="admin-nav__item" to="/pretrip">行前配置</router-link>
         <router-link v-if="hasPermission('pretrip.school_confirm')" class="admin-nav__item" to="/school-confirmation">学校行前签认</router-link>
@@ -55,14 +55,19 @@ import { onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 
 import { getCurrentStaff, logoutStaff, type StaffPermissionKey } from "@/api/auth"
+import { enabledPlatformCapabilities, getCapabilities, type PlatformCapabilities } from "@/api/capabilities"
 import { routeNames } from "@/router/routes"
 
 const router = useRouter()
 const permissionKeys = ref<readonly StaffPermissionKey[]>([])
+const capabilities = ref<PlatformCapabilities>(enabledPlatformCapabilities)
+const canOpenRefundApplications = ref(false)
 
 onMounted(async () => {
-  const staff = await getCurrentStaff()
+  const [staff, platformCapabilities] = await Promise.all([getCurrentStaff(), getCapabilities()])
   permissionKeys.value = staff.permissionKeys
+  capabilities.value = platformCapabilities
+  canOpenRefundApplications.value = hasPermission("refunds.review") || (hasPermission("refunds.execute") && platformCapabilities.wechatRefundEnabled)
 })
 
 async function logout(): Promise<void> {

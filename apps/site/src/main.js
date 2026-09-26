@@ -4,10 +4,8 @@ showContact("contact-phone", config.contactPhone, `tel:${config.contactPhone}`)
 showContact("contact-email", config.contactEmail, `mailto:${config.contactEmail}`)
 showFiling("filing-icp", config.icpNumber, "https://beian.miit.gov.cn/")
 showFiling("filing-public-security", config.publicSecurityNumber, config.publicSecurityUrl)
-
-if (config.icpNumber || config.publicSecurityNumber) {
-  document.querySelector("#filing-pending")?.setAttribute("hidden", "")
-}
+togglePending("filing-icp-pending", config.icpNumber)
+togglePending("filing-public-security-pending", config.publicSecurityNumber)
 
 function showContact(id, value, href) {
   if (!value) return
@@ -26,4 +24,9 @@ function showFiling(id, value, href) {
   link.textContent = value
   link.href = href
   link.removeAttribute("hidden")
+}
+
+function togglePending(id, value) {
+  if (!value) return
+  document.querySelector(`#${id}`)?.setAttribute("hidden", "")
 }

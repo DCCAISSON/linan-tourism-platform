@@ -40,7 +40,7 @@ function activities(): void { uni.switchTab({ url: "/pages/activities/index" }) 
         <button class="button-secondary order-detail-entry action-gap" @tap="open(order.id)">查看订单详情</button>
       </view>
     </view>
-    <text class="test-notice">本地模拟支付记录，不产生真实扣款。</text>
+    <text class="test-notice">订单支付以实际开通的微信支付结果为准；如暂未开放，请联系工作人员处理。</text>
   </view>
 </template>
 

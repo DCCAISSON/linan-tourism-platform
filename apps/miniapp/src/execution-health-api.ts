@@ -11,6 +11,7 @@ export type FamilyPublicExecutionSummary = {
 }
 export type HealthAuthorization = { readonly id: string; readonly tourSessionId: string; readonly orderId: string; readonly personRef: PersonRef; readonly active: boolean; readonly version: number; readonly authorizedAt: string; readonly revokedAt: string | null }
 export type HealthAuthorizationPayload = { readonly personRef: PersonRef; readonly allergies: string; readonly medicalNotes: string; readonly emergencyMedicine: string }
+export type HealthDetailsPayload = Omit<HealthAuthorizationPayload, "personRef">
 
 export function createExecutionHealthClient(options: { readonly baseUrl?: string; readonly familyIdentityHeader?: string; readonly wechatSessionToken?: string; readonly request?: RequestTransport } = {}) {
   const baseUrl = (options.baseUrl ?? import.meta.env["VITE_API_BASE_URL"] ?? FALLBACK_API_BASE_URL).replace(/\/$/, "")
@@ -20,8 +21,14 @@ export function createExecutionHealthClient(options: { readonly baseUrl?: string
   return {
     publicSummary: async (orderId: string) => parsePublicSummary(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/public-summary`, "GET")),
     authorizeHealth: async (orderId: string, payload: HealthAuthorizationPayload) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations`, "POST", payload)),
+    authorizePaidHealth: async (orderId: string, lineId: string, payload: HealthDetailsPayload) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations`, "POST", { personRef: paidTravelerReference(lineId), ...payload })),
     revokeHealth: async (orderId: string, personRef: PersonRef) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations/${encodeURIComponent(personRef)}/revoke`, "POST", {})),
+    revokePaidHealth: async (orderId: string, lineId: string) => parseHealthAuthorization(await requestJson(request, baseUrl, familyIdentityHeader, wechatSessionToken, `/orders/${encodeURIComponent(orderId)}/execution/health-authorizations/${encodeURIComponent(paidTravelerReference(lineId))}/revoke`, "POST", {})),
   }
+}
+
+export function paidTravelerReference(lineId: string): PersonRef {
+  return `paid:${lineId}`
 }
 
 async function requestWithUni(options: MiniappRequestOptions): Promise<MiniappRequestResult> {

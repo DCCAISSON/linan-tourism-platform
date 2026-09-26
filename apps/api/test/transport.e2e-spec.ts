@@ -63,8 +63,7 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
     expect(saved.body.vehicles).toHaveLength(2)
     expect(saved.body.vehicles[0]).toMatchObject({ sequence: 1, occupancy: 3, remainingSeats: 0, warnings: [] })
     expect(saved.body.vehicles[1].allocations).toHaveLength(2)
-    expect(saved.body.warnings.join("\n")).toContain("488")
-    expect(saved.body.warnings.join("\n")).toContain("492")
+    expect(saved.body.warnings).toEqual([])
 
     const read = await request(app.getHttpServer())
       .get(`/transport/sessions/${catalog.tourSessionId}/plan`)

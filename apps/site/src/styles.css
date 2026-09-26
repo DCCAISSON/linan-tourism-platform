@@ -48,7 +48,7 @@ nav { display: flex; gap: var(--space-6); }
 nav a { padding: var(--space-2) 0; color: var(--text-secondary); font-size: 14px; text-decoration: none; }
 nav a:hover, nav a:focus-visible { color: var(--accent-primary); }
 main { overflow: hidden; }
-.hero, .section, footer { width: min(1200px, calc(100% - 32px)); margin-inline: auto; }
+.hero, .section, footer { width: min(1200px, calc(100vw - 32px)); margin-inline: auto; }
 .hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: var(--space-9); align-items: center; min-height: 650px; padding: var(--space-10) 0; }
 .eyebrow { margin: 0 0 var(--space-3); color: var(--accent-secondary); font-size: 14px; font-weight: 600; letter-spacing: 2px; }
 h1, h2, h3, p { overflow-wrap: anywhere; }
@@ -117,7 +117,8 @@ footer { display: flex; justify-content: space-between; gap: var(--space-4); pad
   nav { display: none; }
   .brand strong { font-size: 14px; }
   .hero { gap: var(--space-7); padding: var(--space-8) 0; }
-  h1 { font-size: 42px; letter-spacing: -1px; }
+  h1 { font-size: 34px; line-height: 1.22; letter-spacing: 0; }
+  h1 br { display: none; }
   .hero-lead { font-size: 16px; }
   .hero-actions .button { width: 100%; }
   .hero-scene { min-height: 380px; }

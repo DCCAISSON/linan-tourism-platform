@@ -59,7 +59,7 @@
           <div><dt>订单号</dt><dd>{{ detail.code }}</dd></div><div><dt>活动</dt><dd>{{ detail.activityTitle }}</dd></div>
           <div><dt>学校</dt><dd>{{ detail.schoolName }}</dd></div><div><dt>付款状态</dt><dd>{{ statusText(detail.status) }}{{ detail.refundSummary.status === 'partial' ? '（部分退款）' : '' }}</dd></div>
           <div><dt>联系人</dt><dd>{{ detail.contactName }}</dd></div><div><dt>应付 / 已付</dt><dd>{{ formatFen(detail.amountFen) }} / {{ formatFen(detail.paidFen) }}</dd></div>
-          <div><dt>本地已退款 / 待处理</dt><dd>{{ formatFen(detail.refundSummary.refundedFen) }} / {{ formatFen(detail.refundSummary.pendingFen) }}</dd></div>
+          <div><dt>已退款 / 待处理</dt><dd>{{ formatFen(detail.refundSummary.refundedFen) }} / {{ formatFen(detail.refundSummary.pendingFen) }}</dd></div>
         </dl>
         <div class="orders-section-heading"><h3>参加人员</h3><span>{{ detail.participants.length }} 人</span></div>
         <div class="orders-lines">
@@ -71,7 +71,7 @@
         </div>
         <div class="orders-refund">
           <h3>人员退款</h3>
-          <p>本地业务处理，未调用微信退款</p>
+          <p>退款由工作人员按财务流程处理，资金到账以支付渠道或财务确认为准。</p>
           <p>按所选人员尚可退的历史实付金额退款，不按提前天数扣费。处理成功后取消对应人员的名单并释放名额。</p>
           <form v-if="canManage && detail.status === 'paid'" class="orders-refund-form" @submit.prevent="confirmation = { kind: 'create' }">
             <label class="orders-field">退款原因（必填）<input v-model="reason" required maxlength="255" :disabled="refundBusy" @input="clearConfirmation" /></label>
@@ -81,7 +81,7 @@
           </form>
           <p v-if="canManage && detail.status !== 'paid'" class="orders-state">当前订单不可创建退款。</p>
           <div v-if="confirmation?.kind === 'create'" class="orders-confirmation" role="group" aria-label="确认创建退款">
-            <p>确认对 {{ selectedLineIds.length }} 人创建 {{ formatFen(selectedAmountFen) }} 的退款请求？原因：{{ reason }}。创建后等待本地处理。</p>
+            <p>确认对 {{ selectedLineIds.length }} 人创建 {{ formatFen(selectedAmountFen) }} 的退款请求？原因：{{ reason }}。创建后等待人工处理。</p>
             <div class="orders-refund-actions"><button type="button" class="orders-button" :disabled="refundBusy" @click="createRefund">确认创建退款</button><button type="button" class="orders-button orders-button--secondary" :disabled="refundBusy" @click="confirmation = undefined">返回修改</button></div>
           </div>
           <p v-if="refundError" class="orders-error" role="alert">{{ refundError }}</p>
@@ -92,10 +92,10 @@
             <div class="orders-section-heading"><strong>{{ refundText(refund.status) }}</strong><b class="orders-money">{{ formatFen(refund.amountFen) }}</b></div>
             <p>人员：{{ refund.lines.map(line => line.displayName).join('、') }}</p><p>原因：{{ refund.reason }}</p><p v-if="refund.note">备注：{{ refund.note }}</p>
             <p>创建：{{ formatDate(refund.requestedAt) }}<template v-if="refund.processedAt"> · 处理：{{ formatDate(refund.processedAt) }}</template></p>
-            <p v-if="refund.status === 'failed'" class="orders-error">失败说明：{{ refund.failureMessage ?? '本地处理失败' }}。可重新选择人员创建退款。</p>
-            <div v-if="canManage && refund.status === 'pending'" class="orders-refund-actions"><button type="button" class="orders-button" :disabled="refundBusy" @click="confirmation = { kind: 'process', refundId: refund.id, outcome: 'succeeded' }">本地处理成功</button><button type="button" class="orders-button orders-button--secondary" :disabled="refundBusy" @click="confirmation = { kind: 'process', refundId: refund.id, outcome: 'failed' }">本地处理失败</button></div>
+            <p v-if="refund.status === 'failed'" class="orders-error">失败说明：{{ refund.failureMessage ?? '处理失败' }}。可重新选择人员创建退款。</p>
+            <div v-if="canManage && refund.status === 'pending'" class="orders-refund-actions"><button type="button" class="orders-button" :disabled="refundBusy" @click="confirmation = { kind: 'process', refundId: refund.id, outcome: 'succeeded' }">处理成功</button><button type="button" class="orders-button orders-button--secondary" :disabled="refundBusy" @click="confirmation = { kind: 'process', refundId: refund.id, outcome: 'failed' }">处理失败</button></div>
             <div v-if="confirmation?.kind === 'process' && confirmation.refundId === refund.id" class="orders-confirmation" role="group" :aria-label="`确认${refundText(confirmation.outcome)}`">
-              <p>确认将 {{ formatFen(refund.amountFen) }} 记录为{{ refundText(confirmation.outcome) }}？{{ confirmation.outcome === 'succeeded' ? '这会取消对应人员的名单并释放名额。' : '这会保留失败记录，人员和名额不变。' }}未调用微信退款。</p>
+              <p>确认将 {{ formatFen(refund.amountFen) }} 记录为{{ refundText(confirmation.outcome) }}？{{ confirmation.outcome === 'succeeded' ? '这会取消对应人员的名单并释放名额。' : '这会保留失败记录，人员和名额不变。' }}</p>
               <div class="orders-refund-actions"><button type="button" class="orders-button" :disabled="refundBusy" @click="processRefund">确认{{ refundText(confirmation.outcome) }}</button><button type="button" class="orders-button orders-button--secondary" :disabled="refundBusy" @click="confirmation = undefined">取消操作</button></div>
             </div>
           </article>
@@ -108,6 +108,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue"
 import { getCurrentStaff } from "@/api/auth"
+import { getCapabilities } from "@/api/capabilities"
 import { createStaffRefund, getStaffOrder, listStaffOrders, processStaffRefund } from "@/api/orders"
 import type { RefundHistoryItem, StaffOrder, StaffOrderDetail, StaffOrderList } from "@/api/orders"
 import { readableRosterError } from "@/api/roster.errors"
@@ -171,7 +172,7 @@ async function createRefund(): Promise<void> {
     await createStaffRefund(id, { lineIds: selectedLineIds.value, reason: reason.value.trim(), ...(note.value.trim() ? { note: note.value.trim() } : {}), idempotencyKey: idempotencyKey.value })
     selectedLineIds.value = []; reason.value = ""; note.value = ""; clearConfirmation()
     await refreshDetail(id)
-    refundMessage.value = "退款请求已保存，等待本地处理。"
+    refundMessage.value = "退款请求已保存，等待人工处理。"
   }
   catch (error) { refundError.value = readableRosterError(error) }
   finally { refundBusy.value = false }
@@ -188,18 +189,18 @@ async function processRefund(): Promise<void> {
     await refreshDetail(id)
     await loadOrders()
     switch (result.status) {
-      case "succeeded": refundMessage.value = "本地结果已保存，订单、名单和名额已更新。"; break
+      case "succeeded": refundMessage.value = "处理结果已保存，订单、名单和名额已更新。"; break
       case "failed": refundMessage.value = "失败记录已保存，可重新选择人员创建退款。"; break
-      case "pending": refundMessage.value = "退款仍待本地处理，请核对退款记录。"; break
+      case "pending": refundMessage.value = "退款仍待处理，请核对退款记录。"; break
     }
   } catch (error) { refundError.value = readableRosterError(error) }
   finally { refundBusy.value = false }
 }
 function refundText(value: RefundHistoryItem["status"]): string {
-  switch (value) { case "pending": return "待本地处理"; case "succeeded": return "本地处理成功"; case "failed": return "本地处理失败" }
+  switch (value) { case "pending": return "待处理"; case "succeeded": return "处理成功"; case "failed": return "处理失败" }
 }
 function participantRefundText(value: StaffOrderDetail["participants"][number]["refundStatus"]): string {
-  switch (value) { case "none": return "未退款"; case "pending": return "退款待处理"; case "refunded": return "已退款（本地）"; case "failed": return "退款失败，可重试" }
+  switch (value) { case "none": return "未退款"; case "pending": return "退款待处理"; case "refunded": return "已退款"; case "failed": return "退款失败，可重试" }
 }
 function statusText(value: StaffOrder["status"]): string {
   switch (value) {
@@ -210,7 +211,11 @@ function statusText(value: StaffOrder["status"]): string {
   }
 }
 function formatDate(value: string): string { return new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) }
-onMounted(async () => { canManage.value = (await getCurrentStaff()).permissionKeys.includes("refunds.manage"); await loadOrders() })
+onMounted(async () => {
+  const [staff, capabilities] = await Promise.all([getCurrentStaff(), getCapabilities()])
+  canManage.value = staff.permissionKeys.includes("refunds.manage") && capabilities.wechatRefundEnabled
+  await loadOrders()
+})
 </script>
 
 <style scoped>

@@ -53,7 +53,7 @@ test("staff account actions remain usable as mobile cards", async ({ page }, tes
   await page.goto("/staff-accounts")
   const card = page.getByTestId("staff-mobile-card").filter({ hasText: "mobile-admin" })
   await expect(card).toBeVisible()
-  await expect(card.getByText("staff_accounts.manage")).toBeVisible()
+  await expect(card.getByText("管理员工账号")).toBeVisible()
   await expect(card.getByRole("button", { name: "重置密码" })).toBeVisible()
   await expect(card.getByRole("button", { name: "停用" })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
@@ -87,7 +87,21 @@ test("staff account table remains available on desktop", async ({ page }, testIn
   await page.goto("/staff-accounts")
   const table = page.locator(".staff-page__table")
   await expect(table.getByText("desktop-admin")).toBeVisible()
-  await expect(table.getByText("staff_accounts.manage")).toBeVisible()
+  await expect(table.getByText("管理员工账号")).toBeVisible()
   await expect(page.getByTestId("staff-mobile-card")).toBeHidden()
   await page.screenshot({ path: testInfo.outputPath("staff-account-desktop-table.png"), fullPage: true })
+})
+
+test("staff account permission picker hides unavailable finance permissions", async ({ page }) => {
+  await installStaffAuthMock(page, undefined, { wechatPaymentEnabled: false, wechatRefundEnabled: false, paymentReconciliationEnabled: false })
+  await page.route(apiBase + "/staff/accounts", async route => {
+    await route.fulfill({ json: [] })
+  })
+
+  await page.goto("/staff-accounts")
+  await page.getByTestId("staff-new-account").click()
+  await page.locator(".el-select").first().click()
+  await expect(page.getByRole("option", { name: "退款申请审核" })).toBeVisible()
+  await expect(page.getByRole("option", { name: "退款执行" })).toHaveCount(0)
+  await expect(page.getByRole("option", { name: "支付对账" })).toHaveCount(0)
 })

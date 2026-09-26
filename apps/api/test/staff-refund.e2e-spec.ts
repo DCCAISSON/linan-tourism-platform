@@ -1,3 +1,4 @@
+// allow: SIZE_OK — persisted staff refund DB E2E keeps setup, production gates, idempotency, and settlement assertions in one scenario fixture.
 import type { INestApplication } from "@nestjs/common"
 import request from "supertest"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
@@ -321,6 +322,33 @@ describe.skipIf(databaseUrl === undefined)("Staff persisted local refunds", () =
 
       // Then
       expect(response.body.code).toBe("local_refund_unavailable")
+    } finally {
+      restoreNodeEnv(previousNodeEnv)
+      restoreEnv("ADMIN_WEB_ORIGIN", previousOrigin)
+    }
+  })
+
+  it("disables local refund request creation in production without writing refund rows", async () => {
+    // Given
+    const fixture = await paidFixture("production-create")
+    const before = await refundSnapshot(fixture.orderId)
+    const cookie = await createStaffSession(`${scope}-admin`)
+    const previousNodeEnv = process.env["NODE_ENV"]
+    const previousOrigin = process.env["ADMIN_WEB_ORIGIN"]
+    process.env["NODE_ENV"] = "production"
+    process.env["ADMIN_WEB_ORIGIN"] = "http://admin.test"
+    try {
+      // When
+      const response = await request(app.getHttpServer())
+        .post(`/staff/orders/${fixture.orderId}/refunds`)
+        .set("Cookie", cookie)
+        .set("Origin", "http://admin.test")
+        .send(refundBody([firstLineIdOf(fixture)], `${scope}-production-create-key`))
+        .expect(404)
+
+      // Then
+      expect(response.body.code).toBe("local_refund_unavailable")
+      expect(await refundSnapshot(fixture.orderId)).toEqual(before)
     } finally {
       restoreNodeEnv(previousNodeEnv)
       restoreEnv("ADMIN_WEB_ORIGIN", previousOrigin)

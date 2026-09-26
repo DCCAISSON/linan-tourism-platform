@@ -4,7 +4,7 @@
       <div class="login-copy">
         <p class="login-copy__eyebrow">临安文旅数字化平台</p>
         <h1 id="login-title">管理后台登录</h1>
-        <p>使用管理员开设的工作人员账号登录。<span class="cjk-nowrap">生产环境</span>不再接受开发期模拟身份。</p>
+        <p>使用管理员开设的工作人员账号登录。</p>
       </div>
 
       <el-form class="login-form" label-position="top" @submit.prevent="submitLogin">

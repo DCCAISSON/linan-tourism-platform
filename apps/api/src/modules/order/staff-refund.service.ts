@@ -20,6 +20,9 @@ export class StaffRefundService {
   ) {}
 
   async create(orderId: string, input: StaffRefundRequestInput, actorId: string): Promise<StaffRefundResponse> {
+    if (process.env["NODE_ENV"] === "production") {
+      throw new NotFoundException({ code: "local_refund_unavailable", message: "local refund processing is unavailable" })
+    }
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
       const order = await lockOrder(manager, orderId)

@@ -36,8 +36,8 @@ function orders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
     <view class="info-card family-shortcuts"><button class="button-secondary family-orders-entry" @tap="orders">我的订单</button><button class="button-primary family-activities-entry" @tap="activities">选择活动报名</button></view>
     <text class="section-heading">家庭成员</text>
     <DiscoveryState :state="state" :message="error" empty-title="本家庭暂无成员" @retry="load" />
-    <view v-if="state === 'ready'"><view v-for="member in members" :key="member.id" class="info-card family-member-card"><text class="card-title">{{ member.displayName }}</text><text class="body-secondary">成员编号：{{ member.code }}</text><text class="detail-line">{{ member.schoolName }} · {{ member.gradeName }} · {{ member.className }}</text></view></view>
-    <text class="test-notice">报名页可以选择已有成员，也可添加家庭成员。当前为开发体验版，请使用虚构测试资料。</text>
+    <view v-if="state === 'ready'"><view v-for="member in members" :key="member.id" class="info-card family-member-card"><text class="card-title">{{ member.displayName }}</text><text class="detail-line">{{ member.schoolName }} · {{ member.gradeName }} · {{ member.className }}</text></view></view>
+    <text class="test-notice">报名页可以选择已有成员，也可添加新的参与成员。</text>
   </view>
 </template>
 

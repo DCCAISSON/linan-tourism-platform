@@ -9,7 +9,7 @@
     </header>
 
     <div class="business-grid">
-      <section class="business-card">
+      <section v-if="businessContentEditorEnabled" class="business-card">
         <div class="business-card__head">
           <h3>内容维护</h3>
           <el-button type="primary" :loading="productBusy" @click="saveProduct">保存内容</el-button>
@@ -18,7 +18,7 @@
         <el-alert v-if="productError" :title="productError" type="error" show-icon />
         <el-form label-position="top" class="business-form">
           <el-form-item label="所属机构 ID">
-            <el-input v-model="form.organizationId" placeholder="由 integration owner 接入机构选择器" />
+            <el-input v-model="form.organizationId" placeholder="请选择所属机构" />
           </el-form-item>
           <el-form-item label="分类">
             <el-segmented v-model="form.category" :options="categoryOptions" />
@@ -43,7 +43,7 @@
           </el-form-item>
           <el-checkbox v-model="form.bookingAuthorized">该入口已由业务方确认可公开</el-checkbox>
           <el-form-item label="公开素材 HTTPS，每行一条，image 或 video 用空格分隔">
-            <el-input v-model="mediaText" type="textarea" :rows="4" placeholder="image https://example.com/photo.jpg" />
+            <el-input v-model="mediaText" type="textarea" :rows="4" placeholder="每行填写一个已授权公开素材链接" />
           </el-form-item>
           <el-checkbox v-model="form.mediaAuthorized">素材已获公开授权</el-checkbox>
           <el-form-item label="发布状态">
@@ -119,4 +119,5 @@ import "@/styles/business.css"
 import { categoryOptions, categoryText, formatFen, inquiryStatusText, statusText, useBusinessView } from "@/views/business/useBusinessView"
 
 const { products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup } = useBusinessView()
+const businessContentEditorEnabled = false
 </script>

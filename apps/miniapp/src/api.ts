@@ -25,6 +25,7 @@ import {
   type MiniappRequestOptions,
   type MiniappRequestResult,
   type RequestTransport,
+  type ServiceCapabilities,
   type WechatLoginResponse,
   type WechatMiniappPayment,
 } from "./api-types"
@@ -59,6 +60,7 @@ export type {
   WechatMiniappPayment,
   School,
   SchoolClass,
+  ServiceCapabilities,
   TourSession,
 } from "./api-types"
 
@@ -155,6 +157,7 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
     },
     createWechatPayment: async (orderId: string, code: string) =>
       parseWechatPayment(await requestJson(request, baseUrl, `/wechat/payments/${encodeURIComponent(orderId)}/miniapp`, "POST", familyIdentityHeader, wechatSessionToken, { code })),
+    getCapabilities: async () => parseServiceCapabilities(await requestJson(request, baseUrl, "/capabilities", "GET", familyIdentityHeader, wechatSessionToken)),
   }
 }
 
@@ -222,6 +225,15 @@ function buildHeaders(familyIdentityHeader: string | undefined, wechatSessionTok
   return headers
 }
 
+function parseServiceCapabilities(value: unknown): ServiceCapabilities {
+  const record = readRecord(value)
+  return {
+    wechatPaymentEnabled: readBoolean(record, "wechatPaymentEnabled"),
+    wechatRefundEnabled: readBoolean(record, "wechatRefundEnabled"),
+    paymentReconciliationEnabled: readBoolean(record, "paymentReconciliationEnabled"),
+  }
+}
+
 function parseWechatLogin(value: unknown): WechatLoginResponse {
   const record = readRecord(value)
   return { token: readText(record, "token"), familyCode: readText(record, "familyCode"), expiresAt: readText(record, "expiresAt") }
@@ -251,6 +263,11 @@ function readRecord(value: unknown): Record<string, unknown> {
 function readText(record: Record<string, unknown>, key: string): string {
   const value = record[key]
   if (typeof value === "string") return value
+  throw new ApiError(0, "invalid response")
+}
+function readBoolean(record: Record<string, unknown>, key: string): boolean {
+  const value = record[key]
+  if (typeof value === "boolean") return value
   throw new ApiError(0, "invalid response")
 }
 function readCount(record: Record<string, unknown>, key: string): number {

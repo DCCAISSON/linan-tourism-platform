@@ -34,6 +34,9 @@ test("staff first login changes password and sees only granted navigation", asyn
       },
     })
   })
+  await page.route(`${apiBase}/capabilities`, async route => {
+    await route.fulfill({ json: { wechatPaymentEnabled: true, wechatRefundEnabled: true, paymentReconciliationEnabled: true } })
+  })
   await page.route(`${apiBase}/roster/workbench`, async route => {
     await route.fulfill({
       json: {

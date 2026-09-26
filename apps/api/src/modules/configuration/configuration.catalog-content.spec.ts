@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseCatalogItem, parseCatalogItemPatch } from "./configuration.parser.js"
+import { parseCatalogItem, parseCatalogItemPatch, parseNoticeVersion } from "./configuration.parser.js"
 
 const catalog = { organizationId: "school-a", code: "lake", title: "湖畔研学", status: "active" } as const
 
@@ -38,5 +38,24 @@ describe("Catalog content input", () => {
   it("rejects an introduction exceeding the stored character limit", () => {
     // Given / When / Then
     expect(() => parseCatalogItem({ ...catalog, description: "研".repeat(4001) })).toThrow()
+  })
+
+  it("accepts formal notice content without demo wording", () => {
+    // Given
+    const contentJson = {
+      destination: "大明山地质研学",
+      departurePlace: "临安旅游集散中心门口",
+      mealNote: "含午餐，特殊餐食由家长提前备注",
+      itinerary: ["集合签到", "乘车前往", "课程导入", "实地观察", "午餐休整", "成果分享", "返程交接"],
+      unitPrices: ["学生195元/人"],
+      packageExamples: ["1名学生195元"],
+      reminders: ["请携带身份证件"],
+    }
+
+    // When
+    const parsed = parseNoticeVersion({ title: "大明山地质研学告知书 v1", version: "v1", contentJson })
+
+    // Then
+    expect(parsed).toEqual({ title: "大明山地质研学告知书 v1", version: "v1", contentJson })
   })
 })

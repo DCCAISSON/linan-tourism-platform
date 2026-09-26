@@ -118,13 +118,17 @@ export const routes: RouteRecordRaw[] = [
         path: "refund-applications",
         name: routeNames.refundApplications,
         component: RefundApplicationsView,
-        meta: { title: "退款申请", requiredAnyPermission: ["refunds.review", "refunds.execute"] },
+        meta: {
+          title: "退款申请",
+          requiredAnyPermission: ["refunds.review", "refunds.execute"],
+          permissionCapabilities: [{ permissionKey: "refunds.execute", capabilityKey: "wechatRefundEnabled" }],
+        },
       },
       {
         path: "payments/reconciliation",
         name: routeNames.paymentReconciliation,
         component: PaymentReconciliationView,
-        meta: { title: "支付对账", requiredPermission: "payments.reconcile" },
+        meta: { title: "支付对账", requiredPermission: "payments.reconcile", requiredCapability: "paymentReconciliationEnabled" },
       },
       {
         path: "transport",
