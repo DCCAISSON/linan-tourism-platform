@@ -23,7 +23,7 @@ export function readPaymentCapabilities(): PaymentCapabilities {
   const enabled = hasWechatPaymentConfiguration()
   return {
     wechatPaymentEnabled: enabled,
-    wechatRefundEnabled: enabled,
+    wechatRefundEnabled: false,
     paymentReconciliationEnabled: enabled,
   }
 }

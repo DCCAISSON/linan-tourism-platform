@@ -31,7 +31,7 @@ describe("CapabilitiesController", () => {
 
     expect(response).toEqual({
       wechatPaymentEnabled: true,
-      wechatRefundEnabled: true,
+      wechatRefundEnabled: false,
       paymentReconciliationEnabled: true,
     })
     expect(Object.keys(response).sort()).toEqual([
