@@ -1,10 +1,11 @@
-import { computed, onMounted, reactive, ref } from "vue"
+import { computed, onMounted, reactive, ref, watch } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
 import {
-  createMiniappApi, type Grade,
+  ApiError, createMiniappApi, type Grade,
   type Order,
   type ServiceCapabilities, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatMiniappPayment,
 } from "../../api"
+import { getWechatSessionToken } from "../../wechat-token"
 import { activeEnrollmentOptions } from "../../activity-catalog"
 import {
   buildCreateOrderPayload, canStartPayment, createOrderRequestKey,
@@ -34,7 +35,9 @@ export function scrollToEnrollmentAnchor(anchor: string): void {
 }
 
 export function useEnrollmentPage() {
-  const api = createMiniappApi()
+  let api = createMiniappApi()
+  const authenticated = ref(import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || getWechatSessionToken() !== undefined)
+  const validationShown = ref(false)
   const loadState = ref<LoadState>("loading")
   const pageMode = ref<PageMode>("editing")
   const errorMessage = ref("")
@@ -99,7 +102,7 @@ export function useEnrollmentPage() {
         api.listCatalogItems(),
         api.listSchools(),
         api.listTourSessions(),
-        api.listEnrollmentMembers(),
+        authenticated.value ? api.listEnrollmentMembers() : Promise.resolve([]),
         api.getCapabilities(),
       ])
       const options = activeEnrollmentOptions(activities, sessions, schools)
@@ -119,6 +122,11 @@ export function useEnrollmentPage() {
       const schoolIndex = options.schools.findIndex((school) => school.id === wantedSession?.organizationId)
       if (schoolIndex >= 0) await onSchoolChange({ detail: { value: schoolIndex } })
     } catch (error) {
+      if (authenticated.value && error instanceof ApiError && error.statusCode === 401) {
+        authenticated.value = false
+        await loadCatalog()
+        return
+      }
       loadState.value = "error"
       errorMessage.value = readableError(error, "目录加载失败，请稍后重试")
     }
@@ -127,13 +135,16 @@ export function useEnrollmentPage() {
   async function onSchoolChange(event: PickerChangeEvent): Promise<void> {
     const school = catalog.schools[readPickerIndex(event)]
     if (school === undefined) return
-    const localMembers = draft.familyMembers.filter((member) => member.remoteMemberId === undefined && hasMemberInput(member))
+    const localMembers = draft.familyMembers.filter((member) => !member.fromCommonList)
+    if (draft.selectedSchoolId !== school.id) {
+      for (const member of localMembers) delete member.remoteMemberId
+    }
     draft.selectedSchoolId = school.id
     draft.selectedGradeId = ""
     draft.selectedClassId = ""
     draft.selectedTourSessionId = catalog.sessions.find((session) => session.id === wantedSessionId.value && session.organizationId === school.id)?.id ?? ""
     draft.familyMembers = [
-      ...savedMembers.value.filter((member) => member.schoolId === school.id).map((member) => ({
+      ...savedMembers.value.filter((member) => member.schoolId === school.id && !localMembers.some((local) => local.remoteMemberId === member.id)).map((member) => ({
         id: member.id,
         code: member.code,
         displayName: member.displayName,
@@ -141,7 +152,8 @@ export function useEnrollmentPage() {
         identityNumber: member.identityNumberMasked ?? "",
         phone: member.phoneMasked ?? "",
         remoteMemberId: member.id,
-        selected: false,
+        fromCommonList: true,
+        selected: draft.familyMembers.find((existing) => existing.remoteMemberId === member.id)?.selected ?? false,
       })),
       ...localMembers,
     ]
@@ -194,6 +206,7 @@ export function useEnrollmentPage() {
       identityNumber: "",
       phone: "",
       selected: true,
+      saveAsCommon: false,
     })
   }
 
@@ -205,7 +218,45 @@ export function useEnrollmentPage() {
     }
   }
 
+  function removeMember(memberId: string): void {
+    draft.familyMembers = draft.familyMembers.filter((member) => member.id !== memberId || member.fromCommonList)
+    errorMessage.value = ""
+  }
+
+  async function completeLogin(): Promise<void> {
+    authenticated.value = true
+    api = createMiniappApi()
+    try {
+      savedMembers.value = await api.listEnrollmentMembers()
+      const available = savedMembers.value.filter((member) => member.schoolId === draft.selectedSchoolId)
+      for (const member of available) {
+        if (draft.familyMembers.some((existing) => existing.remoteMemberId === member.id)) continue
+        draft.familyMembers.push({ id: member.id, code: member.code, displayName: member.displayName, participantKind: member.participantKind ?? "student", identityNumber: member.identityNumberMasked ?? "", phone: member.phoneMasked ?? "", remoteMemberId: member.id, fromCommonList: true, selected: false })
+      }
+    } catch (error) { errorMessage.value = readableError(error, "常用参加人加载失败，请稍后重试") }
+  }
+
+  watch(draft, () => { errorMessage.value = "" })
+  watch(() => [draft.selectedTourSessionId, selectedSession.value?.activeNotice?.id, selectedSession.value?.activeNotice?.version], () => { draft.agreementAccepted = false })
+  watch(() => [draft.selectedGradeId, draft.selectedClassId], () => {
+    for (const member of draft.familyMembers) {
+      if (!member.fromCommonList && member.participantKind !== "adult" && member.remoteMemberId !== undefined) {
+        delete member.remoteMemberId
+        member.code = createLocalMemberCode()
+      }
+    }
+  })
+  watch(() => JSON.stringify({
+    contactName: draft.contactName, contactPhone: draft.contactPhone,
+    emergencyContact: draft.emergencyContact, emergencySameAsParent: draft.emergencySameAsParent,
+    school: draft.selectedSchoolId, grade: draft.selectedGradeId, schoolClass: draft.selectedClassId,
+    session: draft.selectedTourSessionId, agreement: draft.agreementAccepted,
+    members: selectedMembers.value.map((member) => ({ id: member.id, name: member.displayName,
+      kind: member.participantKind, identity: member.identityNumber, phone: member.phone, save: member.saveAsCommon })),
+  }), resetCheckout)
+
   function enterReview(): void {
+    validationShown.value = true
     currentTimeIso.value = new Date().toISOString()
     if (!selectedTripGate.value.open) {
       errorMessage.value = selectedTripGate.value.reason
@@ -225,7 +276,6 @@ export function useEnrollmentPage() {
   function backToEdit(): void {
     pageMode.value = "editing"
     errorMessage.value = ""
-    resetCheckout()
   }
 
   async function submitEnrollment(): Promise<void> {
@@ -233,13 +283,15 @@ export function useEnrollmentPage() {
     pageMode.value = "submitting"
     errorMessage.value = ""
     try {
-      await api.checkEnrollmentAvailability(draft.selectedTourSessionId, new Date().toISOString())
-      const memberIds = await prepareSelectedMembersForSubmit(draft, api.createEnrollmentMember)
-      const payload = buildEnrollmentPayload(draft, catalog, memberIds)
-      const submission = await api.submitEnrollment(payload)
-      submissionCode.value = submission.id
+      if (submissionCode.value.length === 0) {
+        await api.checkEnrollmentAvailability(draft.selectedTourSessionId, new Date().toISOString())
+        const memberIds = await prepareSelectedMembersForSubmit(draft, api.createEnrollmentMember)
+        const payload = buildEnrollmentPayload(draft, catalog, memberIds)
+        const submission = await api.submitEnrollment(payload)
+        submissionCode.value = submission.id
+      }
       const createdOrder = await api.createOrder(
-        buildCreateOrderPayload(submission.id, draft.contactName, createOrderRequestKey(submission.id)),
+        buildCreateOrderPayload(submissionCode.value, draft.contactName, createOrderRequestKey(submissionCode.value)),
       )
       order.value = createdOrder
       pageMode.value = nextPageModeForOrder(createdOrder)
@@ -248,6 +300,7 @@ export function useEnrollmentPage() {
       }
     } catch (error) {
       pageMode.value = "review"
+      if (error instanceof ApiError && error.statusCode === 401) { authenticated.value = false; pageMode.value = "editing" }
       errorMessage.value = readableError(error, "提交失败，请稍后重试")
     }
   }
@@ -306,22 +359,16 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     payment.value = null
   }
 
-  function hasMemberInput(member: FamilyMember): boolean {
-    return member.selected
-      || member.displayName.trim().length > 0
-      || (member.identityNumber ?? "").trim().length > 0
-      || (member.phone ?? "").trim().length > 0
-  }
-
   function memberFieldError(member: FamilyMember, field: MemberFieldName): string {
-    return readMemberFieldError(member, field) ?? ""
+    return validationShown.value ? readMemberFieldError(member, field) ?? "" : ""
   }
 
   function contactFieldError(field: ContactFieldName): string {
-    return readContactFieldError(draft, field) ?? ""
+    return validationShown.value ? readContactFieldError(draft, field) ?? "" : ""
   }
 
   return {
+    authenticated, completeLogin, removeMember, validationShown,
     addMember,
     availableSessions,
     backToEdit,

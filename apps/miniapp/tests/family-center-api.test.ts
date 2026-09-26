@@ -14,7 +14,7 @@ describe("family center API", () => {
     // Given
     const requests: MiniappRequestOptions[] = []
     const detail = {
-      ...history, contactName: "演示家长", emergencyContactName: null, emergencyContactPhone: null,
+      ...history, contactName: "演示家长", contactPhone: null, emergencyContactName: null, emergencyContactPhone: null,
       refundSummary: { status: "none", refundedFen: 0, pendingFen: 0, failedCount: 0 }, refundHistory: [],
       participants: [
         { id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 12_800, refundedFen: 0, refundStatus: "none" },
@@ -63,7 +63,7 @@ describe("family center API", () => {
   it("rejects malformed participant money instead of displaying an invented amount", async () => {
     // Given
     const api = createMiniappApi({ request: async () => ({ statusCode: 200, data: {
-      ...history, contactName: "演示家长", emergencyContactName: null, emergencyContactPhone: null,
+      ...history, contactName: "演示家长", contactPhone: null, emergencyContactName: null, emergencyContactPhone: null,
       refundSummary: { status: "none", refundedFen: 0, pendingFen: 0, failedCount: 0 }, refundHistory: [],
       participants: [{ id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", participantKind: "student", gradeName: null, className: null, amountFen: 128.5 }],
     } }) })
@@ -73,7 +73,7 @@ describe("family center API", () => {
 })
 
 const refundDetail = {
-  ...history, contactName: "演示家长", emergencyContactName: null, emergencyContactPhone: null,
+  ...history, contactName: "演示家长", contactPhone: null, emergencyContactName: null, emergencyContactPhone: null,
   refundSummary: { status: "partial", refundedFen: 12_800, pendingFen: 0, failedCount: 0 },
   refundHistory: [{
     id: "refund-a", status: "succeeded", amountFen: 12_800,

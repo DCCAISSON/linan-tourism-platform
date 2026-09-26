@@ -62,6 +62,7 @@ export type EnrollmentPayload = {
   readonly tourSessionId: string
   readonly memberIds: readonly string[]
   readonly contactName: string
+  readonly contactPhone?: string
   readonly emergencyContactName: string
   readonly emergencyContactPhone: string
   readonly agreementVersion: typeof FAMILY_ENROLLMENT_AGREEMENT_VERSION
@@ -71,6 +72,7 @@ export type EnrollmentPayload = {
 }
 
 export type EnrollmentMemberPayload = {
+  readonly saveAsCommon?: boolean
   readonly schoolId?: string
   readonly gradeId?: string
   readonly classId?: string
@@ -151,6 +153,7 @@ export type RefundHistoryItem = {
 
 export type OrderDetail = OrderHistoryItem & {
   readonly contactName: string
+  readonly contactPhone?: string | null
   readonly emergencyContactName: string | null
   readonly emergencyContactPhone: string | null
   readonly refundSummary: RefundSummary
@@ -274,6 +277,6 @@ export type MiniappApiOptions = {
   readonly request?: RequestTransport
 }
 
-export const FALLBACK_API_BASE_URL = "http://127.0.0.1:3000" as const
+export const FALLBACK_API_BASE_URL = "https://api.linantravel.cn" as const
 export const DEV_FAMILY_IDENTITY_HEADER = "x-linan-dev-family-identity" as const
 export { FAMILY_ENROLLMENT_AGREEMENT_VERSION }

@@ -1,14 +1,17 @@
 ﻿<script setup lang="ts">
+import { ref } from "vue"
 import { formatDateLabel, formatFen } from "../../enrollment-flow"
 import { memberFieldAnchor } from "../../enrollment-validation"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
+const noticeExpanded = ref(false)
 const props = defineProps<{
   readonly page: ReturnType<typeof useEnrollmentPage>
 }>()
 
 const {
   addMember,
+  removeMember,
   availableSessions,
   catalog,
   classNames,
@@ -35,7 +38,7 @@ const {
   <view class="section">
     <view class="section__header">
       <text class="section__title">学校与班级</text>
-      <text class="section__hint">先选学校；年级、班级用于新增成员，已有成员保留原班级。</text>
+      <text class="section__hint">请选择学生所在学校、年级和班级；常用参加人沿用已保存的班级。</text>
     </view>
 
     <picker mode="selector" :range="schoolNames" @change="onSchoolChange">
@@ -65,7 +68,7 @@ const {
       <view>
         <text class="section__title">参与成员</text>
         <text class="section__hint">已选择 {{ selectedMembers.length }} 人，可多人报名。</text>
-        <text class="required-note"><text class="required-mark">*</text>为必填项，请填写参加人姓名、证件号码和联系电话。</text>
+        <text class="required-note"><text class="required-mark">*</text>为必填项。学生联系电话统一使用下方家长手机。</text>
       </view>
       <button class="text-button" @tap="addMember">添加</button>
     </view>
@@ -75,7 +78,14 @@ const {
     </view>
 
     <view v-for="member in draft.familyMembers" :key="member.id" class="member-row">
-      <view class="member-row__fields">
+      <view v-if="member.remoteMemberId !== undefined" class="member-row__fields">
+        <text class="section__title">{{ member.displayName }}</text>
+        <text class="section__hint">{{ member.participantKind === "adult" ? "成人" : "学生" }} · {{ member.fromCommonList ? "常用参加人" : "本次参加人" }}</text>
+        <text class="section__hint">证件：{{ member.identityNumber || "已保存" }}</text>
+        <text v-if="!member.fromCommonList" class="section__hint">如需修改这名参加人的资料，请删除后重新添加。</text>
+        <button v-if="!member.fromCommonList" class="text-button" @tap="removeMember(member.id)">删除本次参加人</button>
+      </view>
+      <view v-else class="member-row__fields">
         <view class="kind-toggle">
           <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': (member.participantKind ?? 'student') === 'student' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'student'">学生</button>
           <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': member.participantKind === 'adult' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'adult'">成人</button>
@@ -90,15 +100,17 @@ const {
           <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="请输入18位身份证号码" placeholder-class="input-placeholder" />
           <text v-if="memberFieldError(member, 'identityNumber').length > 0" class="field-error">{{ memberFieldError(member, 'identityNumber') }}</text>
         </view>
-        <view :id="memberFieldAnchor(member.id, 'phone')" class="field-anchor">
-          <view class="input-label"><text class="required-mark">*</text>联系电话</view>
+        <view v-if="member.participantKind === 'adult'" :id="memberFieldAnchor(member.id, 'phone')" class="field-anchor">
+          <view class="input-label">本人手机（选填，与家长不同时填写）</view>
           <input v-model="member.phone" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="11" type="number" placeholder="请输入11位手机号码" placeholder-class="input-placeholder" />
           <text v-if="memberFieldError(member, 'phone').length > 0" class="field-error">{{ memberFieldError(member, 'phone') }}</text>
         </view>
         <text v-if="member.participantKind === 'adult'" class="member-row__hint">成人参与人无需选择年级和班级</text>
+        <button class="consent-button save-common-button" :class="{ 'consent-button--on': member.saveAsCommon }" @tap="member.saveAsCommon = !member.saveAsCommon">{{ member.saveAsCommon ? "已勾选" : "未勾选" }}：保存为常用参加人，方便下次报名</button>
+        <button class="text-button" @tap="removeMember(member.id)">删除本次参加人</button>
       </view>
-      <button class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
-        {{ member.selected ? "已选择" : "未选择" }}
+      <button v-if="member.fromCommonList" class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
+        {{ member.selected ? "取消选择" : "选择" }}
       </button>
     </view>
   </view>
@@ -111,12 +123,18 @@ const {
       <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="家长联系人" placeholder-class="input-placeholder" />
       <text v-if="contactFieldError('contactName').length > 0" class="field-error">{{ contactFieldError('contactName') }}</text>
     </view>
-    <view id="enrollment-emergency-name-field" class="field-anchor">
+    <view id="enrollment-contact-phone-field" class="field-anchor">
+      <view class="input-label input-label--block"><text class="required-mark">*</text>家长手机</view>
+      <input v-model="draft.contactPhone" class="text-input text-input--block" maxlength="11" type="number" placeholder="用于报名确认和行前联系" placeholder-class="input-placeholder" />
+      <text v-if="contactFieldError('contactPhone').length > 0" class="field-error">{{ contactFieldError('contactPhone') }}</text>
+    </view>
+    <button class="consent-button" :class="{ 'consent-button--on': draft.emergencySameAsParent }" @tap="draft.emergencySameAsParent = !draft.emergencySameAsParent">{{ draft.emergencySameAsParent ? "紧急联系人：同家长（点击填写其他联系人）" : "已选择其他紧急联系人（点击改为家长）" }}</button>
+    <view v-if="!draft.emergencySameAsParent" id="enrollment-emergency-name-field" class="field-anchor">
       <view class="input-label input-label--block"><text class="required-mark">*</text>紧急联系人姓名</view>
       <input v-model="draft.emergencyContact.name" class="text-input text-input--block" maxlength="120" placeholder="紧急联系人姓名" placeholder-class="input-placeholder" />
       <text v-if="contactFieldError('emergencyContactName').length > 0" class="field-error">{{ contactFieldError('emergencyContactName') }}</text>
     </view>
-    <view id="enrollment-emergency-phone-field" class="field-anchor">
+    <view v-if="!draft.emergencySameAsParent" id="enrollment-emergency-phone-field" class="field-anchor">
       <view class="input-label input-label--block"><text class="required-mark">*</text>紧急联系人电话</view>
       <input v-model="draft.emergencyContact.phone" class="text-input text-input--block" maxlength="11" type="number" placeholder="请输入11位手机号码" placeholder-class="input-placeholder" />
       <text v-if="contactFieldError('emergencyContactPhone').length > 0" class="field-error">{{ contactFieldError('emergencyContactPhone') }}</text>
@@ -139,9 +157,26 @@ const {
   </view>
 
   <view id="enrollment-agreement-field" class="section">
-    <text class="section__title">协议版本确认</text>
-    <button class="consent-button" :class="{ 'consent-button--on': draft.agreementAccepted }" @tap="draft.agreementAccepted = !draft.agreementAccepted">
-      {{ draft.agreementAccepted ? "已同意" : "阅读并同意" }}《研学报名服务协议》（第 1 版）
+    <text class="section__title">报名须知</text>
+    <view v-if="selectedSession?.activeNotice">
+      <text class="section__hint">{{ selectedSession.activeNotice.title }} · {{ selectedSession.activeNotice.version }}</text>
+      <button class="text-button" @tap="noticeExpanded = !noticeExpanded">{{ noticeExpanded ? "收起告知书" : "查看完整告知书" }}</button>
+      <view v-if="noticeExpanded" class="trip-detail">
+        <text class="trip-line">目的地：{{ selectedSession.activeNotice.contentJson.destination }}</text>
+        <text class="trip-line">集合地点：{{ selectedSession.activeNotice.contentJson.departurePlace }}</text>
+        <text class="trip-line">用餐说明：{{ selectedSession.activeNotice.contentJson.mealNote }}</text>
+        <text class="input-label">行程安排</text>
+        <text v-for="item in selectedSession.activeNotice.contentJson.itinerary" :key="item" class="trip-line">{{ item }}</text>
+        <text class="input-label">费用说明</text>
+        <text v-for="item in selectedSession.activeNotice.contentJson.unitPrices" :key="item" class="trip-line">{{ item }}</text>
+        <text v-for="item in selectedSession.activeNotice.contentJson.packageExamples" :key="item" class="trip-line">{{ item }}</text>
+        <text class="input-label">出行提醒</text>
+        <text v-for="item in selectedSession.activeNotice.contentJson.reminders" :key="item" class="trip-line">{{ item }}</text>
+      </view>
+    </view>
+    <text v-else class="section__hint">请先选择已发布告知书的团期。</text>
+    <button v-if="selectedSession?.activeNotice" class="consent-button enrollment-agreement-button" :class="{ 'consent-button--on': draft.agreementAccepted }" @tap="draft.agreementAccepted = !draft.agreementAccepted">
+      {{ draft.agreementAccepted ? "已同意" : "阅读并同意" }}《{{ selectedSession.activeNotice.title }}》（{{ selectedSession.activeNotice.version }}）
     </button>
   </view>
 </template>

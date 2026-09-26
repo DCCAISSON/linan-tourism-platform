@@ -22,12 +22,12 @@ const estimatedAmount = computed(() => {
   }
   return formatFen(selectedSession.value.priceFen * selectedMembers.value.length)
 })
-const hasSavedMembers = computed(() => selectedMembers.value.some((member) => member.remoteMemberId !== undefined))
+const hasSavedMembers = computed(() => selectedMembers.value.some((member) => member.fromCommonList))
 function memberPlacement(member: FamilyMember): string {
   if (member.participantKind === "adult") {
     return "成人 · 无需年级班级"
   }
-  if (member.remoteMemberId !== undefined) {
+  if (member.fromCommonList) {
     return "学生 · 按家庭中心保存班级"
   }
   return `学生 · ${selectedGrade.value?.name ?? "年级待确认"} ${selectedClass.value?.name ?? "班级待确认"}`
@@ -41,7 +41,7 @@ function maskedIdentity(member: FamilyMember): string {
 }
 
 function maskedPhone(member: FamilyMember): string {
-  const value = (member.phone ?? "").trim()
+  const value = (member.participantKind === "adult" && member.phone ? member.phone : draft.contactPhone).trim()
   if (value.includes("*")) return value
   if (value.length <= 7) return value.length > 0 ? value : "已保存"
   return `${value.slice(0, 3)}****${value.slice(-4)}`
@@ -59,11 +59,11 @@ function maskedPhone(member: FamilyMember): string {
       成员 {{ index + 1 }}：{{ member.displayName }}｜{{ memberPlacement(member) }}｜证件 {{ maskedIdentity(member) }}｜电话 {{ maskedPhone(member) }}
     </text>
     <text class="review-panel__item">预计金额：{{ estimatedAmount }}</text>
-    <text class="review-panel__item">联系人：{{ draft.contactName }}</text>
-    <text class="review-panel__item">紧急联系人：{{ draft.emergencyContact.name }}</text>
-    <text class="review-panel__item">紧急联系电话：{{ draft.emergencyContact.phone }}</text>
-    <text class="review-panel__item">协议：研学报名服务协议</text>
-    <text class="review-panel__item">确认状态：已确认（第 1 版）</text>
+    <text class="review-panel__item">联系人：{{ draft.contactName }} · {{ draft.contactPhone }}</text>
+    <text class="review-panel__item">紧急联系人：{{ draft.emergencySameAsParent ? draft.contactName : draft.emergencyContact.name }}</text>
+    <text class="review-panel__item">紧急联系电话：{{ draft.emergencySameAsParent ? draft.contactPhone : draft.emergencyContact.phone }}</text>
+    <text class="review-panel__item">告知书：{{ selectedSession?.activeNotice?.title }}</text>
+    <text class="review-panel__item">确认状态：已确认（{{ selectedSession?.activeNotice?.version }}）</text>
   </view>
 </template>
 

@@ -61,6 +61,11 @@ export function createFixtureServer(baseUrl) {
     const body = await readJsonBody(request)
     fixture.requests.push({ method: request.method, path: url.pathname, body })
 
+    if (request.method === "POST" && url.pathname === "/wechat/miniapp/login") {
+      if (body.code !== "fixture-wechat-code" || body.familyCode !== undefined) return json(response, 400, { message: "Unexpected login payload" })
+      return json(response, 200, { token: "fixture-session-token", familyCode: "family-e2e", expiresAt: "2027-01-01T00:00:00.000Z" })
+    }
+
     if (request.method === "GET" && url.pathname === "/capabilities") return json(response, 200, { wechatPaymentEnabled: false, wechatRefundEnabled: false, paymentReconciliationEnabled: false })
     if (request.method === "GET" && url.pathname === "/schools") {
       while (fixture.catalogBlocked) await delay(50)

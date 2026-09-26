@@ -62,6 +62,12 @@ export class EnrollmentParticipantEntity {
   @Column({ name: "participant_kind_snapshot", type: "varchar", length: 16 })
   participantKindSnapshot: "student" | "adult" = "student"
 
+  @Column({ name: "grade_id_snapshot", type: "varchar", length: 64, nullable: true })
+  gradeIdSnapshot: string | null = null
+
+  @Column({ name: "class_id_snapshot", type: "varchar", length: 64, nullable: true })
+  classIdSnapshot: string | null = null
+
   @Column({ name: "grade_name_snapshot", type: "varchar", length: 120, nullable: true })
   gradeNameSnapshot: string | null = null
 

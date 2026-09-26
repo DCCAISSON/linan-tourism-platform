@@ -58,7 +58,11 @@
         <dl class="orders-facts">
           <div><dt>订单号</dt><dd>{{ detail.code }}</dd></div><div><dt>活动</dt><dd>{{ detail.activityTitle }}</dd></div>
           <div><dt>学校</dt><dd>{{ detail.schoolName }}</dd></div><div><dt>付款状态</dt><dd>{{ statusText(detail.status) }}{{ detail.refundSummary.status === 'partial' ? '（部分退款）' : '' }}</dd></div>
-          <div><dt>联系人</dt><dd>{{ detail.contactName }}</dd></div><div><dt>应付 / 已付</dt><dd>{{ formatFen(detail.amountFen) }} / {{ formatFen(detail.paidFen) }}</dd></div>
+          <div><dt>联系人</dt><dd>{{ detail.contactName }}</dd></div>
+          <div><dt>联系电话</dt><dd>{{ detail.contactPhone || '未登记' }}</dd></div>
+          <div><dt>紧急联系人</dt><dd>{{ detail.emergencyContactName || '未登记' }}</dd></div>
+          <div><dt>紧急联系电话</dt><dd>{{ detail.emergencyContactPhone || '未登记' }}</dd></div>
+          <div><dt>应付 / 已付</dt><dd>{{ formatFen(detail.amountFen) }} / {{ formatFen(detail.paidFen) }}</dd></div>
           <div><dt>已退款 / 待处理</dt><dd>{{ formatFen(detail.refundSummary.refundedFen) }} / {{ formatFen(detail.refundSummary.pendingFen) }}</dd></div>
         </dl>
         <div class="orders-section-heading"><h3>参加人员</h3><span>{{ detail.participants.length }} 人</span></div>

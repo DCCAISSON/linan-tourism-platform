@@ -17,6 +17,7 @@ export type StaffOrder = {
 
 export type StaffOrderDetail = StaffOrder & {
   readonly contactName: string
+  readonly contactPhone: string | null
   readonly emergencyContactName: string | null
   readonly emergencyContactPhone: string | null
   readonly refundSummary: RefundSummary
@@ -81,6 +82,7 @@ export async function getStaffOrder(id: string): Promise<StaffOrderDetail> {
   if (!Array.isArray(participants) || !Array.isArray(history)) throw invalidResponse()
   return {
     ...parseOrder(record), contactName: readText(record, "contactName"),
+    contactPhone: record["contactPhone"] === undefined ? null : readNullableText(record, "contactPhone"),
     emergencyContactName: readNullableText(record, "emergencyContactName"),
     emergencyContactPhone: readNullableText(record, "emergencyContactPhone"),
     refundSummary: parseRefundSummary(record["refundSummary"]),

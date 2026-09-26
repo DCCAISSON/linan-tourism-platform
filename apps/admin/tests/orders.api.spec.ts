@@ -5,7 +5,7 @@ import { createStaffRefund, getStaffOrder, processStaffRefund } from "@/api/orde
 const detail = {
   id: "order-1", code: "ORDER-1", payerName: "家长甲", status: "paid", amountFen: 25600, paidFen: 25600,
   participantCount: 2, activityTitle: "研学", schoolName: "实验小学", startsAt: "2027-02-01T00:00:00Z", createdAt: "2026-09-22T00:00:00Z",
-  contactName: "家长甲", emergencyContactName: null, emergencyContactPhone: null,
+  contactName: "家长甲", contactPhone: "13800000000", emergencyContactName: null, emergencyContactPhone: null,
   refundSummary: { status: "partial", refundedFen: 12800, pendingFen: 0, failedCount: 0 },
   refundHistory: [{ id: "refund-1", status: "succeeded", amountFen: 12800, reason: "无法参加", note: null, requestedAt: "2026-09-22T00:00:00Z", processedAt: "2026-09-22T01:00:00Z", failureMessage: null, lines: [{ lineId: "line-1", displayName: "学生甲", amountFen: 12800 }] }],
   participants: [{ id: "line-1", displayName: "学生甲", gradeName: null, className: null, amountFen: 12800, refundedFen: 12800, refundStatus: "refunded" }],

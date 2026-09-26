@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WechatConsent from "../../components/WechatConsent.vue"
 import EnrollmentForm from "../index/EnrollmentForm.vue"
 import EnrollmentReview from "../index/EnrollmentReview.vue"
 import EnrollmentStatePanel from "../index/EnrollmentStatePanel.vue"
@@ -7,6 +8,7 @@ import { useEnrollmentPage } from "../index/useEnrollmentPage"
 
 const page = useEnrollmentPage()
 const {
+  authenticated, completeLogin, validationShown, selectedSession,
   backToEdit,
   canSubmit,
   enterReview,
@@ -28,11 +30,10 @@ const {
         <view class="state-pill__dot" :class="`state-pill__dot--${stateTone}`" />
         <text class="state-pill__text">{{ loadStateLabel }}</text>
       </view>
-      <text class="topbar__version">协议第 1 版</text>
+      <text v-if="selectedSession?.activeNotice" class="topbar__version">告知书 {{ selectedSession.activeNotice.version }}</text>
     </view>
 
     <view class="hero">
-      <text class="hero__eyebrow">家长小程序</text>
       <text class="hero__title flow-title">研学报名</text>
       <text class="hero__summary">选择行程和参加人，核对信息后提交报名。</text>
     </view>
@@ -57,6 +58,7 @@ const {
     </view>
 
     <EnrollmentStatePanel v-if="loadState === 'loading'" kind="loading" />
+    <WechatConsent v-else-if="!authenticated" @authenticated="completeLogin" />
     <EnrollmentStatePanel v-else-if="loadState === 'empty'" kind="empty" @retry="loadCatalog" />
     <EnrollmentStatePanel v-else-if="loadState === 'error'" kind="error" :message="errorMessage" @retry="loadCatalog" />
 
@@ -84,7 +86,7 @@ const {
         </button>
       </view>
 
-      <view v-if="!readiness.ready && pageMode === 'editing'" class="readiness-line">
+      <view v-if="validationShown && !readiness.ready && pageMode === 'editing'" class="readiness-line">
         <text>{{ readiness.reason }}</text>
       </view>
     </view>

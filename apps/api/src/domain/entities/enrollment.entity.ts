@@ -47,6 +47,9 @@ export class EnrollmentEntity {
   @Column({ type: "varchar", length: 64 })
   code = ""
 
+  @Column({ name: "contact_phone", type: "varchar", length: 32, nullable: true })
+  contactPhone: string | null = null
+
   @Column({ name: "contact_name", type: "varchar", length: 120 })
   contactName = ""
 

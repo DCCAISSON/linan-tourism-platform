@@ -41,6 +41,7 @@ export type OrderParticipant = {
 
 export type OrderDetailResponse = OrderHistoryItem & {
   readonly contactName: string
+  readonly contactPhone: string | null
   readonly emergencyContactName: string | null
   readonly emergencyContactPhone: string | null
   readonly refundSummary: RefundSummary

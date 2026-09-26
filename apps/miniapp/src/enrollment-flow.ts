@@ -17,6 +17,8 @@ export type FamilyMember = {
   participantKind?: "student" | "adult"
   identityNumber?: string
   phone?: string
+  saveAsCommon?: boolean
+  fromCommonList?: boolean
   selected: boolean
   remoteMemberId?: string
 }
@@ -27,6 +29,8 @@ export type EmergencyContact = {
 }
 
 export type EnrollmentDraft = {
+  readonly contactPhone: string
+  readonly emergencySameAsParent: boolean
   readonly contactName: string
   readonly emergencyContact: EmergencyContact
   readonly selectedSchoolId: string
@@ -54,6 +58,8 @@ export type EnrollmentReadiness =
 export function createEmptyDraft(): EnrollmentDraft {
   return {
     contactName: "",
+    contactPhone: "",
+    emergencySameAsParent: true,
     emergencyContact: {
       name: "",
       phone: "",
@@ -102,8 +108,9 @@ export function buildEnrollmentPayload(
     tourSessionId: selectedSession.id,
     memberIds,
     contactName: draft.contactName.trim(),
-    emergencyContactName: draft.emergencyContact.name.trim(),
-    emergencyContactPhone: draft.emergencyContact.phone.trim(),
+    contactPhone: draft.contactPhone.trim(),
+    emergencyContactName: (draft.emergencySameAsParent ? draft.contactName : draft.emergencyContact.name).trim(),
+    emergencyContactPhone: (draft.emergencySameAsParent ? draft.contactPhone : draft.emergencyContact.phone).trim(),
     agreementVersion: FAMILY_ENROLLMENT_AGREEMENT_VERSION,
     schemaVersion: DOMAIN_SCHEMA_VERSION,
     noticeVersionId: activeNotice.id,
@@ -154,7 +161,8 @@ function buildMemberPayload(draft: EnrollmentDraft, member: FamilyMember): Enrol
     displayName: member.displayName.trim(),
     participantKind,
     identityNumber: (member.identityNumber ?? "").trim(),
-    phone: (member.phone ?? "").trim(),
+    phone: participantKind === "adult" && (member.phone ?? "").trim().length > 0 ? (member.phone ?? "").trim() : draft.contactPhone.trim(),
+    saveAsCommon: member.saveAsCommon === true,
   } as const
   if (participantKind === "adult") {
     return base

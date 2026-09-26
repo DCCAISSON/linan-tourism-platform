@@ -24,6 +24,10 @@ import { AddBusinessRecords1765965600000 } from "../migrations/1765965600000-Add
 import { AddWechatProtocolSchema1765969200000 } from "../migrations/1765969200000-AddWechatProtocolSchema.js"
 import { AddPretripWorkspace1765972800000 } from "../migrations/1765972800000-AddPretripWorkspace.js"
 import { AddNotifications1765976400000 } from "../migrations/1765976400000-AddNotifications.js"
+import { AddWechatIdentities1765980000000 } from "../migrations/1765980000000-AddWechatIdentities.js"
+import { AddEnrollmentContactAndCommonMembers1765983600000 } from "../migrations/1765983600000-AddEnrollmentContactAndCommonMembers.js"
+
+import { AddEnrollmentPlacementSnapshot1765987200000 } from "../migrations/1765987200000-AddEnrollmentPlacementSnapshot.js"
 
 export const DOMAIN_DATA_SOURCE_OPTIONS = {
   type: "mysql",
@@ -57,6 +61,9 @@ export const DOMAIN_DATA_SOURCE_OPTIONS = {
     AddWechatProtocolSchema1765969200000,
     AddPretripWorkspace1765972800000,
     AddNotifications1765976400000,
+    AddWechatIdentities1765980000000,
+    AddEnrollmentContactAndCommonMembers1765983600000,
+    AddEnrollmentPlacementSnapshot1765987200000,
   ],
 } satisfies DataSourceOptions
 

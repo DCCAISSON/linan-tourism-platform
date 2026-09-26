@@ -81,7 +81,7 @@ export function resolveDevFamilyIdentityHeader(value?: string): string | undefin
 export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
   const baseUrl = resolveApiBaseUrl(options.baseUrl)
   const familyIdentityHeader = resolveDevFamilyIdentityHeader(options.familyIdentityHeader)
-  const wechatSessionToken = options.wechatSessionToken ?? getWechatSessionToken()
+  const wechatSessionToken = options.wechatSessionToken
   const request = options.request ?? requestWithUni
 
   return {
@@ -201,7 +201,6 @@ async function requestJson(
   if (response.statusCode < 200 || response.statusCode >= 300) {
     if (response.statusCode === 401 && !path.startsWith("/wechat/miniapp/")) {
       clearWechatSessionToken()
-      uni.reLaunch({ url: "/pages/login/index" })
       throw new ApiError(401, "登录状态已失效，请重新登录")
     }
     throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
@@ -218,8 +217,9 @@ function buildHeaders(familyIdentityHeader: string | undefined, wechatSessionTok
   if (familyIdentityHeader !== undefined) {
     headers[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
   }
-  if (wechatSessionToken !== undefined) {
-    headers["Authorization"] = `Bearer ${wechatSessionToken}`
+  const currentToken = wechatSessionToken ?? getWechatSessionToken()
+  if (currentToken !== undefined) {
+    headers["Authorization"] = `Bearer ${currentToken}`
   }
 
   return headers

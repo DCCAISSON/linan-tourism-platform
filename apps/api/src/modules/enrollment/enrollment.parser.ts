@@ -27,6 +27,7 @@ export function parseFamilyMember(body: unknown): NewFamilyMember {
     classId: participantKind === "student" ? requireOptionalString(classId, "classId", 64) : undefined,
     tourSessionId: readOptionalString(record, "tourSessionId", 64),
     personData: parsePersonData(record),
+    ...("saveAsCommon" in record ? { saveAsCommon: readBoolean(record, "saveAsCommon") } : {}),
   }
 }
 
@@ -60,6 +61,7 @@ export function parseEnrollmentSubmission(body: unknown): NewEnrollmentSubmissio
     tourSessionId: readString(record, "tourSessionId", 64),
     memberIds,
     contactName: readString(record, "contactName", 120),
+    ...("contactPhone" in record ? { contactPhone: readContactPhone(record) } : {}),
     emergencyContactName: readString(record, "emergencyContactName", 120),
     emergencyContactPhone: readString(record, "emergencyContactPhone", 32),
     agreementVersion,
@@ -67,6 +69,18 @@ export function parseEnrollmentSubmission(body: unknown): NewEnrollmentSubmissio
     noticeVersionId: readString(record, "noticeVersionId", 64),
     noticeVersion: readString(record, "noticeVersion", 64),
   }
+}
+
+function readBoolean(body: UnknownRecord, field: string): boolean {
+  const value = body[field]
+  if (typeof value !== "boolean") throw malformedEnrollmentInput(`${field} must be a boolean`)
+  return value
+}
+
+function readContactPhone(body: UnknownRecord): string {
+  const phone = readString(body, "contactPhone", 32)
+  if (!/^1[3-9]\d{9}$/.test(phone)) throw malformedEnrollmentInput("contactPhone must be a valid mainland China mobile number")
+  return phone
 }
 
 function parseBody(body: unknown): UnknownRecord {

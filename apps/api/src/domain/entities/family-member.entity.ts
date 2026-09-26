@@ -41,6 +41,9 @@ export class FamilyMemberEntity {
   @Column({ type: "varchar", length: 64 })
   code = ""
 
+  @Column({ name: "save_as_common", type: "boolean", default: true })
+  saveAsCommon = true
+
   @Column({ name: "display_name", type: "varchar", length: 120 })
   displayName = ""
 

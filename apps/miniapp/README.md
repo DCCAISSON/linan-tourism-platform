@@ -12,4 +12,4 @@ uni-app、Vue 3 和 TypeScript 微信小程序。首页、研学活动、我的�
 - `pnpm test`：运行报名、支付和家庭中心 API 边界测试
 - `pnpm test:e2e`：先生成当前生产构建，再通过 `miniprogram-automator` 启动微信开发者工具；缺少 `WECHAT_DEVTOOLS_CLI` 时会明确失败
 
-本地联调用 `VITE_API_BASE_URL` 指定 API，`VITE_DEV_FAMILY_IDENTITY_HEADER` 指定演示家庭身份。自动化测试使用独立 HTTP 测试服务，不连接正式支付；截图保存到 `.omo/evidence/linan-first-working-20260917/miniapp/devtools`，保留此前验收图片。
+未配置 `VITE_API_BASE_URL` 时默认连接 `https://api.linantravel.cn`。本地联调需用 `VITE_API_BASE_URL` 显式指定本地 API，`VITE_DEV_FAMILY_IDENTITY_HEADER` 指定演示家庭身份。自动化测试使用独立 HTTP 测试服务，不连接正式支付；截图保存到 `.omo/evidence/linan-first-working-20260917/miniapp/devtools`，保留此前验收图片。

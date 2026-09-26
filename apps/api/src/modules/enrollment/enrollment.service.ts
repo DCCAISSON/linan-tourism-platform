@@ -35,7 +35,7 @@ import type {
   NewFamilyMember,
   UpdateFamilyMember,
 } from "./enrollment.types.js"
-import { protectPersonData } from "./person-data.js"
+import { protectPersonData, protectPhoneData } from "./person-data.js"
 
 const CONSENT_PURPOSE = "enrollment_submission"
 
@@ -57,7 +57,13 @@ export class EnrollmentService {
           ...resolved,
           protectedPersonData: input.personData === undefined ? undefined : protectPersonData(input.personData),
         }
-        return manager.save(FamilyMemberEntity, memberFromInput(protectedInput, family))
+        const candidate = memberFromInput(protectedInput, family)
+        const existing = await manager.findOneBy(FamilyMemberEntity, { familyId: family.id, code: input.code })
+        const fields = ["code", "organizationId", "displayName", "participantKind", "gradeId", "classId", "identityHash", "phoneHash", "personDataKeyVersion", "saveAsCommon"] as const
+        if (existing !== null && fields.every((field) => existing[field] === candidate[field])) {
+          return existing
+        }
+        return manager.save(FamilyMemberEntity, candidate)
       })
       return toMemberResponse(member)
     } catch (error) {
@@ -73,7 +79,7 @@ export class EnrollmentService {
     }
     const members = await dataSource
       .getRepository(FamilyMemberEntity)
-      .find({ where: { familyId: In(families.map((family) => family.id)) }, order: { code: "ASC" } })
+      .find({ where: { familyId: In(families.map((family) => family.id)), saveAsCommon: true }, order: { code: "ASC" } })
     return members.map(toMemberResponse)
   }
 
@@ -152,13 +158,14 @@ export class EnrollmentService {
           familyId: family.id,
           code: makeId("enrollment"),
           contactName: input.contactName,
+          contactPhone: input.contactPhone ?? null,
           emergencyContactName: input.emergencyContactName,
           emergencyContactPhone: input.emergencyContactPhone,
           participantCount: members.length,
           status: ENROLLMENT_STATUS.pending,
           policyVersion: DOMAIN_POLICY_VERSION,
         })
-        await this.createParticipants(manager, { enrollmentId: enrollment.id, familyId: family.id, members })
+        await this.createParticipants(manager, { enrollmentId: enrollment.id, familyId: family.id, members, contactPhone: input.contactPhone })
         await manager.save(ConsentRecordEntity, {
           id: makeId("consent"),
           organizationId: session.organizationId,
@@ -221,12 +228,15 @@ export class EnrollmentService {
   private async createParticipants(
     manager: EntityManager,
     input: {
+      readonly contactPhone: string | undefined
       readonly enrollmentId: string
       readonly familyId: string
       readonly members: readonly FamilyMemberEntity[]
     },
   ): Promise<void> {
+    const contact = input.contactPhone === undefined ? undefined : protectPhoneData(input.contactPhone)
     for (const member of input.members) {
+      const phone = member.participantKind === "student" && contact !== undefined ? contact : member
       const grade = member.gradeId === null ? null : await manager.findOneBy(SchoolGradeEntity, { id: member.gradeId })
       const schoolClass = member.classId === null ? null : await manager.findOneBy(SchoolClassEntity, { id: member.classId })
         await manager.save(EnrollmentParticipantEntity, {
@@ -237,14 +247,16 @@ export class EnrollmentService {
         familyMemberId: member.id,
         displayNameSnapshot: member.displayName,
         participantKindSnapshot: member.participantKind,
+        gradeIdSnapshot: member.gradeId,
+        classIdSnapshot: member.classId,
         gradeNameSnapshot: grade?.name ?? null,
         classNameSnapshot: schoolClass?.name ?? null,
         identityCiphertextSnapshot: member.identityCiphertext,
         identityHashSnapshot: member.identityHash,
         identityMaskedSnapshot: member.identityMasked,
-        phoneCiphertextSnapshot: member.phoneCiphertext,
-        phoneHashSnapshot: member.phoneHash,
-        phoneMaskedSnapshot: member.phoneMasked,
+        phoneCiphertextSnapshot: phone.phoneCiphertext,
+        phoneHashSnapshot: phone.phoneHash,
+        phoneMaskedSnapshot: phone.phoneMasked,
         personDataKeyVersionSnapshot: member.personDataKeyVersion,
         policyVersion: DOMAIN_POLICY_VERSION,
       })

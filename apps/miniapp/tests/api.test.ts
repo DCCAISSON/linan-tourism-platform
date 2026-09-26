@@ -4,6 +4,7 @@ import {
   createMiniappApi,
   DEV_FAMILY_IDENTITY_HEADER,
   FAMILY_ENROLLMENT_AGREEMENT_VERSION,
+  resolveApiBaseUrl,
   type EnrollmentPayload,
   type MiniappRequestOptions,
   type RequestTransport,
@@ -11,6 +12,15 @@ import {
 
 describe("miniapp API client", () => {
   afterEach(() => { vi.unstubAllGlobals() })
+
+  it("uses the public API when a release build has no explicit API origin", () => {
+    // Given a release build without VITE_API_BASE_URL.
+    // When the API base URL is resolved.
+    const baseUrl = resolveApiBaseUrl()
+
+    // Then the miniapp connects to the deployed public API.
+    expect(baseUrl).toBe("https://api.linantravel.cn")
+  })
 
   it("creates members before posting enrollment payload with the family id header", async () => {
     const requests: MiniappRequestOptions[] = []
@@ -102,7 +112,7 @@ describe("miniapp API client", () => {
     )
   })
 
-  it("returns expired family sessions to WeChat login before enrollment fails", async () => {
+  it("clears expired sessions without navigating away from the enrollment draft", async () => {
     const removeStorageSync = vi.fn()
     const reLaunch = vi.fn()
     vi.stubGlobal("uni", {
@@ -120,7 +130,20 @@ describe("miniapp API client", () => {
 
     await expect(api.listEnrollmentMembers()).rejects.toEqual(new ApiError(401, "登录状态已失效，请重新登录"))
     expect(removeStorageSync).toHaveBeenCalledWith("linan_wechat_session_token")
-    expect(reLaunch).toHaveBeenCalledWith({ url: "/pages/login/index" })
+    expect(reLaunch).not.toHaveBeenCalled()
+  })
+
+  it("uses the refreshed session after inline login on an existing API client", async () => {
+    let token = "expired-token"
+    vi.stubGlobal("uni", { getStorageSync: () => token })
+    const requests: MiniappRequestOptions[] = []
+    const api = createMiniappApi({ request: async (options) => {
+      requests.push(options)
+      return { data: [], statusCode: 200 }
+    } })
+    token = "refreshed-token"
+    await api.listEnrollmentMembers()
+    expect(requests[0]?.header["Authorization"]).toBe("Bearer refreshed-token")
   })
 
   it("binds a WeChat identity to the supplied family code and stores the session response", async () => {

@@ -1,4 +1,5 @@
 import { DOMAIN_SCHEMA_VERSION } from "@linan/contracts"
+import { TourSessionEntity } from "../src/domain/entities/index.js"
 import type { INestApplication } from "@nestjs/common"
 import request from "supertest"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
@@ -129,7 +130,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
   })
 
 
-  it("creates immutable notice versions, activates history, and rejects non-demo notice seed", async () => {
+  it("creates immutable notice versions, activates history, and accepts customer-facing notice content", async () => {
     // Given
     const catalog = await createCatalog(app, scope)
     const v2 = await request(app.getHttpServer())
@@ -158,7 +159,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         title: "真实团期告知书",
         contentJson: { ...demoNoticeContent(), destination: "真实目的地" },
       })
-      .expect(400)
+      .expect(201)
 
     // Then
     expect(activated.body).toEqual(expect.objectContaining({ activeNoticeId: v2.body.id }))
@@ -166,7 +167,12 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
       expect.objectContaining({ id: catalog.noticeVersionId, version: "v1", contentJson: expect.objectContaining({ mealNote: "[演示]含研学简餐，过敏情况请提前备注。" }) }),
       expect.objectContaining({ id: v2.body.id, version: "v2", contentJson: expect.objectContaining({ mealNote: "[演示]第二版研学简餐说明。" }) }),
     ]))
-    expect(liveSeed.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
+    expect(liveSeed.body).toEqual(expect.objectContaining({
+      version: "live-v1", title: "真实团期告知书",
+      contentJson: expect.objectContaining({ destination: "真实目的地" }),
+    }))
+    const session = await dataSource.getRepository(TourSessionEntity).findOneByOrFail({ id: catalog.tourSessionId })
+    expect(session.activeNoticeId).toBe(v2.body.id)
   })
 
   it("rejects enrollment without an active notice or with a stale notice version", async () => {
@@ -509,7 +515,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
     const duplicate = await request(app.getHttpServer())
       .post("/enrollment/members")
       .set(familyHeader(scope, "d"))
-      .send(memberBody(catalog, "Duplicate Child", `member-${scope}-d`))
+      .send(memberBody(catalog, "Different Child", `member-${scope}-d`))
       .expect(409)
 
     // Then

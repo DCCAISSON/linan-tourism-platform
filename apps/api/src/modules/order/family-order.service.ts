@@ -45,6 +45,7 @@ export async function toOrderDetail(manager: EntityManager, scoped: ScopedOrder)
   return {
     ...await toHistoryItem(manager, scoped),
     contactName: scoped.enrollment.contactName,
+    contactPhone: scoped.enrollment.contactPhone,
     emergencyContactName: scoped.enrollment.emergencyContactName,
     emergencyContactPhone: scoped.enrollment.emergencyContactPhone,
     refundSummary: refundView.summary,

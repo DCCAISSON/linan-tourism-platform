@@ -42,6 +42,8 @@ try {
   await runCli(["auto", "--project", projectPath, "--auto-port", String(automationPort), "--trust-project"], 60_000)
   projectOpened = true
   miniProgram = await connectWhenReady(60_000)
+  await miniProgram.callWxMethod("clearStorageSync")
+  await miniProgram.mockWxMethod("login", { code: "fixture-wechat-code", errMsg: "login:ok" })
   await new Promise((resolve) => setTimeout(resolve, 5_000))
   console.log("E2E_STAGE connected")
   await withStageTimeout("discovery-before", runDiscoveryBefore(miniProgram, fixture), 90_000)
@@ -233,7 +235,7 @@ async function runJourney(program) {
   fixture.catalogBlocked = false
   await page.waitFor(500)
   const topbar = await required(page, ".topbar")
-  assertIncludes(await topbar.text(), "协议第 1 版", "friendly agreement label")
+  assertIncludes(await topbar.text(), "可填写", "ready enrollment state")
   if ((await topbar.text()).includes("family-enrollment-agreement-v1")) throw new Error("Internal agreement identifier is visible")
   assertIncludes(await (await required(page, ".state-pill__dot")).attribute("class"), "state-pill__dot--success", "ready state tone")
   await screenshot(program, "11-signup-entry.png")
@@ -272,6 +274,8 @@ async function runJourney(program) {
   await pickers[2].trigger("change", { value: 0 })
   await pickers[3].trigger("change", { value: 1 })
   await page.waitFor(100)
+  await (await required(page, ".primary-button")).tap()
+  await page.waitFor(".readiness-line")
   assertIncludes(await (await required(page, ".readiness-line")).text(), "报名已关闭", "closed registration state")
   await program.pageScrollTo(10_000)
   await screenshot(program, "14-registration-closed.png")
@@ -281,6 +285,7 @@ async function runJourney(program) {
   pickers = await component.$$("picker")
   await pickers[3].trigger("change", { value: 0 })
   await page.waitFor(100)
+  assertIncludes(await (await required(page, ".topbar")).text(), "告知书 v1", "active notice version")
   component = await required(page, "[u-i]")
   await (await required(component, ".text-button")).tap()
   await page.waitFor(50)
@@ -294,27 +299,26 @@ async function runJourney(program) {
   await page.waitFor(50)
   component = await required(page, "[u-i]")
   const inputs = await component.$$("input")
-  if (inputs.length !== 9) throw new Error(`Expected 9 enrollment inputs, received ${inputs.length}`)
+  if (inputs.length !== 7) throw new Error(`Expected 7 enrollment inputs, received ${inputs.length}`)
   const emergencyPhone = virtualPhone(8)
   const values = [
     "\u5f20\u540c\u5b66",
     virtualResidentId(1),
-    virtualPhone(1),
     "\u674e\u5973\u58eb",
     virtualResidentId(2),
     virtualPhone(2),
     "\u738b\u5973\u58eb",
-    "\u8d75\u5973\u58eb",
     emergencyPhone,
   ]
   for (const [index, value] of values.entries()) await inputs[index].input(value)
   assertIncludes(await component.text(), "证件号码", "identity label")
-  assertIncludes(await component.text(), "联系电话", "member phone label")
+  assertIncludes(await component.text(), "家长手机", "parent phone label")
   assertIncludes(await component.text(), "家长联系人", "contact label")
   await program.pageScrollTo(900)
   await screenshot(program, "15-adult-member.png")
   await program.pageScrollTo(0)
-  await (await required(component, ".consent-button")).tap()
+  for (const choice of await component.$$(".save-common-button")) await choice.tap()
+  await (await required(component, ".enrollment-agreement-button")).tap()
   await page.waitFor(100)
   await assertNoHorizontalOverflow(program, page)
   await program.pageScrollTo(10_000)
@@ -361,7 +365,7 @@ async function runJourney(program) {
 }
 
 async function buildMiniapp() {
-  const env = { ...process.env, VITE_API_BASE_URL: fixtureBaseUrl, VITE_DEV_FAMILY_IDENTITY_HEADER: "family-e2e" }
+  const env = { ...process.env, VITE_API_BASE_URL: fixtureBaseUrl, VITE_DEV_FAMILY_IDENTITY_HEADER: "", VITE_WECHAT_LOGIN_ENABLED: "true" }
   if (process.platform === "win32") {
     await runProcess(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", "corepack pnpm build:mp-weixin"], 300_000, env)
     return

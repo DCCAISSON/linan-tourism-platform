@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import { onShow } from "@dcloudio/uni-app"
-import { createMiniappApi, type OrderHistoryItem } from "../../api"
+import { ApiError, createMiniappApi, type OrderHistoryItem } from "../../api"
 import DiscoveryState from "../../components/DiscoveryState.vue"
 import { formatDateLabel, formatFen, type LoadState } from "../../enrollment-flow"
 import { orderStatusLabel } from "../../checkout-flow"
 import { readableError } from "../index/page-helpers"
+import { getWechatSessionToken } from "../../wechat-token"
 const api = createMiniappApi()
 const state = ref<LoadState>("loading")
 const error = ref("")
@@ -13,11 +14,19 @@ const orders = ref<readonly OrderHistoryItem[]>([])
 const selectedStatus = ref("")
 const statuses = [{ value: "", label: "全部" }, { value: "pending_payment", label: "待支付" }, { value: "paid", label: "已支付" }] as const
 const filtered = computed(() => orders.value.filter((order) => selectedStatus.value === "" || order.status === selectedStatus.value))
-onShow(() => { void load() })
+onShow(() => {
+  if (import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] === "true" && getWechatSessionToken() === undefined) {
+    uni.navigateTo({ url: "/pages/login/index?returnTo=%2Fpages%2Forders%2Findex" })
+    return
+  }
+  void load()
+})
 async function load(): Promise<void> {
   state.value = "loading"; error.value = ""
   try { orders.value = await api.listOrders(); state.value = orders.value.length > 0 ? "ready" : "empty" }
-  catch (cause) { state.value = "error"; error.value = readableError(cause, "订单加载失败，请重试") }
+  catch (cause) {
+    if (cause instanceof ApiError && cause.statusCode === 401) uni.navigateTo({ url: "/pages/login/index?returnTo=%2Fpages%2Forders%2Findex" })
+    state.value = "error"; error.value = readableError(cause, "订单加载失败，请重试") }
 }
 function open(id: string): void { uni.navigateTo({ url: `/pages/orders/detail?orderId=${encodeURIComponent(id)}` }) }
 function activities(): void { uni.switchTab({ url: "/pages/activities/index" }) }

@@ -124,6 +124,7 @@ export function memberFromInput(input: ProtectedFamilyMemberInput, family: Famil
     familyId: family.id,
     code: input.code,
     displayName: input.displayName,
+    saveAsCommon: input.saveAsCommon ?? true,
     participantKind: input.participantKind,
     gradeId: input.gradeId,
     classId: input.classId,

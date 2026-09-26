@@ -41,6 +41,7 @@ export function parseOrderDetail(value: unknown): OrderDetail {
   const record = readRecord(value)
   return {
     ...parseOrderHistoryItem(value), contactName: readString(record, "contactName"),
+    contactPhone: record["contactPhone"] === undefined ? null : readNullableText(record, "contactPhone"),
     emergencyContactName: readNullableText(record, "emergencyContactName"),
     emergencyContactPhone: readNullableText(record, "emergencyContactPhone"),
     participants: readCollection(record["participants"], parseOrderParticipant),

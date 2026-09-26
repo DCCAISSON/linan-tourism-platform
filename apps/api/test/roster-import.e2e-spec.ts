@@ -1,4 +1,4 @@
-﻿import ExcelJS from "exceljs"
+import ExcelJS from "exceljs"
 import type { INestApplication } from "@nestjs/common"
 import request from "supertest"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
@@ -80,6 +80,23 @@ describe.skipIf(databaseUrl === undefined)("Roster import API", () => {
       { role: "student", display_name: "学生二", source_class_name: "三（2）班" },
       { role: "teacher", display_name: "教师一", source_class_name: "带队教师" },
     ])
+  })
+
+  it("rejects every participant in a blank-class row while accepting the next valid row", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const workbook = await workbookBuffer([
+      ["序号", "班级", "*学生姓名", "*身份证号", "生日", "年龄", "* 手机"],
+      [1, "", "Blank Class", virtualResidentId("20140101", "121"), "", "", virtualPhone("2121")],
+      [2, "Class One", "Valid Class", virtualResidentId("20140101", "122"), "", "", virtualPhone("2122")],
+    ])
+    // When
+    const result = await importWorkbook(app, catalog, "grade_3_6", workbook)
+    // Then
+    expect(result.body).toMatchObject({ totalRows: 2, importedCount: 1, errorCount: 1 })
+    const people: readonly { display_name: string }[] = await dataSource.query(
+      "SELECT display_name FROM roster_import_people WHERE tour_session_id = ?", [catalog.tourSessionId])
+    expect(people).toEqual([{ display_name: "Valid Class" }])
   })
 
   it("stores row-level errors and downloads them as safe CSV", async () => {

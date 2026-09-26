@@ -1,6 +1,6 @@
-﻿import { BadGatewayException, BadRequestException, Inject, Injectable, UnauthorizedException } from "@nestjs/common"
+import { BadGatewayException, BadRequestException, Inject, Injectable, UnauthorizedException } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
-import { FamilyEntity, WechatFamilySessionEntity } from "../../domain/entities/index.js"
+import { FamilyEntity, WechatFamilySessionEntity, WechatIdentityEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import { createWechatSessionToken, hashWechatIdentity, hashWechatSessionToken, WECHAT_SESSION_TTL_MS } from "./wechat-session-token.js"
@@ -31,7 +31,7 @@ export class WechatAuthService {
     const hashes = toWechatIdentityHashes(session)
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
-      const familyCode = await this.resolveFamilyCode(manager, hashes.openidHash, input.familyCode)
+      const familyCode = await this.resolveFamilyCode(manager, hashes.openidHash)
       return this.createSession(manager, familyCode, hashes)
     })
   }
@@ -45,8 +45,8 @@ export class WechatAuthService {
     const hashes = toWechatIdentityHashes(session)
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
-      const active = await findActiveSession(manager, hashes.openidHash)
-      if (active !== null && active.familyCode !== targetFamilyCode) {
+      const familyCode = await this.resolveFamilyCode(manager, hashes.openidHash)
+      if (familyCode !== targetFamilyCode) {
         throw new UnauthorizedException({ code: "wechat_family_already_bound", message: "wechat identity is already bound to another family" })
       }
       return this.createSession(manager, targetFamilyCode, hashes)
@@ -66,7 +66,11 @@ export class WechatAuthService {
     }
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
-      await manager.update(WechatFamilySessionEntity, { openidHash: current.openidHash, revokedAt: null }, { revokedAt: new Date() })
+      const familyCode = await this.resolveFamilyCode(manager, hashes.openidHash)
+      if (familyCode !== targetFamilyCode) {
+        throw new UnauthorizedException({ code: "wechat_family_already_bound", message: "wechat identity is already bound to another family" })
+      }
+      await manager.update(WechatFamilySessionEntity, { openidHash: current.openidHash }, { revokedAt: new Date() })
       return this.createSession(manager, targetFamilyCode, hashes)
     })
   }
@@ -89,32 +93,29 @@ export class WechatAuthService {
 
   private async createSession(manager: EntityManager, familyCode: string, hashes: WechatIdentityHashes): Promise<WechatLoginResponse> {
     const family = await manager.findOneBy(FamilyEntity, { code: familyCode })
-    if (family === null) {
-      throw new UnauthorizedException({ code: "wechat_family_unbound", message: "wechat family is not bound" })
-    }
     const token = createWechatSessionToken()
     const expiresAt = new Date(Date.now() + WECHAT_SESSION_TTL_MS)
     await manager.save(WechatFamilySessionEntity, {
       id: makeId("wechat-session"),
-      organizationId: family.organizationId,
-      familyId: family.id,
-      familyCode: family.code,
+      organizationId: family?.organizationId ?? null,
+      familyId: family?.id ?? null,
+      familyCode,
       openidHash: hashes.openidHash,
       unionidHash: hashes.unionidHash,
       tokenHash: hashWechatSessionToken(token),
       expiresAt,
       revokedAt: null,
     })
-    return { token, familyCode: family.code, expiresAt: expiresAt.toISOString() }
+    return { token, familyCode, expiresAt: expiresAt.toISOString() }
   }
 
-  private async resolveFamilyCode(manager: EntityManager, openidHash: string, suppliedFamilyCode: string | null): Promise<string> {
-    const active = await findActiveSession(manager, openidHash)
-    if (active !== null) return active.familyCode
-    if (process.env["NODE_ENV"] !== "production" && suppliedFamilyCode !== null) return suppliedFamilyCode
-    const configured = process.env["WECHAT_DEV_LOGIN_FAMILY_CODE"]
-    if (process.env["NODE_ENV"] !== "production" && configured !== undefined && configured.length > 0) return configured
-    throw new UnauthorizedException({ code: "wechat_family_unbound", message: "wechat family is not bound" })
+  private async resolveFamilyCode(manager: EntityManager, openidHash: string): Promise<string> {
+    await manager.query(
+      "INSERT INTO wechat_identities (openid_hash, family_code) VALUES (?, ?) ON DUPLICATE KEY UPDATE openid_hash = openid_hash",
+      [openidHash, makeId("consumer")],
+    )
+    const identity = await manager.findOneByOrFail(WechatIdentityEntity, { openidHash })
+    return identity.familyCode
   }
 
   private async resolveBearerSession(headers: Record<string, string | readonly string[] | undefined>): Promise<WechatFamilySessionEntity> {
@@ -134,11 +135,6 @@ type WechatIdentityHashes = {
 
 function toWechatIdentityHashes(session: Code2SessionResponse): WechatIdentityHashes {
   return { openidHash: hashWechatIdentity(session.openid), unionidHash: session.unionid === null ? null : hashWechatIdentity(session.unionid) }
-}
-
-async function findActiveSession(manager: EntityManager, openidHash: string): Promise<WechatFamilySessionEntity | null> {
-  const active = await manager.findOne(WechatFamilySessionEntity, { where: { openidHash }, order: { createdAt: "DESC" } })
-  return active !== null && active.revokedAt === null && active.expiresAt.getTime() > Date.now() ? active : null
 }
 
 function readHeader(headers: Record<string, string | readonly string[] | undefined>, name: string): string | undefined {

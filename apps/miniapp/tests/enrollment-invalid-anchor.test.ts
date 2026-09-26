@@ -14,6 +14,8 @@ function validDraft(): EnrollmentDraft {
     selectedClassId: "class-1",
     selectedTourSessionId: "session-1",
     contactName: "家长联系人",
+    contactPhone: "19900003001",
+    emergencySameAsParent: false,
     emergencyContact: { name: "紧急联系人", phone: "19900003001" },
     agreementAccepted: true,
     familyMembers: [
@@ -104,7 +106,7 @@ const invalidAnchorScenarios: readonly InvalidAnchorScenario[] = [
     expectedTemplateToken: `:id="memberFieldAnchor(member.id, 'phone')"`,
     createDraft: () => draftWithMember((draft) => {
       const member = draft.familyMembers[0]
-      if (member !== undefined) member.phone = "12345"
+      if (member !== undefined) { member.participantKind = "adult"; member.phone = "12345" }
     }),
   },
   {

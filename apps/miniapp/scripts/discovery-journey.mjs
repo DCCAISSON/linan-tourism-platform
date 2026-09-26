@@ -53,6 +53,12 @@ export async function runDiscoveryBefore(program, fixture) {
   await (await required(page, ".enrollment-entry")).tap()
   page = await waitForRoute(program, "pages/enrollment/index")
   await page.waitFor(350)
+  const consent = await componentWithText(page, "登录后继续办理")
+  if (fixture.requests.some(entry => entry.path === "/wechat/miniapp/login")) throw new Error("Login occurred before consent")
+  await screenshot(program, "07-signup-consent.png")
+  await (await required(consent, ".consent-choice")).tap()
+  await (await required(consent, ".consent-login")).tap()
+  await page.waitFor(500)
   const form = await required(page, "[u-i]")
   assertIncludes(await form.text(), "临安实验小学", "school passed into signup")
   assertIncludes(await form.text(), "2026-11-open", "trip passed into signup")
@@ -65,7 +71,7 @@ export async function runDiscoveryBefore(program, fixture) {
   await program.switchTab("/pages/family/index")
   page = await program.currentPage()
   await page.waitFor(300)
-  assertIncludes(await (await componentWithText(page, "本家庭暂无成员")).text(), "本家庭暂无成员", "empty own family")
+  assertIncludes(await (await componentWithText(page, "暂无常用参加人")).text(), "暂无常用参加人", "empty own family")
   await screenshot(program, "09-family-empty.png")
 }
 

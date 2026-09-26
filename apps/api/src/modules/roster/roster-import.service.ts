@@ -172,6 +172,7 @@ export class RosterImportService {
 
     try {
       const protectedData = protectPersonData({ identityNumber: person.identityNumber, phone: person.phone })
+      if (row.className.length === 0) return
       const existing = await manager.findOneBy(RosterImportPersonEntity, {
         tourSessionId: input.tourSessionId,
         identityHash: protectedData.identityHash,

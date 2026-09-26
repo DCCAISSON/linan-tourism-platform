@@ -16,7 +16,7 @@ export async function loadTravelerSources(manager: EntityManager, scope: { reado
   const params = scope.classId === null ? [scope.tourSessionId] : [scope.tourSessionId, scope.classId]
   const paid: readonly SourceRow[] = await manager.query(`
     select ol.id, ol.organization_id as organizationId, e.tour_session_id as tourSessionId,
-      ol.display_name_snapshot as displayName, fm.grade_id as gradeId, fm.class_id as classId,
+      ol.display_name_snapshot as displayName, coalesce(ep.grade_id_snapshot, fm.grade_id) as gradeId, coalesce(ep.class_id_snapshot, fm.class_id) as classId,
       coalesce(ol.grade_name_snapshot, sg.name) as gradeName, coalesce(ol.class_name_snapshot, sc.name) as className,
       ol.participant_kind_snapshot as participantKind, null as importedRole,
       ol.identity_hash_snapshot as identityHash, ol.phone_hash_snapshot as phoneHash,
@@ -30,12 +30,12 @@ export async function loadTravelerSources(manager: EntityManager, scope: { reado
     join enrollments e on e.id = o.enrollment_id
     join enrollment_participants ep on ep.id = ol.enrollment_participant_id
     join family_members fm on fm.id = ep.family_member_id
-    left join school_grades sg on sg.id = fm.grade_id
-    left join school_classes sc on sc.id = fm.class_id
+    left join school_grades sg on sg.id = coalesce(ep.grade_id_snapshot, fm.grade_id)
+    left join school_classes sc on sc.id = coalesce(ep.class_id_snapshot, fm.class_id)
     left join roster_entries re on re.enrollment_participant_id = ep.id and re.enrollment_id = e.id
     where e.tour_session_id = ?
       and exists (select 1 from payments p where p.order_id = o.id and p.status = 'succeeded')
-      ${scope.classId === null ? "" : "and fm.class_id = ?"}
+      ${scope.classId === null ? "" : "and coalesce(ep.class_id_snapshot, fm.class_id) = ?"}
     order by ol.id`, params)
   const imported: readonly SourceRow[] = await manager.query(`
     select ip.id, ip.organization_id as organizationId, ip.tour_session_id as tourSessionId,
@@ -84,7 +84,7 @@ async function assertNoOutsideSources(manager: EntityManager, scope: { readonly 
     select ol.id from order_lines ol join orders o on o.id = ol.order_id
       join enrollments e on e.id = o.enrollment_id join enrollment_participants ep on ep.id = ol.enrollment_participant_id
       join family_members fm on fm.id = ep.family_member_id
-      where e.tour_session_id = ? and not (fm.class_id <=> ?) and ol.identity_hash_snapshot in (${placeholders})
+      where e.tour_session_id = ? and not (coalesce(ep.class_id_snapshot, fm.class_id) <=> ?) and ol.identity_hash_snapshot in (${placeholders})
       and exists (select 1 from payments p where p.order_id = o.id and p.status = 'succeeded')
     limit 1`, [scope.tourSessionId, scope.classId, ...hashes, scope.tourSessionId, scope.classId, ...hashes])
   if (outside.length > 0) throw new ForbiddenException({ code: "traveler_source_scope_forbidden", message: "人员包含其他班级来源，请由学校授权人员核对" })

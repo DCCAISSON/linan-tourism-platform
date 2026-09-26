@@ -1,7 +1,7 @@
 import type { EnrollmentDraft, FamilyMember } from "./enrollment-flow"
 
 export type MemberFieldName = "displayName" | "identityNumber" | "phone"
-export type ContactFieldName = "contactName" | "emergencyContactName" | "emergencyContactPhone"
+export type ContactFieldName = "contactName" | "contactPhone" | "emergencyContactName" | "emergencyContactPhone"
 export type EnrollmentInvalidTarget = { readonly reason: string; readonly anchor: string }
 
 
@@ -29,6 +29,7 @@ export function readFirstEnrollmentInvalidTarget(draft: EnrollmentDraft): Enroll
 
   const contactTargets = [
     ["contactName", "enrollment-contact-name-field"],
+    ["contactPhone", "enrollment-contact-phone-field"],
     ["emergencyContactName", "enrollment-emergency-name-field"],
     ["emergencyContactPhone", "enrollment-emergency-phone-field"],
   ] as const
@@ -56,8 +57,9 @@ export function readMemberFieldError(member: FamilyMember, field: MemberFieldNam
     if (value.length === 0) return "请填写参加人的证件号码"
     return isResidentIdentityNumber(value) ? undefined : "请填写有效的证件号码"
   }
+  if ((member.participantKind ?? "student") === "student") return undefined
   const phone = (member.phone ?? "").trim()
-  if (phone.length === 0) return "请填写参加人的联系电话"
+  if (phone.length === 0) return undefined
   return isMobilePhone(phone) ? undefined : "请填写有效的联系电话"
 }
 
@@ -65,6 +67,11 @@ export function readContactFieldError(draft: EnrollmentDraft, field: ContactFiel
   if (field === "contactName") {
     return draft.contactName.trim().length === 0 ? "请填写家长联系人姓名" : undefined
   }
+  if (field === "contactPhone") {
+    const phone = draft.contactPhone.trim()
+    return isMobilePhone(phone) ? undefined : "请填写有效的家长联系电话"
+  }
+  if (draft.emergencySameAsParent) return undefined
   if (field === "emergencyContactName") {
     return draft.emergencyContact.name.trim().length === 0 ? "请填写紧急联系人姓名" : undefined
   }

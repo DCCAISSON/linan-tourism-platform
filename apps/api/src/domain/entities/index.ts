@@ -58,6 +58,7 @@ import { TransportPlanEntity } from "./transport-plan.entity.js"
 import { TransportSessionVehicleEntity } from "./transport-session-vehicle.entity.js"
 import { TravelerImportChangeEntity } from "./traveler-import-change.entity.js"
 import { WechatBillDifferenceEntity, WechatBillReconciliationEntity } from "./wechat-bill-reconciliation.entity.js"
+import { WechatIdentityEntity } from "./wechat-identity.entity.js"
 import { WechatFamilySessionEntity } from "./wechat-family-session.entity.js"
 import { WechatTransactionEntity } from "./wechat-transaction.entity.js"
 
@@ -121,6 +122,7 @@ export { TransportPlanEntity } from "./transport-plan.entity.js"
 export { TransportSessionVehicleEntity } from "./transport-session-vehicle.entity.js"
 export { TravelerImportChangeEntity } from "./traveler-import-change.entity.js"
 export { WechatBillDifferenceEntity, WechatBillReconciliationEntity } from "./wechat-bill-reconciliation.entity.js"
+export { WechatIdentityEntity } from "./wechat-identity.entity.js"
 export { WechatFamilySessionEntity } from "./wechat-family-session.entity.js"
 export { WechatTransactionEntity } from "./wechat-transaction.entity.js"
 
@@ -186,6 +188,7 @@ export const DOMAIN_ENTITIES = [
   BusinessProductEntity,
   BusinessInquiryEntity,
   BusinessFollowupEntity,
+  WechatIdentityEntity,
   WechatFamilySessionEntity,
   WechatTransactionEntity,
   WechatBillReconciliationEntity,

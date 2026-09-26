@@ -60,6 +60,7 @@ describe("enrollment flow state", () => {
     // Given
     const draft: EnrollmentDraft = {
       ...createEmptyDraft(), selectedSchoolId: "org-school-1", selectedTourSessionId: "session-1",
+      contactPhone: virtualPhone("3099"), emergencySameAsParent: false,
       contactName: "演示家长", emergencyContact: { name: "演示联系人", phone: virtualPhone("3000") }, agreementAccepted: true,
       familyMembers: [
         { id: "member-a", remoteMemberId: "member-a", code: "child-a", displayName: "演示甲", selected: true },
@@ -86,6 +87,8 @@ describe("enrollment flow state", () => {
     const studentIdentityNumber = virtualResidentId("20100101", "003")
     const draft: EnrollmentDraft = {
       contactName: "家长联系人",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: {
         name: "备用联系人",
         phone: virtualPhone("3008"),
@@ -103,7 +106,8 @@ describe("enrollment flow state", () => {
           selected: true,
           participantKind: "student",
           identityNumber: studentIdentityNumber,
-          phone: virtualPhone("3011"),
+          phone: virtualPhone("3099"),
+        saveAsCommon: false,
         },
         { id: "local-b", code: "member-b", displayName: "成员乙", selected: false },
       ],
@@ -122,13 +126,15 @@ describe("enrollment flow state", () => {
         displayName: "成员甲",
         participantKind: "student",
         identityNumber: studentIdentityNumber,
-        phone: virtualPhone("3011"),
+        phone: virtualPhone("3099"),
+        saveAsCommon: false,
       },
     ])
     expect(payload).toEqual({
       tourSessionId: "session-1",
       memberIds: ["member-real-a"],
       contactName: "家长联系人",
+      contactPhone: virtualPhone("3099"),
       emergencyContactName: "备用联系人",
       emergencyContactPhone: virtualPhone("3008"),
       agreementVersion: FAMILY_ENROLLMENT_AGREEMENT_VERSION,
@@ -143,6 +149,8 @@ describe("enrollment flow state", () => {
     const adultIdentityNumber = virtualResidentId("19800101", "007")
     const draft: EnrollmentDraft = {
       contactName: "Family Contact",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: {
         name: "Emergency Contact",
         phone: virtualPhone("3003"),
@@ -160,7 +168,8 @@ describe("enrollment flow state", () => {
           selected: true,
           participantKind: "student",
           identityNumber: studentIdentityNumber,
-          phone: virtualPhone("3001"),
+          phone: virtualPhone("3099"),
+        saveAsCommon: false,
         },
         {
           id: "local-adult",
@@ -170,6 +179,7 @@ describe("enrollment flow state", () => {
           participantKind: "adult",
           identityNumber: adultIdentityNumber,
           phone: virtualPhone("3002"),
+        saveAsCommon: false,
         },
       ],
     }
@@ -185,7 +195,8 @@ describe("enrollment flow state", () => {
         displayName: "Virtual Student",
         participantKind: "student",
         identityNumber: studentIdentityNumber,
-        phone: virtualPhone("3001"),
+        phone: virtualPhone("3099"),
+        saveAsCommon: false,
         tourSessionId: "session-1",
       },
       {
@@ -194,6 +205,7 @@ describe("enrollment flow state", () => {
         participantKind: "adult",
         identityNumber: adultIdentityNumber,
         phone: virtualPhone("3002"),
+        saveAsCommon: false,
         tourSessionId: "session-1",
       },
     ])
@@ -203,6 +215,8 @@ describe("enrollment flow state", () => {
     const adultIdentityNumber = virtualResidentId("19800101", "009")
     const draft: EnrollmentDraft = {
       contactName: "Family Contact",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: {
         name: "Emergency Contact",
         phone: virtualPhone("3004"),
@@ -221,6 +235,7 @@ describe("enrollment flow state", () => {
           participantKind: "adult",
           identityNumber: adultIdentityNumber,
           phone: virtualPhone("3005"),
+        saveAsCommon: false,
         },
       ],
     }
@@ -233,6 +248,7 @@ describe("enrollment flow state", () => {
         participantKind: "adult",
         identityNumber: adultIdentityNumber,
         phone: virtualPhone("3005"),
+        saveAsCommon: false,
         tourSessionId: "session-1",
       },
     ])
@@ -246,6 +262,8 @@ describe("enrollment flow state", () => {
       selectedClassId: "class-1",
       selectedTourSessionId: "session-1",
       contactName: "Family Contact",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: { name: "Emergency Contact", phone: virtualPhone("3006") },
       agreementAccepted: true,
       familyMembers: [
@@ -272,6 +290,8 @@ describe("enrollment flow state", () => {
       selectedClassId: "class-1",
       selectedTourSessionId: "session-1",
       contactName: "Family Contact",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: { name: "Emergency Contact", phone: virtualPhone("3008") },
       agreementAccepted: true,
       familyMembers: [
@@ -298,6 +318,8 @@ describe("enrollment flow state", () => {
       selectedClassId: "class-1",
       selectedTourSessionId: "session-1",
       contactName: "Family Contact",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: { name: "Emergency Contact", phone: virtualPhone("3010") },
       agreementAccepted: true,
       familyMembers: [
@@ -306,7 +328,7 @@ describe("enrollment flow state", () => {
           code: "member-a",
           displayName: "Virtual Student",
           selected: true,
-          participantKind: "student",
+          participantKind: "adult",
           identityNumber: "110105201001010031",
           phone: "12000000000",
         },
@@ -330,6 +352,8 @@ describe("enrollment flow state", () => {
       selectedClassId: "class-1",
       selectedTourSessionId: "session-1",
       contactName: "Family Contact",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: { name: "Emergency Contact", phone: virtualPhone("3013") },
       agreementAccepted: true,
       familyMembers: [
@@ -356,6 +380,8 @@ describe("enrollment flow state", () => {
       selectedClassId: "class-1",
       selectedTourSessionId: "session-1",
       contactName: "家长联系人",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: { name: "备用联系人", phone: virtualPhone("3013") },
       agreementAccepted: true,
       familyMembers: [
@@ -377,6 +403,8 @@ describe("enrollment flow state", () => {
   it("generates an internal member code when the public form only collects a name", () => {
     const draft: EnrollmentDraft = {
       contactName: "家长联系人",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: {
         name: "备用联系人",
         phone: virtualPhone("3015"),
@@ -412,6 +440,8 @@ describe("enrollment flow state", () => {
       selectedClassId: "class-1",
       selectedTourSessionId: "session-1",
       contactName: "家长联系人",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: { name: "备用联系人", phone: virtualPhone("3017") },
       agreementAccepted: true,
       familyMembers: [
@@ -432,6 +462,7 @@ describe("enrollment flow state", () => {
     const [member] = draft.familyMembers
     if (member === undefined) throw new Error("missing member fixture")
     member.identityNumber = virtualResidentId("20100101", "017")
+    member.participantKind = "adult"
     member.phone = "12345"
     expect(readEnrollmentReadiness(draft)).toEqual({ ready: false, reason: "请填写有效的联系电话" })
   })
@@ -448,6 +479,8 @@ describe("enrollment flow state", () => {
     }
     const draft: EnrollmentDraft = {
       contactName: "家长联系人",
+      contactPhone: virtualPhone("3099"),
+      emergencySameAsParent: false,
       emergencyContact: {
         name: "备用联系人",
         phone: virtualPhone("3018"),
@@ -489,3 +522,51 @@ function virtualResidentId(birthDate: string, sequence: string): string {
   }
   return `${body}${checkCodes[sum % 11] ?? "0"}`
 }
+
+
+describe("simplified enrollment contacts and participant consent", () => {
+  function readyDraft(): EnrollmentDraft {
+    return { ...createEmptyDraft(), selectedSchoolId: "org-school-1", selectedGradeId: "grade-1", selectedClassId: "class-1", selectedTourSessionId: "session-1", contactName: "家长甲", contactPhone: "19900003099", agreementAccepted: true,
+      familyMembers: [{ id: "child", code: "child", displayName: "学生甲", participantKind: "student", identityNumber: "110105201001010010", selected: true }] }
+  }
+  it("uses the parent phone for a student and emergency contact when same-parent is selected", () => {
+    // Given
+    const draft = readyDraft()
+    // When
+    const members = buildSelectedMemberPayloads(draft)
+    const enrollment = buildEnrollmentPayload(draft, catalog, ["child"])
+    // Then
+    expect(members[0]).toMatchObject({ phone: draft.contactPhone, saveAsCommon: false })
+    expect(enrollment).toMatchObject({ contactPhone: draft.contactPhone, emergencyContactName: draft.contactName, emergencyContactPhone: draft.contactPhone })
+  })
+  it("saves a common participant only after explicit opt-in", () => {
+    // Given
+    const draft = readyDraft()
+    const member = draft.familyMembers[0]
+    if (member === undefined) throw new Error("missing fixture member")
+    member.saveAsCommon = true
+    // When
+    const payloads = buildSelectedMemberPayloads(draft)
+    // Then
+    expect(payloads[0]?.saveAsCommon).toBe(true)
+  })
+  it("accepts an adult without a separate phone and uses the parent contact", () => {
+    // Given
+    const draft = readyDraft()
+    const member = draft.familyMembers[0]
+    if (member === undefined) throw new Error("missing fixture member")
+    member.participantKind = "adult"
+    // When
+    const payloads = buildSelectedMemberPayloads(draft)
+    // Then
+    expect(payloads[0]?.phone).toBe(draft.contactPhone)
+  })
+  it("requires the other emergency contact only when the parent chooses that option", () => {
+    // Given
+    const draft = { ...readyDraft(), emergencySameAsParent: false }
+    // When
+    const result = readEnrollmentReadiness(draft)
+    // Then
+    expect(result).toEqual({ ready: false, reason: "请填写紧急联系人姓名" })
+  })
+})

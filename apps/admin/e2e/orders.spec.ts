@@ -1,4 +1,4 @@
-﻿import { expect, test } from "@playwright/test"
+import { expect, test } from "@playwright/test"
 import type { Page } from "@playwright/test"
 import { installStaffAuthMock } from "./staff-auth-mock"
 
@@ -15,7 +15,7 @@ async function installOrdersFixture(page: Page, existingResult?: "succeeded" | "
     const refunded = refunds.some(refund => refund.status === "succeeded")
     const pending = refunds.some(refund => refund.status === "pending")
     return route.fulfill({ json: {
-      ...order, contactName: "陈女士", emergencyContactName: null, emergencyContactPhone: null,
+      ...order, contactName: "陈女士", contactPhone: "13800000000", emergencyContactName: "陈先生", emergencyContactPhone: "13900000000",
       refundSummary: { status: refunded ? "partial" : "none", refundedFen: refunded ? 12800 : 0, pendingFen: pending ? 12800 : 0, failedCount: refunds.filter(refund => refund.status === "failed").length },
       refundHistory: [...refunds].reverse(),
       participants: [
@@ -60,6 +60,8 @@ test("staff creates and processes a persisted partial refund with a wire fixture
   await installOrdersFixture(page)
   await page.goto("/orders")
   await page.getByRole("button", { name: "查看详情" }).click()
+  await expect(page.getByText("13800000000", { exact: true })).toBeVisible()
+  await expect(page.getByText("13900000000", { exact: true })).toBeVisible()
   await expect(page.getByLabel("退款原因（必填）")).toBeVisible()
   await createRefund(page)
   await page.reload()

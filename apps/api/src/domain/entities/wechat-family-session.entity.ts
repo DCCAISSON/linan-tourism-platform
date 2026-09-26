@@ -11,12 +11,12 @@ export class WechatFamilySessionEntity {
   id = ""
 
   @ForeignKey(() => OrganizationEntity, { name: "fk_wechat_family_sessions_organization", onDelete: "RESTRICT", onUpdate: "CASCADE" })
-  @Column({ name: "organization_id", type: "varchar", length: 64 })
-  organizationId = ""
+  @Column({ name: "organization_id", type: "varchar", length: 64, nullable: true })
+  organizationId: string | null = null
 
   @ForeignKey(() => FamilyEntity, { name: "fk_wechat_family_sessions_family", onDelete: "RESTRICT", onUpdate: "CASCADE" })
-  @Column({ name: "family_id", type: "varchar", length: 64 })
-  familyId = ""
+  @Column({ name: "family_id", type: "varchar", length: 64, nullable: true })
+  familyId: string | null = null
 
   @Column({ name: "family_code", type: "varchar", length: 64 })
   familyCode = ""

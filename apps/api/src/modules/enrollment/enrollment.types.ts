@@ -14,6 +14,7 @@ export type NewFamilyMember = {
   readonly gradeId: string | undefined
   readonly classId: string | undefined
   readonly tourSessionId: string | undefined
+  readonly saveAsCommon?: boolean
   readonly personData: PlainPersonData | undefined
 }
 
@@ -46,6 +47,7 @@ export type NewEnrollmentSubmission = {
   readonly tourSessionId: string
   readonly memberIds: readonly string[]
   readonly contactName: string
+  readonly contactPhone?: string
   readonly emergencyContactName: string
   readonly emergencyContactPhone: string
   readonly agreementVersion: typeof FAMILY_ENROLLMENT_AGREEMENT_VERSION
