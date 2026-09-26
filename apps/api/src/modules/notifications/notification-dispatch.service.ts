@@ -95,6 +95,9 @@ export class NotificationDispatchService {
     if (!isAuthorizationCurrent(authorization.active, authorization.version, target.authorizationVersion)) return manual("authorization_withdrawn", "接收人授权已撤回或变更，未发送")
     if (target.channel === "manual") return manual("manual_delivery_required", "该接收人仅允许人工处理")
     if (target.subscriberOpenid === null) return manual("subscriber_openid_missing", "接收人没有可用的微信订阅身份")
+    if (target.subscriberOpenid === authorization.familyActorId || /^[a-f0-9]{64}$/i.test(target.subscriberOpenid)) {
+      return manual("subscriber_openid_unavailable", "接收人缺少有效的微信订阅身份，请改用人工通知")
+    }
     const content = await manager.findOneBy(NotificationContentVersionEntity, { id: task.contentVersionId, tourSessionId: task.tourSessionId })
     if (content === null || content.templateId === null) return manual("wechat_template_missing", "通知内容未配置微信订阅模板")
     return this.wechat.send({

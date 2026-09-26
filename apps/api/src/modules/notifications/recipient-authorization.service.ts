@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { AuditLogEntity } from "../../domain/entities/audit-log.entity.js"
 import { NotificationChannelEntryEntity } from "../../domain/entities/notification-channel-entry.entity.js"
 import { NotificationRecipientAuthorizationEntity } from "../../domain/entities/notification-recipient-authorization.entity.js"
@@ -27,12 +27,15 @@ export class RecipientAuthorizationService {
   }
 
   async authorize(identity: EnrollmentIdentity, orderId: string, input: RecipientAuthorizationInput) {
+    if (input.channel === "wechat_subscribe") {
+      throw new BadRequestException({ code: "subscriber_openid_unavailable", message: "微信订阅通知尚未接通，请选择人工通知" })
+    }
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
       const scoped = await this.access.familyOrder(manager, identity, orderId)
       await manager.findOneOrFail(OrderEntity, { where: { id: orderId }, lock: { mode: "pessimistic_write" } })
       const existing = await manager.findOneBy(NotificationRecipientAuthorizationEntity, { orderId, idempotencyKey: input.idempotencyKey })
-      const subscriberOpenid = input.channel === "wechat_subscribe" ? identity.actorId : null
+      const subscriberOpenid = null
       if (existing !== null) {
         if (sameAuthorization(existing, input, identity.actorId, subscriberOpenid)) return toAuthorization(existing)
         throw conflict("该幂等键已用于不同接收人授权")

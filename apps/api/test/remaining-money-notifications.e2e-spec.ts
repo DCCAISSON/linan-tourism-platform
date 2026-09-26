@@ -177,7 +177,7 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
     const staff = await staffSession(`${scope}-notify`, ["notifications.read", "notifications.write", "notifications.send"])
     const orders = await Promise.all(["accepted", "refused", "quota", "timeout"].map((family) => paidOrder(target, catalog, family, 1)))
     const authorizations = []
-    for (const order of orders) authorizations.push(await authorizeNotification(target, order, order.id))
+    for (const order of orders) authorizations.push(await seedVerifiedNotificationRecipient(target, order, order.id))
     api.replies.push(
       { kind: "json", errcode: 0, errmsg: "ok" },
       { kind: "json", errcode: 43101, errmsg: "user refuse to accept the msg" },
@@ -193,7 +193,7 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
     // When
     const delivered = await request(target.getHttpServer()).post(`/staff/notifications/tasks/${task.body.id}/send`).set(staff).set("Origin", ORIGIN).expect(201)
     const withdrawnOrder = await paidOrder(target, catalog, "withdrawn", 1)
-    const withdrawn = await authorizeNotification(target, withdrawnOrder, "withdrawn")
+    const withdrawn = await seedVerifiedNotificationRecipient(target, withdrawnOrder, "withdrawn")
     const blockedTask = await request(target.getHttpServer()).post(`/staff/notifications/sessions/${catalog.tourSessionId}/tasks`).set(staff).set("Origin", ORIGIN)
       .send({ contentVersionId: content.id, authorizationIds: [withdrawn.id], idempotencyKey: `${scope}-withdraw-task` }).expect(201)
     await request(target.getHttpServer()).post(`/orders/${withdrawnOrder.id}/notification-recipients/${withdrawn.id}/withdraw`).set(withdrawnOrder.headers)
@@ -361,9 +361,10 @@ function paymentNumber(name: string): string {
   return `wxpay-${createHash("sha256").update(`${scope}:${name}`).digest("hex").slice(0, 24)}`
 }
 
-async function authorizeNotification(target: INestApplication, order: PaidOrder, key: string) {
+async function seedVerifiedNotificationRecipient(target: INestApplication, order: PaidOrder, key: string) {
   const response = await request(target.getHttpServer()).post(`/orders/${order.id}/notification-recipients`).set(order.headers)
-    .send({ receiverName: `Receiver ${key}`, relation: "guardian", channel: "wechat_subscribe", idempotencyKey: `${scope}-${key}-auth` }).expect(201)
+    .send({ receiverName: `Receiver ${key}`, relation: "guardian", channel: "manual", idempotencyKey: `${scope}-${key}-auth` }).expect(201)
+  await dataSource.query("UPDATE notification_recipient_authorizations SET channel = 'wechat_subscribe', subscriber_openid = ? WHERE id = ?", [`verified-openid-${key}`, response.body.id])
   return { id: response.body.id, version: response.body.version }
 }
 
