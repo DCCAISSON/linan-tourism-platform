@@ -23,7 +23,7 @@ export class LocalRefundService {
 
   ensureAvailable(): void {
     if (process.env["NODE_ENV"] === "production") {
-      throw new NotFoundException({ code: "local_refund_unavailable", message: "local refund validation is unavailable" })
+      throw new NotFoundException({ code: "local_refund_unavailable", message: "当前未开放退款试算" })
     }
   }
 

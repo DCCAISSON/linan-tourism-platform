@@ -41,7 +41,7 @@ export function assertApplicationTransition(status: ApplicationStatus, _decision
 
 export function assertLocalExecutionAvailable(): void {
   if (process.env["NODE_ENV"] === "production") {
-    throw new NotFoundException({ code: "local_refund_unavailable", message: "local refund processing is unavailable" })
+    throw new NotFoundException({ code: "local_refund_unavailable", message: "当前未开放退款执行" })
   }
 }
 

@@ -21,7 +21,7 @@ export class StaffRefundService {
 
   async create(orderId: string, input: StaffRefundRequestInput, actorId: string): Promise<StaffRefundResponse> {
     if (process.env["NODE_ENV"] === "production") {
-      throw new NotFoundException({ code: "local_refund_unavailable", message: "local refund processing is unavailable" })
+      throw new NotFoundException({ code: "local_refund_unavailable", message: "当前未开放退款执行" })
     }
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
@@ -38,7 +38,7 @@ export class StaffRefundService {
 
   async processLocalResult(orderId: string, refundId: string, input: StaffRefundResultInput, actorId: string): Promise<StaffRefundResponse> {
     if (process.env["NODE_ENV"] === "production") {
-      throw new NotFoundException({ code: "local_refund_unavailable", message: "local refund processing is unavailable" })
+      throw new NotFoundException({ code: "local_refund_unavailable", message: "当前未开放退款执行" })
     }
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
