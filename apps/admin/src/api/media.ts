@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
 
 export type MediaKind = "image" | "video"
@@ -20,7 +21,7 @@ export type MediaCollection = { readonly assets: readonly MediaAsset[]; readonly
 export type MediaSession = { readonly id: string; readonly code: string }
 export type MediaProviderPayload = { readonly kind: "album" | "live"; readonly label: string; readonly url: string; readonly enabled: boolean; readonly expectedVersion: number }
 
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function listMediaSessions(): Promise<readonly MediaSession[]> {
   const value = await request("/staff/media/sessions")

@@ -1,11 +1,11 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
 import { parseInsuranceBatch, parseInsuranceDiff, parseInsurancePreview } from "./insurance.parsers"
 import type { InsuranceBatch, InsuranceDiff, InsuranceExportKind, InsurancePreview } from "./insurance.types"
 
 export type { InsuranceBatch, InsuranceBatchPerson, InsuranceBatchStatus, InsuranceDiff, InsuranceExportKind, InsuranceHandoff, InsurancePreview } from "./insurance.types"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function getLatestInsuranceBatch(tourSessionId: string): Promise<InsuranceBatch | null> {
   const value = await requestJson(`/insurance/sessions/${encodeURIComponent(tourSessionId)}/latest`, { method: "GET" })

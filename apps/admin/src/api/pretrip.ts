@@ -1,11 +1,11 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
 import { parsePretripAdjustment, parsePretripConfig, parseSchoolConfirmation, parseSchoolConfirmations } from "./pretrip.parsers"
 import type { PretripAdjustment, PretripAdjustmentPayload, PretripAdjustmentProcessPayload, PretripConfig, PretripConfigPayload, SchoolPretripConfirmation } from "./pretrip.types"
 
 export type { PretripAdjustment, PretripAdjustmentPayload, PretripAttachment, PretripConfig, PretripConfigPayload, PretripTravelMode, SchoolPretripConfirmation } from "./pretrip.types"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function getPretripConfig(tourSessionId: string): Promise<PretripConfig> {
   return parsePretripConfig(await requestJson(`/pretrip/staff/sessions/${encodeURIComponent(tourSessionId)}`, { method: "GET" }))

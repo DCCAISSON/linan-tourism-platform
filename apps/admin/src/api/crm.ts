@@ -1,10 +1,10 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { malformed, parseCustomer, parseFollowup, parseHistory, parseList, parseOptions, parseOrganization, readErrorMessage, readRecord, readText } from "./crm.parsers"
 import type { CrmCustomer, CrmCustomerDetail, CrmCustomerList, CrmCustomerPayload, CrmFilters, CrmFollowupPayload, CrmHistoryRow, CrmOptions, CrmOrganization, CrmUpdatePayload } from "./crm.types"
 
 export type { CrmCustomer, CrmCustomerDetail, CrmCustomerList, CrmCustomerPayload, CrmFamilyOption, CrmFilters, CrmFollowup, CrmFollowupPayload, CrmHistoryRow, CrmOptions, CrmOrganization, CrmOwnerOption, CrmUpdatePayload, MarketingConsent } from "./crm.types"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export class CrmApiError extends Error {
   public readonly status: number

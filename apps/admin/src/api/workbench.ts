@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
 export type WorkbenchSession = {
@@ -20,7 +21,7 @@ export type WorkbenchSummary = {
   readonly paidAmountFen: number
   readonly upcomingSessions: readonly WorkbenchSession[]
 }
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function getWorkbenchSummary(): Promise<WorkbenchSummary> {
   const response = await fetch(`${apiBaseUrl}/roster/workbench`, {

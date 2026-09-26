@@ -1,4 +1,5 @@
-﻿import { ApiError } from "./configuration.errors"
+import { resolveAdminApiBaseUrl } from "./base-url"
+import { ApiError } from "./configuration.errors"
 
 export type PersonRef = `paid:${string}` | `imported:${string}`
 export type AttendanceStatus = "present" | "absent" | "revoked"
@@ -10,8 +11,7 @@ export type ExecutionEvent = { readonly id: string; readonly tourSessionId: stri
 export type GuideSession = GuideSessionSummary & { readonly people: readonly GuidePerson[]; readonly dailyReports: readonly DailyReport[]; readonly events: readonly ExecutionEvent[] }
 export type HealthRead = { readonly id: string; readonly tourSessionId: string; readonly orderId: string; readonly personRef: PersonRef; readonly active: boolean; readonly version: number; readonly authorizedAt: string; readonly revokedAt: string | null; readonly health: { readonly allergies: string; readonly medicalNotes: string; readonly emergencyMedicine: string } }
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function listGuideSessions(): Promise<readonly GuideSessionSummary[]> {
   return readArray(await requestJson("/staff/execution/sessions", { method: "GET" }), parseGuideSessionSummary)

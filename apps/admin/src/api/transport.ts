@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
 import { parseTransportPeoplePlan, parseTransportPlan, parseTransportSuggestion } from "./transport.parsers"
 import type {
@@ -22,8 +23,7 @@ export type {
   TransportVehicle,
 } from "./transport.types"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function getTransportPlan(tourSessionId: string): Promise<TransportPlan> {
   return parseTransportPlan(await requestJson(`/transport/sessions/${encodeURIComponent(tourSessionId)}/plan`, { method: "GET" }))

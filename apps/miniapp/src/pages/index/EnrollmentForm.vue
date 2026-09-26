@@ -65,6 +65,7 @@ const {
       <view>
         <text class="section__title">参与成员</text>
         <text class="section__hint">已选择 {{ selectedMembers.length }} 人，可多人报名。</text>
+        <text class="required-note"><text class="required-mark">*</text>为必填项，请填写参加人姓名、证件号码和联系电话。</text>
       </view>
       <button class="text-button" @tap="addMember">添加</button>
     </view>
@@ -86,7 +87,7 @@ const {
         </view>
         <view :id="memberFieldAnchor(member.id, 'identityNumber')" class="field-anchor">
           <view class="input-label"><text class="required-mark">*</text>证件号码</view>
-          <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="证件号码" placeholder-class="input-placeholder" />
+          <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="请输入18位身份证号码" placeholder-class="input-placeholder" />
           <text v-if="memberFieldError(member, 'identityNumber').length > 0" class="field-error">{{ memberFieldError(member, 'identityNumber') }}</text>
         </view>
         <view :id="memberFieldAnchor(member.id, 'phone')" class="field-anchor">

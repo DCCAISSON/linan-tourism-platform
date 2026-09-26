@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
 export type RefundApplicationStatus = "submitted" | "approved" | "rejected" | "cancelled"
@@ -17,7 +18,7 @@ export type RefundApplication = {
   readonly refundStatus: "pending" | "succeeded" | "failed" | null
 }
 
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function listRefundApplications(status = ""): Promise<readonly RefundApplication[]> {
   const query = status.length === 0 ? "" : `?status=${encodeURIComponent(status)}`

@@ -1,6 +1,7 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export type EvaluationStandardSummary = {
   readonly id: string

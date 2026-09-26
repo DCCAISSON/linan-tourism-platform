@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError, readableRosterError } from "./roster.errors"
 import { parseTravelerList } from "./travelers.parsers"
 import type { TravelerImportChange, TravelerList, TravelerQuery } from "./travelers.types"
@@ -5,8 +6,7 @@ import type { TravelerImportChange, TravelerList, TravelerQuery } from "./travel
 export { RosterApiError, readableRosterError }
 export type { TravelerImportChange, TravelerList, TravelerQuery, TravelerRow, TravelerSource } from "./travelers.types"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function getTravelers(tourSessionId: string, query: TravelerQuery = {}): Promise<TravelerList> {
   const value = await requestJson(`/travelers/sessions/${encodeURIComponent(tourSessionId)}?${buildQueryString(query)}`)

@@ -14,7 +14,7 @@ COPY apps/admin apps/admin
 COPY packages/contracts packages/contracts
 RUN corepack pnpm install --frozen-lockfile
 
-ARG VITE_API_BASE_URL=http://127.0.0.1:3300
+ARG VITE_API_BASE_URL=https://api.linantravel.cn
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN corepack pnpm --filter @linan/contracts build \
   && corepack pnpm --filter @linan/api build \

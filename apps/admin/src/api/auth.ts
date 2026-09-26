@@ -1,7 +1,7 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export type StaffPermissionKey =
   | "workbench.read"

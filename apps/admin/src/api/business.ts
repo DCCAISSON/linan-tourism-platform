@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
 export type BusinessCategory = "tourism" | "wellness" | "homestay"
@@ -61,7 +62,7 @@ export type BusinessFollowupReceipt = {
   readonly version: number
 }
 
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function listBusinessProducts(): Promise<readonly BusinessProduct[]> {
   return readArray(await request("/business/staff/products"), parseProduct)

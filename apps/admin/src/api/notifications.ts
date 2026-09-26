@@ -1,10 +1,11 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
 import { parseNotificationContent, parseNotificationEntry, parseNotificationPreview, parseNotificationSession, parseNotificationTask } from "./notifications.parsers"
 import type { NotificationContentInput, NotificationContentVersion, NotificationEntryInput, NotificationEntryKind, NotificationChannelEntry, NotificationSession, NotificationTargetPreview, NotificationTask, NotificationTaskInput } from "./notifications.types"
 
 export type * from "./notifications.types"
 
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function getNotificationSession(sessionId: string): Promise<NotificationSession> {
   return parseNotificationSession(await request(`/staff/notifications/sessions/${encodeURIComponent(sessionId)}`))

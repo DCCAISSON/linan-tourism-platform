@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
 export type StaffOrder = {
@@ -66,7 +67,7 @@ export type RefundPreview = {
   readonly outcome?: "succeeded" | "failed"
 }
 
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? "http://127.0.0.1:3000"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function listStaffOrders(keyword: string, status: string, page: number): Promise<StaffOrderList> {
   const params = new URLSearchParams({ keyword, status, page: String(page) })

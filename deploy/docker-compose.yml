@@ -18,11 +18,11 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile
       args:
-        VITE_API_BASE_URL: ${LINAN_PUBLIC_API_BASE_URL:-http://127.0.0.1:3300}
+        VITE_API_BASE_URL: ${LINAN_PUBLIC_API_BASE_URL:-https://api.linantravel.cn}
     environment:
-      ADMIN_WEB_ORIGIN: http://127.0.0.1:${LINAN_ADMIN_PORT:-4174}
+      ADMIN_WEB_ORIGIN: ${LINAN_PUBLIC_ADMIN_ORIGIN:-https://admin.linantravel.cn}
       DATABASE_URL: mysql://root@mysql:3306/linan_uat
-      NODE_ENV: development
+      NODE_ENV: production
       PERSON_DATA_ENCRYPTION_KEY_BASE64: ${PERSON_DATA_ENCRYPTION_KEY_BASE64:?set PERSON_DATA_ENCRYPTION_KEY_BASE64}
       PORT: "3000"
       REVISION: ${REVISION:-local-uat}

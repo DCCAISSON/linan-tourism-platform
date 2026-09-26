@@ -1,3 +1,4 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError, readableApiError } from "./configuration.errors"
 import {
   parseCatalogItem,
@@ -44,8 +45,7 @@ export type {
   TourSessionUpdatePayload,
 }
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function listSchools(): Promise<readonly School[]> {
   return await readCollection("/schools", "学校", parseSchool)

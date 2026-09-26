@@ -1,12 +1,12 @@
-﻿import { RosterApiError, readableRosterError } from "./roster.errors"
+import { resolveAdminApiBaseUrl } from "./base-url"
+import { RosterApiError, readableRosterError } from "./roster.errors"
 import { parseRosterImportResult, parseRosterSummary } from "./roster.parsers"
 import type { RosterImportPayload, RosterImportResult, RosterQuery, RosterSummary } from "./roster.types"
 
 export { RosterApiError, readableRosterError }
 export type { RosterFilters, RosterImportPayload, RosterImportResult, RosterImportTemplate, RosterQuery, RosterRow, RosterSummary } from "./roster.types"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function getRosterSummary(query: RosterQuery): Promise<RosterSummary> {
   const value = await requestJson(`/roster/summary?${buildQueryString(query)}`)
