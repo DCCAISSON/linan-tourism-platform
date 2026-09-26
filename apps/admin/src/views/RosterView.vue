@@ -128,7 +128,7 @@
       <p v-if="loading" class="roster-state">正在查询名单...</p>
       <p v-if="error" class="roster-state roster-state--error" role="alert">{{ error }}</p>
       <p v-if="!loading && !error && !summary" class="roster-state">请选择团期后查询名单。</p>
-      <p v-if="!loading && !error && summary && rows.length === 0" class="roster-state">暂无名单数据，请调整筛选条件后查询。</p>
+      <p v-if="!loading && !error && summary && rows.length === 0" class="roster-state">当前团期暂无已付款人员，报名订单支付成功后会自动进入名单。</p>
 
       <div v-if="rows.length > 0" class="roster-table-wrap">
         <table class="roster-table" aria-label="已支付名单统计表">

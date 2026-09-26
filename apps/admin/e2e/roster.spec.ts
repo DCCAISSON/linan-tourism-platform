@@ -126,6 +126,28 @@ test("queries roster summary, imports a returned template, and downloads the exp
   expect((await download).suggestedFilename()).toBe("名单统计-session-1.xlsx")
 })
 
+test("explains that an empty summary is waiting for paid participants", async ({ page }) => {
+  // Given: the selected trip has no paid participants yet.
+  await installStaffAuthMock(page)
+  await installRosterOptions(page)
+  await page.route(`${apiBase}/roster/summary?**`, route => route.fulfill({
+    json: {
+      filters: { tourSessionId: "session-1", schoolId: "school-1" },
+      paidHeadcount: 0,
+      paidAmountFen: 0,
+      rows: [],
+    },
+  }))
+  await page.goto("/roster")
+  await page.getByLabel("团期", { exact: true }).selectOption("session-1")
+
+  // When: staff query the paid roster.
+  await page.getByRole("button", { name: "查询名单" }).click()
+
+  // Then: the page explains the business condition instead of blaming filters.
+  await expect(page.getByText("当前团期暂无已付款人员，报名订单支付成功后会自动进入名单。")).toBeVisible()
+})
+
 test("shows roster query errors", async ({ page }) => {
   await installStaffAuthMock(page)
   await installRosterOptions(page)
@@ -142,7 +164,7 @@ test("shows roster query errors", async ({ page }) => {
   await page.getByRole("button", { name: "查询名单" }).click()
 
   await expect(page.getByText("名单服务暂不可用")).toBeVisible()
-  await expect(page.getByText("暂无名单数据，请调整筛选条件后查询。")).toBeHidden()
+  await expect(page.getByText("当前团期暂无已付款人员，报名订单支付成功后会自动进入名单。")).toBeHidden()
 })
 
 test("clears grade and class when the selected school changes", async ({ page }) => {
