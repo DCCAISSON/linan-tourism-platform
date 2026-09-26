@@ -44,14 +44,14 @@ try {
   miniProgram = await connectWhenReady(60_000)
   await new Promise((resolve) => setTimeout(resolve, 5_000))
   console.log("E2E_STAGE connected")
-  await runDiscoveryBefore(miniProgram, fixture)
+  await withStageTimeout("discovery-before", runDiscoveryBefore(miniProgram, fixture), 90_000)
   console.log("E2E_STAGE discovery-before")
-  const journeyEvidence = await runJourney(miniProgram)
+  const journeyEvidence = await withStageTimeout("baseline-journey", runJourney(miniProgram), 90_000)
   console.log("E2E_STAGE baseline-journey")
-  await runDiscoveryAfter(miniProgram)
+  await withStageTimeout("discovery-after", runDiscoveryAfter(miniProgram), 90_000)
   console.log("E2E_STAGE discovery-after")
-  const task14Evidence = await runRemainingBusinessSurfaces(miniProgram)
-  console.log(JSON.stringify({ screenshots: 24 + task14Evidence.screenshots.length, members: 2, amountFen: 25_600, status: "paid", localMock: true, ...journeyEvidence, task14Evidence }))
+  const task14Evidence = await withStageTimeout("remaining-business-surfaces", runRemainingBusinessSurfaces(miniProgram), 90_000)
+  console.log(JSON.stringify({ screenshots: 24 + task14Evidence.screenshots.length, members: 2, amountFen: 25_600, paymentStateSource: "fixture-paid-state", ...journeyEvidence, task14Evidence }))
 } finally {
   miniProgram?.disconnect()
   if (projectOpened) await runCli(["close", "--project", projectPath], 60_000)
@@ -82,7 +82,7 @@ async function runRemainingBusinessSurfaces(program) {
       route: "/pages/orders/pretrip?orderId=order-e2e",
       pagePath: "pages/orders/pretrip",
       root: ".discovery-page",
-      texts: ["行前服务", "集合信息", "车辆安排已过期", "演示学生甲"],
+      texts: ["行前服务", "集合信息", "车辆安排已过期", "张同学"],
       screenshots: ["23-pretrip.png"],
     }))
     surfaces.push(await verifySurface(program, screenshots, {
@@ -90,7 +90,7 @@ async function runRemainingBusinessSurfaces(program) {
       route: "/pages/orders/refund?orderId=order-e2e",
       pagePath: "pages/orders/refund",
       root: ".discovery-page",
-      texts: ["退款申请", "申请金额由服务器", "演示学生甲", "申请记录", "已拒绝"],
+      texts: ["退款申请", "申请金额由服务器", "张同学", "申请记录", "已拒绝"],
       screenshots: ["24-refund-application.png", "25-refund-history.png"],
     }))
     surfaces.push(await verifySurface(program, screenshots, {
@@ -106,7 +106,7 @@ async function runRemainingBusinessSurfaces(program) {
       route: "/pages/notifications/index?orderId=order-e2e",
       pagePath: "pages/notifications/index",
       root: ".notification-page",
-      texts: ["接收人授权与服务入口", "付款人不会自动成为通知接收人", "演示监护人", "服务入口", "已撤回记录"],
+      texts: ["接收人授权与服务入口", "付款人不会自动成为通知接收人", "王女士", "服务入口", "已撤回记录"],
       screenshots: ["27-notifications-top.png", "28-notifications-entries.png"],
     }))
     surfaces.push(await verifyFeedbackSurface(program, screenshots))
@@ -115,7 +115,7 @@ async function runRemainingBusinessSurfaces(program) {
       route: "/pages/business/index",
       pagePath: "pages/business/index",
       root: ".business-page",
-      texts: ["临安文旅服务", "旅游", "演示]临安山水两日行", "不代表已预订、已付款或实时库存"],
+      texts: ["临安文旅服务", "旅游", "临安山水两日行", "不代表已预订、已付款或实时库存"],
       screenshots: ["30-business-products.png"],
     }))
     surfaces.push(await verifySurface(program, screenshots, {
@@ -123,7 +123,7 @@ async function runRemainingBusinessSurfaces(program) {
       route: `/pages/business/detail?id=${encodeURIComponent(businessProductId)}`,
       pagePath: "pages/business/detail",
       root: ".business-detail-page",
-      texts: ["演示]临安山水两日行", "咨询需求", "不代表已付款、已预订或有房"],
+      texts: ["临安山水两日行", "咨询需求", "不代表已付款、已预订或有房"],
       screenshots: ["31-business-detail-top.png", "32-business-detail-form.png"],
     }))
     surfaces.push(await verifySurface(program, screenshots, {
@@ -131,7 +131,7 @@ async function runRemainingBusinessSurfaces(program) {
       route: "/pages/health/index?orderId=order-e2e",
       pagePath: "pages/health/index",
       root: ".health-page",
-      texts: ["公开摘要与健康授权", "健康原文需要单独授权", "演示]队伍已完成集合", "提交授权", "撤回授权"],
+      texts: ["公开摘要与健康授权", "健康原文需要单独授权", "队伍已完成集合", "提交授权", "撤回授权"],
       screenshots: ["33-health-top.png", "34-health-authorization.png"],
     }))
     await new Promise((resolve) => setTimeout(resolve, 250))
@@ -184,8 +184,8 @@ async function verifyFeedbackSurface(program, screenshots) {
   const inputs = await component.$$("input")
   const textareas = await component.$$("textarea")
   if (inputs.length < 2 || textareas.length < 1) throw new Error("Feedback form controls were not rendered")
-  await inputs[0].input("演示联系人")
-  await textareas[0].input("[演示]希望集合提醒更清楚。")
+  await inputs[0].input("赵女士")
+  await textareas[0].input("希望集合提醒更清楚。")
   await assertNoHorizontalOverflow(program, page)
   await task14Screenshot(program, screenshots, "29-service-feedback.png")
   return { name: "service-feedback", route: "pages/feedback/index", visible: ["服务反馈", "允许审核后公开摘要", "提交反馈"], horizontalOverflow: false, textLength: text.length, submitted: false }
@@ -207,7 +207,14 @@ async function waitForPageText(page, rootSelector, expectedTexts) {
 }
 
 async function task14Screenshot(program, screenshots, name) {
+  fs.mkdirSync(task14EvidenceDir, { recursive: true })
   const screenshotPath = path.join(task14EvidenceDir, name)
+  if (process.env.MINIAPP_E2E_SKIP_SCREENSHOTS === "1") {
+    const skippedPath = `${screenshotPath}.skipped.txt`
+    fs.writeFileSync(skippedPath, "DevTools screenshot protocol blocked in this environment; screenshot skipped for bounded automation probe.\n", "utf8")
+    screenshots.push(skippedPath)
+    return
+  }
   await program.screenshot({ path: screenshotPath })
   screenshots.push(screenshotPath)
 }
@@ -218,11 +225,11 @@ function eventText(event) {
 }
 
 async function runJourney(program) {
-  await program.reLaunch("/pages/enrollment/index")
-  let page = await program.currentPage()
-  await page.waitFor(".flow-title")
+  await withStageTimeout("journey-relaunch-enrollment", program.reLaunch("/pages/enrollment/index"), 15_000)
+  let page = await withStageTimeout("journey-current-page", program.currentPage(), 15_000)
+  await withStageTimeout("journey-wait-flow-title", page.waitFor(".flow-title"), 15_000)
   if (page.path !== "pages/enrollment/index") throw new Error(`miniapp page: ${page.path}`)
-  await screenshot(program, "10-signup.png")
+  await withStageTimeout("journey-screenshot-signup", screenshot(program, "10-signup.png"), 15_000)
   fixture.catalogBlocked = false
   await page.waitFor(500)
   const topbar = await required(page, ".topbar")
@@ -287,23 +294,20 @@ async function runJourney(program) {
   await page.waitFor(50)
   component = await required(page, "[u-i]")
   const inputs = await component.$$("input")
-  if (inputs.length !== 11) throw new Error(`Expected 11 enrollment inputs, received ${inputs.length}`)
+  if (inputs.length !== 9) throw new Error(`Expected 9 enrollment inputs, received ${inputs.length}`)
   const emergencyPhone = virtualPhone(8)
   const values = [
-    "child-e2e-1",
-    "演示学生甲",
+    "\u5f20\u540c\u5b66",
     virtualResidentId(1),
     virtualPhone(1),
-    "child-e2e-2",
-    "演示成人乙",
+    "\u674e\u5973\u58eb",
     virtualResidentId(2),
     virtualPhone(2),
-    "演示家长",
-    "演示联系人",
+    "\u738b\u5973\u58eb",
+    "\u8d75\u5973\u58eb",
     emergencyPhone,
   ]
   for (const [index, value] of values.entries()) await inputs[index].input(value)
-  assertIncludes(await component.text(), "成员编号", "member code label")
   assertIncludes(await component.text(), "证件号码", "identity label")
   assertIncludes(await component.text(), "联系电话", "member phone label")
   assertIncludes(await component.text(), "家长联系人", "contact label")
@@ -320,9 +324,9 @@ async function runJourney(program) {
   await (await required(page, ".primary-button")).tap()
   await page.waitFor(100)
   component = await required(page, "[u-i]")
-  assertIncludes(await component.text(), "成员：2 人", "two-participant review")
-  assertIncludes(await component.text(), "演示学生甲（child-e2e-1）", "first participant review")
-  assertIncludes(await component.text(), "演示成人乙（child-e2e-2）", "second participant review")
+  assertIncludes(await component.text(), "\u53c2\u4e0e\u4eba\u6570\uff1a2 \u4eba", "two-participant review")
+  assertIncludes(await component.text(), "\u6210\u5458 1\uff1a\u5f20\u540c\u5b66", "first participant review")
+  assertIncludes(await component.text(), "\u6210\u5458 2\uff1a\u674e\u5973\u58eb", "second participant review")
   assertIncludes(await component.text(), "成人 · 无需年级班级", "adult review placement")
   assertIncludes(await component.text(), `紧急联系电话：${emergencyPhone}`, "emergency phone review")
   assertIncludes(await component.text(), "预计金额：¥256.00", "review amount")
@@ -400,6 +404,16 @@ async function connectWhenReady(timeout) {
   throw lastError ?? new Error(`WeChat DevTools automation was not ready at ${automationEndpoint}.`)
 }
 
+function withStageTimeout(stage, promise, timeoutMs) {
+  let timer
+  return Promise.race([
+    promise.finally(() => { clearTimeout(timer) }),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`E2E stage timed out after ${timeoutMs}ms: ${stage}`)), timeoutMs)
+    }),
+  ])
+}
+
 function fail(message) { console.error(message); process.exit(1) }
 
 function readPort(name, fallback) {
@@ -438,7 +452,9 @@ function virtualPhone(seed) {
 }
 
 function virtualResidentId(seed) {
-  const body = `999999201601${String(seed).padStart(2, "0")}00`
+  const day = String(seed).padStart(2, "0")
+  const sequence = String(seed).padStart(3, "0")
+  const body = `110101201601${day}${sequence}`
   const weights = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
   const checkDigits = ["1", "0", "X", "9", "8", "7", "6", "5", "4", "3", "2"]
   let sum = 0

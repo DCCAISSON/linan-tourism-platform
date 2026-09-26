@@ -1,6 +1,6 @@
 import http from "node:http"
 
-const school = { id: "school-e2e", code: "school-e2e", name: "临安研学演示学校" }
+const school = { id: "school-e2e", code: "school-e2e", name: "临安实验小学" }
 const grade = { id: "grade-e2e", organizationId: school.id, code: "grade-e2e", name: "五年级" }
 const schoolClass = { id: "class-e2e", gradeId: grade.id, code: "class-e2e", name: "二班" }
 const activeNotice = {
@@ -8,16 +8,16 @@ const activeNotice = {
   organizationId: school.id,
   tourSessionId: "session-open-e2e",
   version: "v1",
-  title: "[演示]大明山地质研学告知书 v1",
+  title: "大明山地质研学告知书 v1",
   createdAt: "2026-09-22T00:00:00.000Z",
   contentJson: {
-    destination: "[演示]大明山地质研学",
-    departurePlace: "[演示]临安旅游集散中心门口",
-    mealNote: "[演示]含午餐，特殊餐食由家长提前备注",
-    itinerary: ["[演示]1. 集合签到与安全提醒", "[演示]2. 乘车前往大明山", "[演示]3. 地质地貌观察", "[演示]4. 午餐与休整", "[演示]5. 研学任务记录", "[演示]6. 分享总结", "[演示]7. 返程交接"],
-    unitPrices: ["[演示]学生195元/人", "[演示]成人195元/人"],
-    packageExamples: ["[演示]1名学生195元", "[演示]1名成人195元", "[演示]1名学生+1名成人390元"],
-    reminders: ["[演示]请携带身份证件", "[演示]本内容仅用于开发演示，非实时活动安排"],
+    destination: "大明山地质研学",
+    departurePlace: "临安旅游集散中心门口",
+    mealNote: "含午餐，特殊餐食由家长提前备注",
+    itinerary: ["1. 集合签到与安全提醒", "2. 乘车前往大明山", "3. 地质地貌观察", "4. 午餐与休整", "5. 研学任务记录", "6. 分享总结", "7. 返程交接"],
+    unitPrices: ["学生195元/人", "成人195元/人"],
+    packageExamples: ["1名学生195元", "1名成人195元", "1名学生+1名成人390元"],
+    reminders: ["请携带身份证件", "请按告知书要求携带证件并准时集合"],
   },
 }
 const sessionBase = {
@@ -39,9 +39,9 @@ const businessProduct = {
   id: "business-e2e-tourism",
   organizationId: school.id,
   category: "tourism",
-  title: "[演示]临安山水两日行",
-  offering: "[演示]面向家庭的小团行程咨询",
-  content: "[演示]包含路线资料和人工咨询回执，不代表实时库存或预订成功。",
+  title: "临安山水两日行",
+  offering: "面向家庭的小团行程咨询",
+  content: "包含路线资料和人工咨询回执，不代表实时库存或预订成功。",
   referencePriceFen: 68_800,
   customerServicePhone: "19900000009",
   bookingUrl: "",
@@ -67,7 +67,7 @@ export function createFixtureServer(baseUrl) {
       const schools = fixture.emptyCatalog ? [] : [school]
       return json(response, fixture.failCatalog ? 503 : 200, fixture.failCatalog ? { message: "目录服务暂不可用" } : schools)
     }
-    if (request.method === "GET" && url.pathname === "/catalog-items") return json(response, 200, fixture.emptyCatalog ? [] : [{ id: "catalog-e2e", organizationId: school.id, code: "course-e2e", title: "临安山水自然探索研学营", status: "active", policyVersion: "v1", description: "走进临安山水，观察自然环境，完成团队探索课程。演示课程介绍。", coverImageUrl: "" }])
+    if (request.method === "GET" && url.pathname === "/catalog-items") return json(response, 200, fixture.emptyCatalog ? [] : [{ id: "catalog-e2e", organizationId: school.id, code: "course-e2e", title: "临安山水自然探索研学营", status: "active", policyVersion: "v1", description: "走进临安山水，观察自然环境，完成团队探索课程。课程介绍。", coverImageUrl: "" }])
     if (request.method === "GET" && url.pathname === "/enrollment/members") return json(response, 200, fixture.members)
     if (request.method === "GET" && url.pathname === `/schools/${school.id}/grades`) return json(response, 200, [grade])
     if (request.method === "GET" && url.pathname === `/grades/${grade.id}/classes`) return json(response, 200, [schoolClass])
@@ -97,7 +97,7 @@ export function createFixtureServer(baseUrl) {
     if (request.method === "POST" && url.pathname === "/orders") { fixture.orderCreated = true; return json(response, 201, orderResponse(fixture)) }
     if (request.method === "GET" && url.pathname === "/orders") return json(response, 200, fixture.orderCreated ? [orderHistory(fixture)] : [])
     if (request.method === "GET" && url.pathname === "/orders/order-e2e/detail") return json(response, 200, {
-      ...orderHistory(fixture), contactName: "演示家长", emergencyContactName: "演示联系人", emergencyContactPhone: "19900000008",
+      ...orderHistory(fixture), contactName: "王女士", emergencyContactName: "赵女士", emergencyContactPhone: "19900000008",
       refundSummary: { status: "none", refundedFen: 0, pendingFen: 0, failedCount: 0 }, refundHistory: [],
       participants: fixture.members.map((member, index) => {
         const participantKind = member.participantKind === "adult" ? "adult" : "student"
@@ -120,12 +120,12 @@ export function createFixtureServer(baseUrl) {
       tourSessionId: sessions[0].id,
       config: {
         gatheringAt: "2026-11-15T00:30:00.000Z",
-        gatheringPlace: "[演示]临安旅游集散中心门口",
+        gatheringPlace: "临安旅游集散中心门口",
         travelMode: "group",
-        itineraryNote: "[演示]请提前十分钟到达，实际安排以工作人员通知为准。",
-        contactName: "演示带队老师",
+        itineraryNote: "请提前十分钟到达，实际安排以工作人员通知为准。",
+        contactName: "陈老师",
         contactPhone: "19900000010",
-        serviceContact: "[演示]行前服务台",
+        serviceContact: "行前服务台",
         noticeVersionId: activeNotice.id,
         version: 2,
         attachments: [],
@@ -142,12 +142,12 @@ export function createFixtureServer(baseUrl) {
       id: "refund-application-e2e",
       orderId: "order-e2e",
       status: "rejected",
-      reason: "[演示]行程时间冲突",
+      reason: "行程时间冲突",
       amountFen: 12_800,
-      lines: [{ lineId: "line-0", displayName: "演示学生甲", amountFen: 12_800 }],
+      lines: [{ lineId: "line-0", displayName: "张同学", amountFen: 12_800 }],
       submittedAt: "2026-09-22T01:00:00.000Z",
       updatedAt: "2026-09-22T02:00:00.000Z",
-      reviewReason: "[演示]本记录仅用于页面验收",
+      reviewReason: "工作人员已按当前规则完成审核",
       reviewedAt: "2026-09-22T02:00:00.000Z",
       refundRequestId: null,
       refundStatus: null,
@@ -155,26 +155,26 @@ export function createFixtureServer(baseUrl) {
     if (request.method === "GET" && url.pathname === "/orders/order-e2e/media") return json(response, 200, {
       assets: [],
       providers: [
-        { kind: "album", label: "[演示]图片直播入口", url: "https://album.example.test/demo", enabled: true, version: 1 },
-        { kind: "live", label: "[演示]视频直播入口", url: "https://live.example.test/demo", enabled: true, version: 1 },
+        { kind: "album", label: "图片直播入口", url: "https://album.example.test/demo", enabled: true, version: 1 },
+        { kind: "live", label: "视频直播入口", url: "https://live.example.test/demo", enabled: true, version: 1 },
       ],
     })
     if (request.method === "GET" && url.pathname === "/orders/order-e2e/notifications") return json(response, 200, {
       orderId: "order-e2e",
       authorizations: [
-        { id: "notification-auth-e2e-active", orderId: "order-e2e", receiverName: "演示监护人", relation: "guardian", channel: "wechat_subscribe", active: true, version: 2, revokedAt: null, createdAt: "2026-09-22T00:00:00.000Z" },
-        { id: "notification-auth-e2e-withdrawn", orderId: "order-e2e", receiverName: "演示联系人", relation: "emergency_contact", channel: "manual", active: false, version: 3, revokedAt: "2026-09-22T03:00:00.000Z", createdAt: "2026-09-21T00:00:00.000Z" },
+        { id: "notification-auth-e2e-active", orderId: "order-e2e", receiverName: "王女士", relation: "guardian", channel: "wechat_subscribe", active: true, version: 2, revokedAt: null, createdAt: "2026-09-22T00:00:00.000Z" },
+        { id: "notification-auth-e2e-withdrawn", orderId: "order-e2e", receiverName: "赵女士", relation: "emergency_contact", channel: "manual", active: false, version: 3, revokedAt: "2026-09-22T03:00:00.000Z", createdAt: "2026-09-21T00:00:00.000Z" },
       ],
       entries: [
-        { kind: "enterprise_wechat", label: "[演示]企业微信服务入口", url: "https://work.example.test/demo", enabled: true, version: 1 },
-        { kind: "official_account", label: "[演示]公众号服务入口", url: "https://official.example.test/demo", enabled: true, version: 1 },
-        { kind: "customer_service", label: "[演示]客服入口", url: "https://service.example.test/demo", enabled: true, version: 1 },
+        { kind: "enterprise_wechat", label: "企业微信服务入口", url: "https://work.example.test/demo", enabled: true, version: 1 },
+        { kind: "official_account", label: "公众号服务入口", url: "https://official.example.test/demo", enabled: true, version: 1 },
+        { kind: "customer_service", label: "客服入口", url: "https://service.example.test/demo", enabled: true, version: 1 },
       ],
     })
     if (request.method === "GET" && url.pathname === "/orders/order-e2e/execution/public-summary") return json(response, 200, {
       tourSessionId: sessions[0].id,
-      dailyReports: [{ reportDate: "2026-11-15", publicSummary: "[演示]队伍已完成集合和安全说明。" }],
-      events: [{ occurredAt: "2026-11-15T03:30:00.000Z", category: "schedule", publicSummary: "[演示]午餐后按计划继续课程。" }],
+      dailyReports: [{ reportDate: "2026-11-15", publicSummary: "队伍已完成集合和安全说明。" }],
+      events: [{ occurredAt: "2026-11-15T03:30:00.000Z", category: "schedule", publicSummary: "午餐后按计划继续课程。" }],
     })
     if (request.method === "GET" && url.pathname === "/business/products") {
       return json(response, 200, url.searchParams.get("category") === businessProduct.category ? [businessProduct] : [])
@@ -201,7 +201,7 @@ function orderResponse(fixture) {
   return {
     id: "order-e2e", code: "ORDER-E2E", enrollmentId: "enrollment-e2e",
     status: fixture.orderPaid ? "paid" : "pending_payment", amountFen: 25_600,
-    paidFen: fixture.orderPaid ? 25_600 : 0, payerName: "演示家长", participantCount: 2,
+    paidFen: fixture.orderPaid ? 25_600 : 0, payerName: "王女士", participantCount: 2,
   }
 }
 
