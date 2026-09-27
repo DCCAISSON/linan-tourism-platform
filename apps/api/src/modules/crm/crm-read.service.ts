@@ -1,4 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common"
+import { In } from "typeorm"
+import { BusinessInquiryEntity } from "../../domain/entities/business-inquiry.entity.js"
+import { BusinessInquiryCustomerLinkEntity } from "../../domain/entities/business-inquiry-customer-link.entity.js"
+import { BusinessFollowupEntity } from "../../domain/entities/business-followup.entity.js"
+import { BusinessProductEntity } from "../../domain/entities/business-product.entity.js"
 import { CrmCustomerEntity } from "../../domain/entities/crm-customer.entity.js"
 import { CrmFollowupEntity } from "../../domain/entities/crm-followup.entity.js"
 import { OrganizationEntity } from "../../domain/entities/organization.entity.js"
@@ -57,7 +62,16 @@ export class CrmReadService {
     const manager = (await this.database.getDataSource()).manager
     const customer = await scopedCustomer(manager, access, id)
     const followups = await manager.find(CrmFollowupEntity, { where: { customerId: id }, order: { createdAt: "DESC" } })
-    return { ...crmCustomerResponse(customer), followups: followups.map((item) => ({ id: item.id, content: item.content, nextFollowupAt: item.nextFollowupAt?.toISOString() ?? null, createdBy: item.createdBy, createdAt: item.createdAt.toISOString() })) }
+    const canReadInquiries = access.permissionKeys.has("business.followup")
+    const links = canReadInquiries ? await manager.find(BusinessInquiryCustomerLinkEntity, { where: { customerId: id }, order: { inquiryVersion: "ASC", action: "DESC" } }) : []
+    const inquiryIds = [...new Set(links.map(link => link.inquiryId))]
+    const inquiries = inquiryIds.length ? await manager.find(BusinessInquiryEntity, { where: { id: In(inquiryIds), organizationId: customer.organizationId }, order: { createdAt: "DESC" } }) : []
+    const inquiryFollowups = inquiries.length ? await manager.find(BusinessFollowupEntity, { where: { inquiryId: In(inquiries.map(inquiry => inquiry.id)) }, order: { createdAt: "ASC" } }) : []
+    const products = inquiries.length ? await manager.findBy(BusinessProductEntity, { id: In(inquiries.map(inquiry => inquiry.productId)), organizationId: customer.organizationId }) : []
+    return { ...crmCustomerResponse(customer), inquiries: inquiries.map(inquiry => ({ id: inquiry.id, productTitle: products.find(product => product.id === inquiry.productId)?.title ?? "业务咨询", request: inquiry.request, status: inquiry.status, linked: inquiry.customerId === id, createdAt: inquiry.createdAt.toISOString(),
+      history: inquiryFollowups.filter(item => item.inquiryId === inquiry.id).map(item => ({ id: item.id, note: item.note, status: item.status, createdAt: item.createdAt.toISOString() })),
+      customerHistory: links.filter(item => item.inquiryId === inquiry.id).map(item => ({ id: item.id, action: item.action, actorId: item.actorId, createdAt: item.createdAt.toISOString() })),
+    })), followups: followups.map((item) => ({ id: item.id, content: item.content, nextFollowupAt: item.nextFollowupAt?.toISOString() ?? null, createdBy: item.createdBy, createdAt: item.createdAt.toISOString() })) }
   }
   async history(access: StaffAccess, id: string) {
     assertCrmPermission(access, "crm.read")

@@ -24,7 +24,12 @@ export type CrmFollowup = {
   readonly createdAt: string
 }
 
-export type CrmCustomerDetail = CrmCustomer & { readonly followups: readonly CrmFollowup[] }
+export type CrmInquiry = {
+  readonly id: string; readonly productTitle: string; readonly request: string; readonly status: string; readonly linked: boolean; readonly createdAt: string
+  readonly history: readonly { readonly id: string; readonly note: string; readonly status: string; readonly createdAt: string }[]
+  readonly customerHistory: readonly { readonly id: string; readonly action: "linked" | "unlinked"; readonly actorId: string; readonly createdAt: string }[]
+}
+export type CrmCustomerDetail = CrmCustomer & { readonly followups: readonly CrmFollowup[]; readonly inquiries: readonly CrmInquiry[] }
 export type CrmCustomerList = { readonly customers: readonly CrmCustomer[]; readonly total: number; readonly page: number; readonly pageSize: number }
 export type CrmFilters = {
   readonly organizationId: string

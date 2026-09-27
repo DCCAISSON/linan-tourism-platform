@@ -1,6 +1,7 @@
 import { createApp, h } from "vue"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { useBusinessView } from "@/views/business/useBusinessView"
+vi.mock("vue-router", () => ({ useRoute: () => ({ query: {} }) }))
 
 const inquiry = {
   id: "inquiry-1", productId: "product-1", organizationId: "org-1", customerType: "individual", organizationName: "",
@@ -17,9 +18,17 @@ const pricedProduct = {
 
 function mountView(permissions: readonly string[]) {
   let version = 1
+  let linkedCustomer: { id: string; displayName: string; phoneMasked: string } | null = null
   const savedHistory = [...history]
   const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input)
+    if (init?.method === "PUT" && url.endsWith("/customer")) {
+      const body: { customerId: string | null; expectedVersion: number } = JSON.parse(String(init.body))
+      linkedCustomer = body.customerId === null ? null : { id: body.customerId, displayName: "既有客户", phoneMasked: "138****0000" }
+      version += 1
+      return Response.json({ id: inquiry.id, version })
+    }
+    if (url.endsWith("/customer-candidates")) return Response.json([{ id: "customer-1", displayName: "既有客户", phoneMasked: "138****0000" }])
     if (init?.method === "POST" && url.endsWith("/followups")) {
       version += 1
       savedHistory.push({ ...history[0], id: "followup-2", ownerDisplayName: "业务负责人", status: "processing", note: "第二次联系", createdAt: "2026-09-27T02:00:00Z" })
@@ -27,7 +36,7 @@ function mountView(permissions: readonly string[]) {
     }
     if (url.endsWith("/staff/auth/me")) return Response.json({ actorId: "operator", kind: "staff", forcePasswordChange: false, permissionKeys: permissions, scopes: [{ kind: "organization", id: "org-1" }] })
     if (url.endsWith("/inquiries/inquiry-1/owners")) return Response.json([{ id: "staff-1", displayName: "业务负责人" }])
-    if (url.endsWith("/inquiries/inquiry-1")) return Response.json({ ...inquiry, version, phone: "13800000000", productTitle: "旅游产品", ownerDisplayName: "未分派", history: savedHistory })
+    if (url.endsWith("/inquiries/inquiry-1")) return Response.json({ ...inquiry, version, linkedCustomer, customerHistory: [], phone: "13800000000", productTitle: "旅游产品", ownerDisplayName: "未分派", history: savedHistory })
     if (url.endsWith("/inquiries")) return Response.json([inquiry])
     if (url.endsWith("/organizations")) return Response.json([{ id: "org-1", name: "本机构" }])
     return Response.json([])
@@ -45,6 +54,29 @@ function mountView(permissions: readonly string[]) {
 
 describe("business staff workflow", () => {
   afterEach(() => { apps.splice(0).forEach(app => app.unmount()); document.body.innerHTML = ""; vi.unstubAllGlobals() })
+
+  it("explicitly saves and unlinks an existing customer with the current inquiry version", async () => {
+    const { view, fetchMock } = mountView(["business.followup", "crm.read", "crm.write"])
+    await vi.waitFor(() => expect(view.inquiries.value).toHaveLength(1))
+    await view.selectInquiry(inquiry)
+    expect(view.customerId.value).toBe("")
+    view.customerId.value = "customer-1"
+    await view.saveCustomerLink()
+    expect(view.selectedInquiry.value?.linkedCustomer?.id).toBe("customer-1")
+    expect(view.selectedInquiry.value?.version).toBe(2)
+    await view.saveCustomerLink(true)
+    expect(view.selectedInquiry.value?.linkedCustomer).toBeNull()
+    const writes = fetchMock.mock.calls.filter(([, init]) => init?.method === "PUT")
+    expect(writes.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ customerId: "customer-1", expectedVersion: 1 }, { customerId: null, expectedVersion: 2 }])
+  })
+
+  it("does not load CRM candidates with only business permission", async () => {
+    const { view, fetchMock } = mountView(["business.followup"])
+    await vi.waitFor(() => expect(view.inquiries.value).toHaveLength(1))
+    await view.selectInquiry(inquiry)
+    expect(view.canLinkCustomer.value).toBe(false)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("customer-candidates"))).toBe(false)
+  })
 
   it("loads the audited contact and history when selecting a masked inquiry", async () => {
     // Given a scoped business operator and a masked list row.

@@ -1,8 +1,12 @@
 import { computed, onMounted, reactive, ref } from "vue"
+import { useRoute } from "vue-router"
 import { getCurrentStaff } from "@/api/auth"
 import { RosterApiError } from "@/api/roster.errors"
 import {
   createBusinessProduct,
+  listBusinessCustomerCandidates,
+  linkBusinessCustomer,
+  type BusinessCustomerCandidate,
   followupBusinessInquiry,
   getBusinessInquiry,
   listBusinessOwners,
@@ -33,6 +37,11 @@ export const categoryOptions = [
 ] as const
 
 export function useBusinessView() {
+  const route = useRoute()
+  const canReadCustomer = ref(false)
+  const canLinkCustomer = ref(false)
+  const customerCandidates = ref<readonly BusinessCustomerCandidate[]>([])
+  const customerId = ref("")
   const canRead = ref(false)
   const canWrite = ref(false)
   const canFollowup = ref(false)
@@ -150,14 +159,18 @@ export function useBusinessView() {
     selectedInquiryId = inquiry.id
     selectedInquiry.value = undefined
     owners.value = []
+    customerCandidates.value = []
+    customerId.value = ""
     detailLoading.value = true
     followupError.value = ""
     followup.note = ""
     try {
-      const [detail, candidates] = await Promise.all([getBusinessInquiry(inquiry.id), listBusinessOwners(inquiry.id)])
+      const [detail, candidates, customers] = await Promise.all([getBusinessInquiry(inquiry.id), listBusinessOwners(inquiry.id), canLinkCustomer.value ? listBusinessCustomerCandidates(inquiry.id) : Promise.resolve([])])
       if (selectedInquiryId !== inquiry.id) return
       selectedInquiry.value = detail
       owners.value = candidates
+      customerCandidates.value = customers
+      customerId.value = detail.linkedCustomer?.id ?? ""
       followup.status = detail.status === "closed" ? "closed" : "processing"
       followup.ownerStaffAccountId = candidates.some(owner => owner.id === detail.ownerStaffAccountId) ? detail.ownerStaffAccountId ?? "" : ""
     } catch (error) {
@@ -192,6 +205,21 @@ export function useBusinessView() {
     }
   }
 
+  async function saveCustomerLink(unlink = false): Promise<void> {
+    if (!selectedInquiry.value || !canLinkCustomer.value || followupBusy.value) return
+    const inquiryId = selectedInquiry.value.id
+    followupBusy.value = true
+    followupError.value = ""
+    followupMessage.value = ""
+    try {
+      await linkBusinessCustomer(inquiryId, unlink ? null : customerId.value, selectedInquiry.value.version)
+      followupMessage.value = unlink ? "客户关联已解除，历史记录保留。" : "已关联既有客户。"
+      followupBusy.value = false
+      await selectInquiry({ id: inquiryId })
+    } catch (error) { followupError.value = readableBusinessError(error) }
+    finally { followupBusy.value = false }
+  }
+
   async function initialize(): Promise<void> {
     accessLoading.value = true
     accessError.value = ""
@@ -200,7 +228,10 @@ export function useBusinessView() {
       canRead.value = staff.permissionKeys.includes("business.read")
       canWrite.value = staff.permissionKeys.includes("business.write")
       canFollowup.value = staff.permissionKeys.includes("business.followup")
+      canReadCustomer.value = canFollowup.value && staff.permissionKeys.includes("crm.read")
+      canLinkCustomer.value = canReadCustomer.value && staff.permissionKeys.includes("crm.write")
       await Promise.all([loadProducts(), loadInquiries(), canWrite.value ? loadOrganizations() : Promise.resolve()])
+      if (canFollowup.value && typeof route.query["inquiryId"] === "string") await selectInquiry({ id: route.query["inquiryId"] })
     } catch (error) { accessError.value = readableBusinessError(error) }
     finally { accessLoading.value = false }
   }
@@ -213,7 +244,7 @@ export function useBusinessView() {
   }
 
   onMounted(() => { void initialize() })
-  return { canRead, canWrite, canFollowup, accessLoading, accessError, initialize, organizations, owners, selectedProduct, detailLoading, products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup, newProduct }
+  return { canReadCustomer, canLinkCustomer, customerCandidates, customerId, saveCustomerLink, canRead, canWrite, canFollowup, accessLoading, accessError, initialize, organizations, owners, selectedProduct, detailLoading, products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup, newProduct }
 }
 
 function toProductInput(form: BusinessProductForm, priceYuan: string, media: readonly BusinessMedia[]): BusinessProductInput {

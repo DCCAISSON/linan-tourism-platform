@@ -94,9 +94,19 @@
 }
 
 .business-history li {
+  overflow-wrap: anywhere;
   padding: var(--space-3);
   border-radius: var(--radius-control);
   background: var(--surface-secondary);
+}
+
+.business-customer-links .el-button {
+  min-height: var(--size-touch-target);
+  margin: var(--space-1) var(--space-2) var(--space-1) 0;
+}
+
+.business-customer-links a {
+  color: var(--accent-primary);
 }
 
 @media (max-width: 900px) {

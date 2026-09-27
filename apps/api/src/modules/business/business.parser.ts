@@ -22,6 +22,10 @@ export function parseVersion(value: unknown): number {
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return value
   throw businessInputError("记录版本不正确，请刷新")
 }
+export function parseCustomerLink(value: unknown): { readonly customerId: string | null; readonly expectedVersion: number } {
+  const body = record(value, ["customerId", "expectedVersion"])
+  return { customerId: body["customerId"] === null ? null : text(body["customerId"], "既有客户", 64), expectedVersion: parseVersion(body["expectedVersion"]) }
+}
 export function publicUrl(value: unknown): string {
   const url = text(value, "链接", 2048, true)
   if (!url) return ""

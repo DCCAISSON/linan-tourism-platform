@@ -3,7 +3,7 @@ import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import type { StaffAccessRequestHeaders } from "../iam/dev-staff-access.service.js"
 import { BusinessService } from "./business.service.js"
 import { BusinessInquiryService } from "./business-inquiry.service.js"
-import { businessInputError, parseCategory, parseFollowup, parseInquiry, parseProduct, parseVersion } from "./business.parser.js"
+import { businessInputError, parseCategory, parseCustomerLink, parseFollowup, parseInquiry, parseProduct, parseVersion } from "./business.parser.js"
 
 @Controller("business")
 export class BusinessController {
@@ -39,6 +39,13 @@ export class BusinessController {
   async staffInquiry(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string) { return this.inquiries.detail(await this.access.resolve(headers), id) }
   @Get("staff/inquiries/:id/owners")
   async owners(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string) { return this.inquiries.owners(await this.access.resolve(headers), id) }
+  @Get("staff/inquiries/:id/customer-candidates")
+  async customerCandidates(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string) { return this.inquiries.customerCandidates(await this.access.resolve(headers), id) }
+  @Put("staff/inquiries/:id/customer")
+  async linkCustomer(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string, @Body() body: unknown) {
+    this.access.assertUnsafeOrigin(headers)
+    return this.inquiries.linkCustomer(await this.access.resolve(headers), id, parseCustomerLink(body))
+  }
   @Post("staff/inquiries/:id/followups")
   async followup(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string, @Body() body: unknown) {
     this.access.assertUnsafeOrigin(headers)

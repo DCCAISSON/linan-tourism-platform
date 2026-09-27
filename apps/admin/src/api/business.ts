@@ -1,7 +1,7 @@
 import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
-import type { BusinessCategory, BusinessStatus, InquiryStatus, CustomerType, BusinessMedia, BusinessProductInput, BusinessProduct, BusinessInquiry, BusinessFollowupInput, BusinessFollowupReceipt, BusinessInquiryDetail, BusinessOwner, BusinessOrganization } from "./business.types"
+import type { BusinessCategory, BusinessStatus, InquiryStatus, CustomerType, BusinessMedia, BusinessProductInput, BusinessProduct, BusinessInquiry, BusinessFollowupInput, BusinessFollowupReceipt, BusinessInquiryDetail, BusinessOwner, BusinessOrganization, BusinessCustomerCandidate } from "./business.types"
 export type * from "./business.types"
 
 const apiBaseUrl = resolveAdminApiBaseUrl()
@@ -24,10 +24,28 @@ export async function listBusinessInquiries(): Promise<readonly BusinessInquiry[
 
 export async function getBusinessInquiry(id: string): Promise<BusinessInquiryDetail> {
   const record = readRecord(await request(`/business/staff/inquiries/${encodeURIComponent(id)}`))
-  return { ...parseInquiry(record), productTitle: readText(record, "productTitle"), ownerDisplayName: readText(record, "ownerDisplayName"), history: readArray(record["history"], value => {
+  return { ...parseInquiry(record), linkedCustomer: record["linkedCustomer"] === null || record["linkedCustomer"] === undefined ? null : parseCustomerCandidate(record["linkedCustomer"]), customerHistory: readArray(record["customerHistory"] ?? [], value => {
+    const row = readRecord(value)
+    const action = row["action"]
+    if (action !== "linked" && action !== "unlinked") throw invalidResponse()
+    return { id: readText(row, "id"), customerId: readText(row, "customerId"), displayName: readText(row, "displayName"), action, actorId: readText(row, "actorId"), createdAt: readText(row, "createdAt") }
+  }), productTitle: readText(record, "productTitle"), ownerDisplayName: readText(record, "ownerDisplayName"), history: readArray(record["history"], value => {
     const row = readRecord(value)
     return { id: readText(row, "id"), status: readInquiryStatus(row["status"]), note: readText(row, "note"), ownerDisplayName: readText(row, "ownerDisplayName"), createdAt: readText(row, "createdAt") }
   }) }
+}
+
+export async function listBusinessCustomerCandidates(id: string): Promise<readonly BusinessCustomerCandidate[]> {
+  return readArray(await request(`/business/staff/inquiries/${encodeURIComponent(id)}/customer-candidates`), parseCustomerCandidate)
+}
+
+export async function linkBusinessCustomer(id: string, customerId: string | null, expectedVersion: number): Promise<void> {
+  await request(`/business/staff/inquiries/${encodeURIComponent(id)}/customer`, { customerId, expectedVersion }, "PUT")
+}
+
+function parseCustomerCandidate(value: unknown): BusinessCustomerCandidate {
+  const row = readRecord(value)
+  return { id: readText(row, "id"), displayName: readText(row, "displayName"), phoneMasked: readText(row, "phoneMasked") }
 }
 
 export async function listBusinessOwners(id: string): Promise<readonly BusinessOwner[]> {

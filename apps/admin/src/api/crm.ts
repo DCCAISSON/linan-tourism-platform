@@ -47,7 +47,24 @@ export async function getCrmDetail(id: string): Promise<CrmCustomerDetail> {
   if (!Array.isArray(followups)) {
     throw malformed()
   }
-  return { ...parseCustomer(record), followups: followups.map(parseFollowup) }
+  const inquiries = record["inquiries"] ?? []
+  if (!Array.isArray(inquiries)) throw malformed()
+  return { ...parseCustomer(record), followups: followups.map(parseFollowup), inquiries: inquiries.map(value => {
+    const inquiry = readRecord(value)
+    const history = inquiry["history"]
+    const customerHistory = inquiry["customerHistory"]
+    const linked = inquiry["linked"]
+    if (!Array.isArray(history) || !Array.isArray(customerHistory) || typeof linked !== "boolean") throw malformed()
+    return { id: readText(inquiry, "id"), productTitle: readText(inquiry, "productTitle"), request: readText(inquiry, "request"), status: readText(inquiry, "status"), linked, createdAt: readText(inquiry, "createdAt"),
+      history: history.map(item => { const row = readRecord(item); return { id: readText(row, "id"), note: readText(row, "note"), status: readText(row, "status"), createdAt: readText(row, "createdAt") } }),
+      customerHistory: customerHistory.map(item => {
+        const row = readRecord(item)
+        const action = row["action"]
+        if (action !== "linked" && action !== "unlinked") throw malformed()
+        return { id: readText(row, "id"), action, actorId: readText(row, "actorId"), createdAt: readText(row, "createdAt") }
+      }),
+    }
+  }) }
 }
 
 export async function createCrmFollowup(id: string, payload: CrmFollowupPayload): Promise<{ readonly id: string }> {

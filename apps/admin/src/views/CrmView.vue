@@ -64,6 +64,19 @@
         <button class="crm-button" type="submit" :disabled="savingFollowup">保存跟进</button>
       </form>
       <div class="crm-columns">
+        <section v-if="canReadInquiries" aria-label="业务咨询历史">
+          <h3>业务咨询与关联历史</h3>
+          <p v-if="selected.inquiries.length === 0" class="crm-muted">暂无关联咨询。</p>
+          <article v-for="inquiry in selected.inquiries" :key="inquiry.id">
+            <h4><RouterLink :to="{ path: '/business', query: { inquiryId: inquiry.id } }">{{ inquiry.productTitle }}</RouterLink> · {{ inquiry.linked ? '当前关联' : '已解除关联' }}</h4>
+            <p>{{ inquiry.request }}</p>
+            <ol>
+              <li v-for="item in inquiry.customerHistory" :key="item.id">{{ item.action === 'linked' ? '关联' : '解除关联' }} · {{ item.createdAt }} · 操作人 {{ item.actorId }}</li>
+            </ol>
+            <p v-if="inquiry.history.length === 0" class="crm-muted">尚无咨询跟进记录。</p>
+            <ol><li v-for="item in inquiry.history" :key="item.id">{{ item.note }}<small>{{ item.createdAt }}</small></li></ol>
+          </article>
+        </section>
         <section>
           <h3>跟进记录</h3>
           <p v-if="selected.followups.length === 0" class="crm-muted">暂无跟进记录。</p>
@@ -81,6 +94,8 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue"
+import { useRoute } from "vue-router"
+import { getCurrentStaff } from "@/api/auth"
 import {
   createCrmCustomer,
   createCrmFollowup,
@@ -103,6 +118,9 @@ import { formatFen } from "@/views/configuration/format"
 import "@/styles/crm.css"
 
 const organizations = ref<readonly CrmOrganization[]>([])
+const route = useRoute()
+const canReadInquiries = ref(false)
+const canReadOrders = ref(false)
 const customers = ref<readonly CrmCustomer[]>([])
 const selected = ref<CrmCustomerDetail | null>(null)
 const history = ref<readonly CrmHistoryRow[]>([])
@@ -121,9 +139,20 @@ const followup = reactive({ content: "", nextFollowupAt: "" })
 
 onMounted(async () => {
   try {
+    const staff = await getCurrentStaff()
+    canReadInquiries.value = staff.permissionKeys.includes("business.followup")
+    canReadOrders.value = staff.permissionKeys.includes("orders.read")
     organizations.value = await listCrmOrganizations()
     selectedOrganizationId.value = organizations.value[0]?.id ?? ""
     if (selectedOrganizationId.value) await reloadForOrganization()
+    if (typeof route.query["customerId"] === "string") {
+      await selectCustomer(route.query["customerId"])
+      if (selected.value && selectedOrganizationId.value !== selected.value.organizationId) {
+        selectedOrganizationId.value = selected.value.organizationId
+        options.value = await getCrmOptions(selectedOrganizationId.value)
+        await loadCustomers()
+      }
+    }
   } catch (error) {
     message.value = readableCrmError(error)
   }
@@ -171,9 +200,13 @@ async function createCustomer(): Promise<void> {
 }
 
 async function selectCustomer(id: string): Promise<void> {
-  selected.value = await getCrmDetail(id)
-  history.value = await getCrmHistory(id)
+  selected.value = null
+  history.value = []
   plaintextPhone.value = ""
+  try {
+    selected.value = await getCrmDetail(id)
+    if (canReadOrders.value) history.value = await getCrmHistory(id)
+  } catch (error) { message.value = readableCrmError(error) }
 }
 
 async function saveFollowup(): Promise<void> {

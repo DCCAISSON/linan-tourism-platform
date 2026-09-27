@@ -66,7 +66,10 @@ export type BusinessFollowup = {
   readonly ownerDisplayName: string; readonly createdAt: string
 }
 export type BusinessInquiryDetail = BusinessInquiry & {
+  readonly linkedCustomer: BusinessCustomerCandidate | null
+  readonly customerHistory: readonly { readonly id: string; readonly customerId: string; readonly displayName: string; readonly action: "linked" | "unlinked"; readonly actorId: string; readonly createdAt: string }[]
   readonly productTitle: string
   readonly ownerDisplayName: string
   readonly history: readonly BusinessFollowup[]
 }
+export type BusinessCustomerCandidate = { readonly id: string; readonly displayName: string; readonly phoneMasked: string }

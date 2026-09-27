@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { CrmCustomerEntity } from "./crm-customer.entity.js"
 import type { InquiryStatus } from "../../modules/business/business.types.js"
 @Entity({ name: "business_inquiries" })
 @Index("uq_business_inquiries_replay", ["productId", "idempotencyKey"], { unique: true })
@@ -6,6 +7,8 @@ export class BusinessInquiryEntity {
   @PrimaryColumn({ type: "varchar", length: 64 }) id = ""
   @Column({ name: "product_id", type: "varchar", length: 64 }) productId = ""
   @Column({ name: "organization_id", type: "varchar", length: 64 }) organizationId = ""
+  @ForeignKey(() => CrmCustomerEntity, { name: "fk_business_inquiry_customer", onDelete: "RESTRICT", onUpdate: "CASCADE" })
+  @Column({ name: "customer_id", type: "varchar", length: 64, nullable: true }) customerId: string | null = null
   @Column({ name: "idempotency_key", type: "varchar", length: 64 }) idempotencyKey = ""
   @Column({ name: "request_hash", type: "varchar", length: 64 }) requestHash = ""
   @Column({ name: "customer_type", type: "varchar", length: 24 }) customerType: "individual" | "organization" = "individual"

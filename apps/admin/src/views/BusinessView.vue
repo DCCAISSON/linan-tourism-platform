@@ -114,6 +114,32 @@
             <div><dt>当前负责人</dt><dd>{{ selectedInquiry.ownerDisplayName }}</dd></div>
             <div><dt>咨询需求</dt><dd>{{ selectedInquiry.request }}</dd></div>
           </dl>
+          <section v-if="canReadCustomer" class="business-customer-links" aria-label="关联客户">
+            <h4>关联客户</h4>
+            <p v-if="selectedInquiry.linkedCustomer">
+              <RouterLink :to="{ path: '/crm', query: { customerId: selectedInquiry.linkedCustomer.id } }">{{ selectedInquiry.linkedCustomer.displayName }} · {{ selectedInquiry.linkedCustomer.phoneMasked }}</RouterLink>
+            </p>
+            <p v-else>尚未关联客户。</p>
+            <template v-if="canLinkCustomer">
+              <el-form-item label="选择既有客户">
+                <el-select v-model="customerId" placeholder="请选择本机构客户" filterable :disabled="followupBusy">
+                  <el-option v-for="customer in customerCandidates" :key="customer.id" :value="customer.id" :label="`${customer.displayName} · ${customer.phoneMasked}`" />
+                </el-select>
+              </el-form-item>
+              <p v-if="customerCandidates.length === 0">本机构暂无可关联的既有客户。</p>
+              <el-button :disabled="followupBusy || !customerId || customerId === selectedInquiry.linkedCustomer?.id" @click="saveCustomerLink()">保存客户关联</el-button>
+              <el-button :disabled="followupBusy || !selectedInquiry.linkedCustomer" @click="saveCustomerLink(true)">解除客户关联</el-button>
+            </template>
+            <h4>客户关联历史</h4>
+            <p v-if="selectedInquiry.customerHistory.length === 0">尚无关联变更。</p>
+            <ol v-else class="business-history">
+              <li v-for="item in selectedInquiry.customerHistory" :key="item.id">
+                {{ item.createdAt.replace('T', ' ').slice(0, 16) }} · {{ item.action === 'linked' ? '关联' : '解除关联' }}
+                <RouterLink :to="{ path: '/crm', query: { customerId: item.customerId } }">{{ item.displayName }}</RouterLink>
+                · 操作人 {{ item.actorId }}
+              </li>
+            </ol>
+          </section>
           <h4>跟进历史</h4>
           <p v-if="selectedInquiry.history.length === 0">尚无跟进记录。</p>
           <ol v-else class="business-history">
@@ -150,5 +176,5 @@
 import "@/styles/business.css"
 import { categoryOptions, categoryText, formatFen, inquiryStatusText, statusText, useBusinessView } from "@/views/business/useBusinessView"
 
-const { canRead, canWrite, canFollowup, accessLoading, accessError, initialize, organizations, owners, selectedProduct, detailLoading, products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup, newProduct } = useBusinessView()
+const { canReadCustomer, canLinkCustomer, customerCandidates, customerId, saveCustomerLink, canRead, canWrite, canFollowup, accessLoading, accessError, initialize, organizations, owners, selectedProduct, detailLoading, products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup, newProduct } = useBusinessView()
 </script>

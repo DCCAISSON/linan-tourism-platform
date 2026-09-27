@@ -194,8 +194,13 @@
 }
 
 .crm-columns ol {
+  overflow-wrap: anywhere;
   margin: 8px 0 0;
   padding-left: 20px;
+}
+
+.crm-columns a {
+  color: var(--accent-primary);
 }
 
 .crm-columns small {

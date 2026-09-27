@@ -122,8 +122,8 @@ describe("Todo14 remaining content and business DB e2e", () => {
         tourSessionId: catalog.tourSessionId,
         title: "Todo14 A/B standard",
         items: [
-          { code: "A", label: "Excellent", description: "Meets the A standard" },
-          { code: "B", label: "Needs attention", description: "Meets the B standard" },
+          { code: "A", label: "优秀", description: "Meets the A standard" },
+          { code: "B", label: "合格", description: "Meets the B standard" },
         ],
         publicFormatNote: "School report exports confirmed A/B only",
       })
