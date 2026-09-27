@@ -66,7 +66,15 @@ export async function suggestTransportAssignments(tourSessionId: string, payload
 }
 
 export async function downloadTransportPlan(tourSessionId: string): Promise<void> {
-  const response = await fetch(`${apiBaseUrl}/transport/sessions/${encodeURIComponent(tourSessionId)}/export.xlsx`, {
+  return downloadWorkbook(tourSessionId, "export.xlsx", "车辆联系单")
+}
+
+export async function downloadTransportPeoplePlan(tourSessionId: string): Promise<void> {
+  return downloadWorkbook(tourSessionId, "people-export.xlsx", "最终逐人分车名单")
+}
+
+async function downloadWorkbook(tourSessionId: string, endpoint: string, title: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/transport/sessions/${encodeURIComponent(tourSessionId)}/${endpoint}`, {
     method: "GET",
     credentials: "include",
   })
@@ -77,7 +85,7 @@ export async function downloadTransportPlan(tourSessionId: string): Promise<void
   const objectUrl = URL.createObjectURL(await response.blob())
   const link = document.createElement("a")
   link.href = objectUrl
-  link.download = `车辆联系单-${tourSessionId}.xlsx`
+  link.download = `${title}-${tourSessionId}.xlsx`
   document.body.append(link)
   link.click()
   link.remove()

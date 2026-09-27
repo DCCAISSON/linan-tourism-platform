@@ -13,7 +13,7 @@ import { makeId } from "../configuration/configuration.persistence.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
 import { DevStaffAccessService, type StaffAccess } from "../iam/dev-staff-access.service.js"
 import { malformedTransportInput, transportConflict, transportForbidden, transportSessionNotFound } from "./transport.errors.js"
-import { bumpTransportPlanVersion, ensureTransportPlan } from "./transport-plan-store.js"
+import { bumpTransportPlanVersion, ensureTransportPlan, lockTransportPlan } from "./transport-plan-store.js"
 import { hasContactValue, hasDocumentContact, redactContactSnapshots, sessionScope, textOrNull, toPlan, validateAllocation, validateVehicle, vehicleOccupancy } from "./transport.plan.js"
 import type {
   TransportAllocationRecord,
@@ -50,6 +50,7 @@ export class TransportService {
   async savePlan(access: StaffAccess, tourSessionId: string, input: TransportPlanInput): Promise<TransportPlanResponse> {
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
+	      await lockTransportPlan(manager, tourSessionId)
 	      const session = await this.requireSession(manager, tourSessionId)
 	      this.staffAccess.assertTransportWriteScope(access, sessionScope(session))
 	      await this.validatePlan(manager, access, session, input)

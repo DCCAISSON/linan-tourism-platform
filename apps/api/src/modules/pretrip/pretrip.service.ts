@@ -15,6 +15,7 @@ import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import { findScopedOrder } from "../order/order.persistence.js"
 import { assertTravelerActionable, readTravelers, resolveTraveler } from "../travelers/travelers.read-model.js"
 import type { PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
+import { readTransportConfirmation } from "../transport/transport-confirmation.read.js"
 import type {
   AttachmentUrlResponse,
   FamilyPretripPerson,
@@ -56,14 +57,6 @@ type SnapshotVehicle = {
 type SnapshotAssignment = {
   readonly personRef: string
   readonly vehicleId: string
-}
-
-type ConfirmationRow = {
-  readonly id: string
-  readonly planVersion: number | string
-  readonly rosterVersion: string
-  readonly snapshotJson: unknown
-  readonly currentPlanVersion: number | string
 }
 
 @Injectable()
@@ -232,21 +225,7 @@ export class PretripService {
   }
 
   private async transportState(manager: EntityManager, tourSessionId: string): Promise<TransportState> {
-    const snapshot = await readTravelers(manager, tourSessionId)
-    const rows: readonly ConfirmationRow[] = await manager.query(`
-      select c.id, c.plan_version as planVersion, c.roster_version as rosterVersion, c.snapshot_json as snapshotJson, p.version as currentPlanVersion
-      from transport_plans p join transport_confirmations c on c.id = p.current_confirmation_id
-      where p.tour_session_id = ? limit 1`, [tourSessionId])
-    const row = rows[0]
-    if (row === undefined) return { status: "unconfirmed", confirmationId: null, planVersion: 0, rosterVersion: snapshot.rosterVersion, snapshot: null }
-    const current = Number(row.currentPlanVersion) === Number(row.planVersion) && row.rosterVersion === snapshot.rosterVersion
-    return {
-      status: current ? "current" : "stale",
-      confirmationId: row.id,
-      planVersion: Number(row.planVersion),
-      rosterVersion: row.rosterVersion,
-      snapshot: current ? parseTransportSnapshot(row.snapshotJson) : null,
-    }
+    return readTransportConfirmation(manager, tourSessionId)
   }
 
   private async configResponse(manager: EntityManager, tourSessionId: string): Promise<PretripConfigResponse> {

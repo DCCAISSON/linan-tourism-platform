@@ -16,7 +16,7 @@ describe("transport save response permissions", () => {
     })
     const manager = {
       findOneBy: async (entity: unknown) => entity === TourSessionEntity ? session : stored,
-      query: async (sql: string) => sql.startsWith("select version") ? [{ version: 2 }] : [],
+      query: async (sql: string) => sql.startsWith("select id from tour_sessions") ? [{ id: "session" }] : sql.startsWith("select version") ? [{ version: 2 }] : [],
     }
     const module = await Test.createTestingModule({ providers: [TransportService,
       { provide: ConfigurationDatabaseService, useValue: { getDataSource: async () => ({ transaction: async (action: (store: typeof manager) => Promise<unknown>) => action(manager) }) } },

@@ -4,6 +4,7 @@ import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import type { PersonRef } from "../travelers/travelers.types.js"
 import { TransportPeopleService } from "./transport-people.service.js"
 import { createTransportWorkbook } from "./transport.workbook.js"
+import { createTransportPeopleWorkbook } from "./transport-people.workbook.js"
 import { TransportService } from "./transport.service.js"
 import { malformedTransportInput } from "./transport.errors.js"
 import type {
@@ -103,6 +104,19 @@ export class TransportController {
       .setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
       .setHeader("Content-Disposition", 'attachment; filename="transport-contact-sheet.xlsx"')
       .send(workbook)
+  }
+
+  @Get("sessions/:tourSessionId/people-export.xlsx")
+  async exportPeoplePlan(
+    @Headers() headers: RequestHeaders,
+    @Param("tourSessionId") tourSessionId: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const state = await this.transportPeople.exportPeoplePlan(await this.staffAccess.resolve(headers), tourSessionId)
+    response.status(200)
+      .setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .setHeader("Content-Disposition", 'attachment; filename="transport-confirmed-people.xlsx"')
+      .send(await createTransportPeopleWorkbook(state))
   }
 }
 

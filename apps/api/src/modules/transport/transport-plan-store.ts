@@ -1,7 +1,15 @@
 import { ConflictException } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
+import { transportSessionNotFound } from "./transport.errors.js"
 
 type VersionRow = { readonly version: number | string }
+
+// Writers must lock before their first ordinary SELECT so MySQL reads the post-lock state.
+export async function lockTransportPlan(manager: EntityManager, tourSessionId: string): Promise<void> {
+  const sessions: readonly { readonly id: string }[] = await manager.query("select id from tour_sessions where id = ? for update", [tourSessionId])
+  if (sessions.length === 0) throw transportSessionNotFound()
+  await manager.query("select version from transport_plans where tour_session_id = ? for update", [tourSessionId])
+}
 
 export async function ensureTransportPlan(manager: EntityManager, tourSessionId: string): Promise<number> {
   const rows: readonly VersionRow[] = await manager.query("select version from transport_plans where tour_session_id = ?", [tourSessionId])

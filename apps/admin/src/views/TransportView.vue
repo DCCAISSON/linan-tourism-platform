@@ -133,7 +133,7 @@
           <p v-if="peoplePlan" class="transport-state">实际乘车人数与上方班级安排人数分列。</p>
           <p v-else class="transport-state">读取团期后显示可分配人员。</p>
         </div>
-        <span v-if="peoplePlan?.confirmation">确认 {{ peoplePlan.confirmation.status === "current" ? "有效" : "已过期" }}</span>
+        <span v-if="peoplePlan?.confirmation" class="transport-confirmation-status">确认 {{ peoplePlan.confirmation.status === "current" ? "有效" : "已过期" }}</span>
       </div>
 
       <div v-if="peoplePlan" class="transport-people-grid">
@@ -152,6 +152,8 @@
           </p>
           <p v-else class="transport-state">当前车辆安排尚未确认。</p>
           <button type="button" :disabled="!canWrite || confirming" @click="confirmPeoplePlan">{{ confirming ? "确认中..." : "确认当前安排" }}</button>
+          <button class="transport-button--secondary" type="button" :disabled="!canExport || peoplePlan.confirmation?.status !== 'current' || exportingPeople" @click="exportPeoplePlan">{{ exportingPeople ? "导出中..." : "导出最终逐人名单" }}</button>
+          <p class="transport-state">仅导出有效确认名单；调整安排后须重新确认。名单不含证件、电话和健康资料。</p>
         </article>
       </div>
 
@@ -190,6 +192,7 @@
                   <option value="">未分配</option>
                   <option v-for="vehicle in peoplePlan.vehicles" :key="vehicle.id" :value="vehicle.id">{{ vehicle.sequence }}号车</option>
                 </select>
+                <button v-if="!person.active && peopleAssignments[person.personRef]" type="button" :disabled="!canWrite" @click="peopleAssignments[person.personRef] = ''">移除失效分配</button>
               </td>
             </tr>
           </tbody>
@@ -211,6 +214,7 @@ import type { Grade, School, SchoolClass, TourSession } from "@/api/configuratio
 import {
   confirmTransportPlan,
   downloadTransportPlan,
+  downloadTransportPeoplePlan,
   getTransportPeoplePlan,
   getTransportPlan,
   readableTransportError,
@@ -241,6 +245,7 @@ const loadingClasses = ref(false)
 const loadingPlan = ref(false)
 const saving = ref(false)
 const exporting = ref(false)
+const exportingPeople = ref(false)
 const canWrite = ref(false)
 const canExport = ref(false)
 const serverWarnings = ref<readonly string[]>([])
@@ -354,6 +359,15 @@ async function exportPlan(): Promise<void> {
   try { await downloadTransportPlan(tourSessionId.value) }
   catch (caught) { formError.value = readableTransportError(caught) }
   finally { exporting.value = false }
+}
+
+async function exportPeoplePlan(): Promise<void> {
+  if (tourSessionId.value === "") return
+  exportingPeople.value = true
+  formError.value = ""
+  try { await downloadTransportPeoplePlan(tourSessionId.value) }
+  catch (caught) { formError.value = readableTransportError(caught) }
+  finally { exportingPeople.value = false }
 }
 
 function applyPlan(plan: TransportPlan): void {

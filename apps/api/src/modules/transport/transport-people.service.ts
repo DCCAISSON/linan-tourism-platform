@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
-import { TourSessionEntity } from "../../domain/entities/index.js"
+import { OrganizationEntity, TourSessionEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
@@ -8,8 +8,9 @@ import { DevStaffAccessService, type StaffAccess } from "../iam/dev-staff-access
 import { assertTravelerActionable, readTravelers, resolveTraveler, toTravelerDto } from "../travelers/travelers.read-model.js"
 import type { InternalTravelerSnapshot, PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
 import { transportConflict, malformedTransportInput, transportSessionNotFound } from "./transport.errors.js"
-import { bumpTransportPlanVersion, ensureTransportPlan, requireExpectedPlanVersion } from "./transport-plan-store.js"
+import { bumpTransportPlanVersion, ensureTransportPlan, lockTransportPlan, requireExpectedPlanVersion } from "./transport-plan-store.js"
 import { createTransportSuggestion } from "./transport-suggestion.js"
+import { readTransportConfirmation, type TransportConfirmationState } from "./transport-confirmation.read.js"
 import { sessionScope, toPlan } from "./transport.plan.js"
 import type {
   TransportAllocationRecord,
@@ -62,6 +63,7 @@ export class TransportPeopleService {
   ): Promise<TransportPeoplePlanResponse> {
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
+      await lockTransportPlan(manager, tourSessionId)
       const session = await this.requireSession(manager, tourSessionId)
       this.staffAccess.assertTransportWriteScope(access, sessionScope(session))
       await requireExpectedPlanVersion(manager, session.id, input.expectedPlanVersion)
@@ -85,23 +87,50 @@ export class TransportPeopleService {
   async confirmPlan(access: StaffAccess, tourSessionId: string, input: TransportConfirmationInput): Promise<TransportPeoplePlanResponse> {
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
+      await lockTransportPlan(manager, tourSessionId)
       const session = await this.requireSession(manager, tourSessionId)
       this.staffAccess.assertTransportWriteScope(access, sessionScope(session))
       await requireExpectedPlanVersion(manager, session.id, input.expectedPlanVersion)
       const snapshot = await readTravelers(manager, session.id)
       this.requireRosterVersion(snapshot.rosterVersion, input.expectedRosterVersion)
       const plan = await this.buildPeoplePlan(manager, session)
-      if (plan.conflicts.length > 0) throw transportConflict("traveler_conflict", "人员来源存在冲突，不能确认车辆安排。")
+      if (plan.conflicts.length > 0 || plan.assignments.some(assignment => !assignment.active || assignment.conflict !== null)) {
+        throw transportConflict("traveler_conflict", "人员来源存在冲突或失效分配，不能确认车辆安排。")
+      }
+      if (plan.unassigned.length > 0) throw transportConflict("unassigned_travelers", "仍有人员未分配车辆，请完成逐人分配后确认。")
+      if (plan.vehicles.some(vehicle => vehicle.actualRemainingSeats < 0)) throw transportConflict("vehicle_over_capacity", "实际乘车人数超过车辆座位，请调整后确认。")
+      if (plan.assignments.some(assignment => !plan.vehicles.some(vehicle => vehicle.id === assignment.vehicleId))) {
+        throw transportConflict("invalid_vehicle_assignment", "人员分配引用了已失效车辆，请重新分配。")
+      }
+      const school = await manager.findOneBy(OrganizationEntity, { id: session.organizationId })
+      const confirmedPlan = { ...plan, assignments: plan.assignments.map(assignment => {
+        const person = resolveTraveler(snapshot, assignment.personRef)
+        return { ...assignment, schoolName: school?.name ?? null, gradeName: person.gradeName, participantKind: person.participantKind }
+      }) }
       const confirmationId = makeId("transport-confirmation")
       await manager.query(
         `insert into transport_confirmations
           (id, tour_session_id, plan_version, roster_version, snapshot_json, confirmed_by, confirmed_at)
          values (?, ?, ?, ?, ?, ?, current_timestamp(6))`,
-        [confirmationId, session.id, input.expectedPlanVersion, input.expectedRosterVersion, JSON.stringify(plan), access.actorId],
+        [confirmationId, session.id, input.expectedPlanVersion, input.expectedRosterVersion, JSON.stringify(confirmedPlan), access.actorId],
       )
       await manager.query("update transport_plans set current_confirmation_id = ? where tour_session_id = ?", [confirmationId, session.id])
       await this.audit.record(manager, { organizationId: session.organizationId, actorId: access.actorId, action: "transport.plan.confirmed", targetType: "tour_session", targetId: session.id })
       return this.buildPeoplePlan(manager, session)
+    })
+  }
+
+  async exportPeoplePlan(access: StaffAccess, tourSessionId: string): Promise<Extract<TransportConfirmationState, { readonly status: "current" }>> {
+    const source = await this.database.getDataSource()
+    return source.transaction(async manager => {
+      await lockTransportPlan(manager, tourSessionId)
+      const session = await this.requireSession(manager, tourSessionId)
+      this.staffAccess.assertTransportExportScope(access, sessionScope(session))
+      const state = await readTransportConfirmation(manager, tourSessionId)
+      if (state.status !== "current") throw transportConflict("transport_not_current", "车辆安排尚未确认或已过期，请重新确认后导出。")
+      await this.audit.record(manager, { organizationId: session.organizationId, actorId: access.actorId,
+        action: "transport.people.exported", targetType: "tour_session", targetId: session.id })
+      return state
     })
   }
 
@@ -166,7 +195,12 @@ export class TransportPeopleService {
       [snapshot.tourSessionId],
     )
     return rows.map((row) => {
-      const traveler = resolveTraveler(snapshot, this.parseStoredPersonRef(row.personRef))
+      const personRef = this.parseStoredPersonRef(row.personRef)
+      const traveler = snapshot.sources.find(candidate => candidate.personRef === personRef && candidate.tourSessionId === snapshot.tourSessionId)
+      if (traveler === undefined) {
+        return { personRef, vehicleId: row.vehicleId, displayName: "已失效人员（待移除）", className: null,
+          importedRole: null, active: false, conflict: { code: "eligibility_conflict", sourceRefs: [personRef] } }
+      }
       return {
         personRef: traveler.personRef,
         vehicleId: row.vehicleId,
