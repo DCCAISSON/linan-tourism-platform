@@ -22,10 +22,10 @@
   "tabBar": {
     "color": "#526A63", "selectedColor": "#08776A", "backgroundColor": "#FFFFFF", "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/activities/index", "text": "研学活动" },
-      { "pagePath": "pages/orders/index", "text": "我的订单" },
-      { "pagePath": "pages/family/index", "text": "我的" }
+      { "pagePath": "pages/index/index", "iconPath": "static/icons/home-default.png", "selectedIconPath": "static/icons/home-active.png", "text": "首页" },
+      { "pagePath": "pages/activities/index", "iconPath": "static/icons/activities-default.png", "selectedIconPath": "static/icons/activities-active.png", "text": "研学活动" },
+      { "pagePath": "pages/orders/index", "iconPath": "static/icons/orders-default.png", "selectedIconPath": "static/icons/orders-active.png", "text": "我的订单" },
+      { "pagePath": "pages/family/index", "iconPath": "static/icons/people-default.png", "selectedIconPath": "static/icons/people-active.png", "text": "我的" }
     ]
   }
 }

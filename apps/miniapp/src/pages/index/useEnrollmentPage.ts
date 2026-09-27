@@ -38,6 +38,7 @@ export function useEnrollmentPage() {
   let api = createMiniappApi()
   const authenticated = ref(import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || getWechatSessionToken() !== undefined)
   const loginRequested = ref(false)
+  const loginPromptVisible = ref(false)
   let reviewAfterLogin = false
   const validationShown = ref(false)
   const loadState = ref<LoadState>("loading")
@@ -50,6 +51,12 @@ export function useEnrollmentPage() {
   const paymentCapabilities = ref<ServiceCapabilities>(paymentCapabilitiesClosed)
   const wantedSessionId = ref("")
   const savedMembers = ref<readonly SavedEnrollmentMember[]>([])
+  const gradeState = ref<LoadState | "idle">("idle")
+  const classState = ref<LoadState | "idle">("idle")
+  const gradeError = ref("")
+  const classError = ref("")
+  let gradeRequest = 0
+  let classRequest = 0
   onLoad((query) => { wantedSessionId.value = query?.["sessionId"] ?? "" })
   const draft = reactive({
     ...createEmptyDraft(),
@@ -69,6 +76,10 @@ export function useEnrollmentPage() {
     catalog.sessions.filter((session) => session.organizationId === draft.selectedSchoolId),
   )
   const sessionNames = computed(() => sessionOptionNames(availableSessions.value))
+  const schoolIndex = computed(() => Math.max(0, catalog.schools.findIndex((item) => item.id === draft.selectedSchoolId)))
+  const gradeIndex = computed(() => Math.max(0, catalog.grades.findIndex((item) => item.id === draft.selectedGradeId)))
+  const classIndex = computed(() => Math.max(0, catalog.classes.findIndex((item) => item.id === draft.selectedClassId)))
+  const sessionIndex = computed(() => Math.max(0, availableSessions.value.findIndex((item) => item.id === draft.selectedTourSessionId)))
   const selectedSchool = computed(() => catalog.schools.find((school) => school.id === draft.selectedSchoolId))
   const selectedGrade = computed(() => catalog.grades.find((grade) => grade.id === draft.selectedGradeId))
   const selectedClass = computed(() => catalog.classes.find((schoolClass) => schoolClass.id === draft.selectedClassId))
@@ -95,6 +106,12 @@ export function useEnrollmentPage() {
   })
 
   async function loadCatalog(): Promise<void> {
+    gradeRequest++
+    classRequest++
+    gradeState.value = "idle"
+    classState.value = "idle"
+    gradeError.value = ""
+    classError.value = ""
     loadState.value = "loading"
     pageMode.value = "editing"
     errorMessage.value = ""
@@ -137,6 +154,9 @@ export function useEnrollmentPage() {
   async function onSchoolChange(event: PickerChangeEvent): Promise<void> {
     const school = catalog.schools[readPickerIndex(event)]
     if (school === undefined) return
+    classRequest++
+    classState.value = "idle"
+    classError.value = ""
     const localMembers = draft.familyMembers.filter((member) => !member.fromCommonList)
     if (draft.selectedSchoolId !== school.id) {
       for (const member of localMembers) delete member.remoteMemberId
@@ -144,6 +164,7 @@ export function useEnrollmentPage() {
     draft.selectedSchoolId = school.id
     draft.selectedGradeId = ""
     draft.selectedClassId = ""
+    draft.agreementAccepted = false
     draft.selectedTourSessionId = catalog.sessions.find((session) => session.id === wantedSessionId.value && session.organizationId === school.id)?.id ?? ""
     draft.familyMembers = [
       ...savedMembers.value.filter((member) => member.schoolId === school.id && !localMembers.some((local) => local.remoteMemberId === member.id)).map((member) => ({
@@ -164,10 +185,24 @@ export function useEnrollmentPage() {
     resetCheckout()
     errorMessage.value = ""
 
+    await retryGrades()
+  }
+
+  async function retryGrades(): Promise<void> {
+    const schoolId = draft.selectedSchoolId
+    if (schoolId.length === 0) return
+    const request = ++gradeRequest
+    gradeState.value = "loading"
+    gradeError.value = ""
     try {
-      catalog.grades = [...(await api.listGrades(school.id))]
+      const grades = await api.listGrades(schoolId)
+      if (request !== gradeRequest || schoolId !== draft.selectedSchoolId) return
+      catalog.grades = [...grades]
+      gradeState.value = grades.length === 0 ? "empty" : "ready"
     } catch (error) {
-      errorMessage.value = readableError(error, "年级加载失败，请重试")
+      if (request !== gradeRequest || schoolId !== draft.selectedSchoolId) return
+      gradeState.value = "error"
+      gradeError.value = readableError(error, "年级加载失败，请重试")
     }
   }
 
@@ -180,10 +215,24 @@ export function useEnrollmentPage() {
     resetCheckout()
     errorMessage.value = ""
 
+    await retryClasses()
+  }
+
+  async function retryClasses(): Promise<void> {
+    const gradeId = draft.selectedGradeId
+    if (gradeId.length === 0) return
+    const request = ++classRequest
+    classState.value = "loading"
+    classError.value = ""
     try {
-      catalog.classes = [...(await api.listClasses(grade.id))]
+      const classes = await api.listClasses(gradeId)
+      if (request !== classRequest || gradeId !== draft.selectedGradeId) return
+      catalog.classes = [...classes]
+      classState.value = classes.length === 0 ? "empty" : "ready"
     } catch (error) {
-      errorMessage.value = readableError(error, "班级加载失败，请重试")
+      if (request !== classRequest || gradeId !== draft.selectedGradeId) return
+      classState.value = "error"
+      classError.value = readableError(error, "班级加载失败，请重试")
     }
   }
 
@@ -225,9 +274,25 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
   }
 
+  function clearHistoricalMembers(): void {
+    savedMembers.value = []
+    draft.familyMembers = draft.familyMembers.filter((member) => !member.fromCommonList || member.selected)
+    for (const member of draft.familyMembers) {
+      if (member.remoteMemberId !== undefined) member.code = createLocalMemberCode()
+      if (member.fromCommonList) {
+        member.id = `local-member-${member.code}`
+        member.identityNumber = ""
+        member.phone = ""
+      }
+      delete member.remoteMemberId
+      delete member.fromCommonList
+    }
+  }
+
   async function completeLogin(): Promise<void> {
     authenticated.value = true
     loginRequested.value = false
+    loginPromptVisible.value = false
     api = createMiniappApi()
     try {
       savedMembers.value = await api.listEnrollmentMembers()
@@ -236,16 +301,32 @@ export function useEnrollmentPage() {
         if (draft.familyMembers.some((existing) => existing.remoteMemberId === member.id)) continue
         draft.familyMembers.push({ id: member.id, code: member.code, displayName: member.displayName, participantKind: member.participantKind ?? "student", identityNumber: member.identityNumberMasked ?? "", phone: member.phoneMasked ?? "", remoteMemberId: member.id, fromCommonList: true, selected: false })
       }
-    } catch (error) { errorMessage.value = readableError(error, "常用参加人加载失败，请稍后重试") }
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 401) {
+        authenticated.value = false
+        clearHistoricalMembers()
+        reviewAfterLogin = false
+        loginRequested.value = true
+        await nextTick()
+      }
+      errorMessage.value = readableError(error, "常用参加人加载失败，请稍后重试")
+    }
     if (reviewAfterLogin) { reviewAfterLogin = false; enterReview() }
   }
 
   function requestLogin(): void {
+    if (authenticated.value) return
+    loginPromptVisible.value = true
+  }
+
+  function confirmLogin(): void {
+    loginPromptVisible.value = false
     loginRequested.value = true
     void nextTick(() => scrollToEnrollmentAnchor("enrollment-login-field"))
   }
 
   function cancelLogin(): void {
+    loginPromptVisible.value = false
     loginRequested.value = false
     reviewAfterLogin = false
   }
@@ -321,9 +402,11 @@ export function useEnrollmentPage() {
       pageMode.value = "review"
       if (error instanceof ApiError && error.statusCode === 401) {
         authenticated.value = false
+        clearHistoricalMembers()
         pageMode.value = "editing"
         reviewAfterLogin = true
         requestLogin()
+        await nextTick()
       }
       errorMessage.value = readableError(error, "提交失败，请稍后重试")
     }
@@ -392,6 +475,9 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
   }
 
   return {
+    loginPromptVisible, confirmLogin,
+    schoolIndex, gradeIndex, classIndex, sessionIndex,
+    gradeState, classState, gradeError, classError, retryGrades, retryClasses,
     authenticated, completeLogin, loginRequested, requestLogin, cancelLogin, removeMember, validationShown,
     addMember,
     availableSessions,

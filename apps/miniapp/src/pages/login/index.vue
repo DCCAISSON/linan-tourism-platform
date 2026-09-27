@@ -14,5 +14,16 @@ onLoad((query) => {
 function browse(): void { uni.switchTab({ url: "/pages/index/index" }) }
 function continueAfterLogin(): void { uni.switchTab({ url: returnTo.value }) }
 </script>
-<template><view v-if="hasProtectedTarget" class="discovery-page"><text class="page-heading">临安旅游通</text><WechatConsent @authenticated="continueAfterLogin" /><button class="button-secondary action-gap" @tap="browse">返回首页浏览</button></view></template>
-<style>@import "../../styles/discovery.css";</style>
+<template>
+  <view v-if="hasProtectedTarget" class="discovery-page login-page">
+    <text class="page-heading">欢迎来到临安旅游通</text>
+    <text class="page-subtitle">山水之间，安排好一家人的研学出行。</text>
+    <WechatConsent title="登录，继续您的行程" @authenticated="continueAfterLogin" />
+    <button class="button-secondary action-gap" @tap="browse">先逛逛研学活动</button>
+  </view>
+</template>
+<style>
+@import "../../styles/discovery.css";
+.login-page { padding-top: var(--space-8); }
+.login-page .page-heading { font-size: var(--font-h2); }
+</style>

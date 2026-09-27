@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import WechatConsent from "../../components/WechatConsent.vue"
+import LoginPrompt from "../../components/LoginPrompt.vue"
 import EnrollmentForm from "../index/EnrollmentForm.vue"
 import EnrollmentReview from "../index/EnrollmentReview.vue"
 import EnrollmentStatePanel from "../index/EnrollmentStatePanel.vue"
@@ -8,6 +9,7 @@ import { useEnrollmentPage } from "../index/useEnrollmentPage"
 
 const page = useEnrollmentPage()
 const {
+  loginPromptVisible, confirmLogin,
   authenticated, completeLogin, loginRequested, requestLogin, cancelLogin, validationShown, selectedSession,
   backToEdit,
   canSubmit,
@@ -25,6 +27,7 @@ const {
 
 <template>
   <view class="page">
+    <LoginPrompt v-if="loginPromptVisible" @cancel="cancelLogin" @confirm="confirmLogin" />
     <view class="topbar">
       <view class="state-pill">
         <view class="state-pill__dot" :class="`state-pill__dot--${stateTone}`" />

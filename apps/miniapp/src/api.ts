@@ -186,21 +186,22 @@ async function requestJson(
   wechatSessionToken: string | undefined,
   data?: object,
 ): Promise<unknown> {
+  const sessionToken = wechatSessionToken ?? getWechatSessionToken()
   const options: MiniappRequestOptions = data === undefined ? {
     url: `${baseUrl}${path}`,
     method,
-    header: buildHeaders(familyIdentityHeader, wechatSessionToken, false),
+    header: buildHeaders(familyIdentityHeader, sessionToken, false),
   } : {
     url: `${baseUrl}${path}`,
     method,
-    header: buildHeaders(familyIdentityHeader, wechatSessionToken, true),
+    header: buildHeaders(familyIdentityHeader, sessionToken, true),
     data,
   }
   const response = await request(options)
 
   if (response.statusCode < 200 || response.statusCode >= 300) {
     if (response.statusCode === 401 && !path.startsWith("/wechat/miniapp/")) {
-      clearWechatSessionToken()
+      if (sessionToken === getWechatSessionToken()) clearWechatSessionToken()
       throw new ApiError(401, "登录状态已失效，请重新登录")
     }
     throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)

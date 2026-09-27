@@ -10,6 +10,8 @@ const props = defineProps<{
 }>()
 
 const {
+  schoolIndex, gradeIndex, classIndex, sessionIndex,
+  gradeState, classState, gradeError, classError, retryGrades, retryClasses,
   addMember,
   removeMember,
   availableSessions,
@@ -38,29 +40,41 @@ const {
   <view class="section">
     <view class="section__header section__header--school">
       <text class="section__title">学校与班级</text>
-      <text class="section__hint">请选择学生所在学校、年级和班级；常用参加人沿用已保存的班级。</text>
+      <text class="section__hint">依次选择学校、年级和班级；常用参加人沿用已存班级。</text>
+      <text class="required-note"><text class="required-mark">*</text>学校必选；新增学生需选择年级和班级。</text>
     </view>
 
-    <picker mode="selector" :range="schoolNames" @change="onSchoolChange">
+    <picker mode="selector" :range="schoolNames" :value="schoolIndex" :disabled="catalog.schools.length === 0" @change="onSchoolChange">
       <view id="enrollment-school-field" class="field-control">
-        <text class="field-control__label">学校</text>
+        <text class="field-control__label"><text class="required-mark">*</text>学校</text>
         <text class="field-control__value">{{ selectedSchool?.name ?? "请选择学校" }}</text>
       </view>
     </picker>
 
-    <picker mode="selector" :range="gradeNames" :disabled="catalog.grades.length === 0" @change="onGradeChange">
+    <text class="required-note">仅显示当前活动可报名的学校。</text>
+    <picker mode="selector" :range="gradeNames" :value="gradeIndex" :disabled="gradeState !== 'ready'" @change="onGradeChange">
       <view id="enrollment-grade-field" class="field-control" :class="{ 'field-control--disabled': catalog.grades.length === 0 }">
         <text class="field-control__label">年级</text>
-        <text class="field-control__value">{{ selectedGrade?.name ?? "请选择年级" }}</text>
+        <text class="field-control__value">{{ selectedGrade?.name ?? (gradeState === 'loading' ? '年级加载中…' : !draft.selectedSchoolId ? '请先选择学校' : '请选择年级') }}</text>
       </view>
     </picker>
+    <view v-if="gradeState === 'error'" class="option-feedback">
+      <text class="field-error">{{ gradeError }}</text>
+      <button class="text-button" @tap="retryGrades">重试年级</button>
+    </view>
+    <text v-else-if="gradeState === 'empty'" class="required-note">该学校暂无可选年级，请联系活动工作人员。</text>
 
-    <picker mode="selector" :range="classNames" :disabled="catalog.classes.length === 0" @change="onClassChange">
+    <picker mode="selector" :range="classNames" :value="classIndex" :disabled="classState !== 'ready'" @change="onClassChange">
       <view id="enrollment-class-field" class="field-control" :class="{ 'field-control--disabled': catalog.classes.length === 0 }">
         <text class="field-control__label">班级</text>
-        <text class="field-control__value">{{ selectedClass?.name ?? "请选择班级" }}</text>
+        <text class="field-control__value">{{ selectedClass?.name ?? (classState === 'loading' ? '班级加载中…' : !draft.selectedGradeId ? '请先选择年级' : '请选择班级') }}</text>
       </view>
     </picker>
+    <view v-if="classState === 'error'" class="option-feedback">
+      <text class="field-error">{{ classError }}</text>
+      <button class="text-button" @tap="retryClasses">重试班级</button>
+    </view>
+    <text v-else-if="classState === 'empty'" class="required-note">该年级暂无可选班级，请联系活动工作人员。</text>
   </view>
 
   <view id="enrollment-members-field" class="section">
@@ -167,9 +181,9 @@ const {
 
   <view class="section">
     <text class="section__title">行程</text>
-    <picker mode="selector" :range="sessionNames" :disabled="availableSessions.length === 0" @change="onSessionChange">
+    <picker mode="selector" :range="sessionNames" :value="sessionIndex" :disabled="availableSessions.length === 0" @change="onSessionChange">
       <view id="enrollment-session-field" class="field-control" :class="{ 'field-control--disabled': availableSessions.length === 0 }">
-        <text class="field-control__label">可报名团期</text>
+        <text class="field-control__label"><text class="required-mark">*</text>可报名团期</text>
         <text class="field-control__value">{{ selectedSession?.code ?? "请选择团期" }}</text>
       </view>
     </picker>
@@ -273,7 +287,23 @@ const {
 }
 
 .field-control--disabled {
-  opacity: 0.5;
+  background: var(--surface-secondary);
+}
+
+.field-control--disabled .field-control__value {
+  color: var(--text-tertiary);
+}
+
+.option-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.section__header--school .section__title {
+  padding-left: var(--space-2);
+  border-left: var(--space-1) solid var(--brand-primary);
 }
 
 .field-control__label {

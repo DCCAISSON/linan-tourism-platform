@@ -48,6 +48,10 @@ page {
   --radius-card: 12px;
   --radius-banner: 16px;
   --size-touch-target: 44px;
+  --size-functional-icon: 24px;
+  --dialog-max-width: 320px;
+  --overlay-scrim: rgba(16, 58, 50, .28);
+  --layer-modal: 20;
   --layout-content-max: 1440px;
   --layout-sidebar-width: 240px;
   min-height: 100%;

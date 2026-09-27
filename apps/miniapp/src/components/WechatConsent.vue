@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue"
+import FunctionalIcon from "./FunctionalIcon.vue"
 import { createMiniappApi } from "../api"
 import { readableError } from "../pages/index/page-helpers"
 withDefaults(defineProps<{
@@ -7,12 +8,13 @@ withDefaults(defineProps<{
   readonly loginLabel?: string
 }>(), {
   title: "登录后继续办理",
-  loginLabel: "同意并微信登录",
+  loginLabel: "微信登录",
 })
 const emit = defineEmits<{ authenticated: [] }>()
 const accepted = ref(false)
 const busy = ref(false)
 const error = ref("")
+const expanded = ref(false)
 async function login(): Promise<void> {
   if (!accepted.value || busy.value) return
   busy.value = true
@@ -32,12 +34,18 @@ async function login(): Promise<void> {
 </script>
 <template>
   <view class="consent-card">
+    <view class="consent-symbol"><FunctionalIcon name="people" /></view>
     <text class="consent-title">{{ title }}</text>
-    <text class="consent-copy">登录将使用微信身份识别您的账号。报名时填写的姓名、证件号码和联系方式用于报名核对、出行保险及行前联系。常用参加人仅在您主动选择保存后保留，订单按本次报名信息留存。</text>
+    <text class="consent-copy">使用微信登录，方便管理报名和订单。</text>
+    <button class="consent-details-toggle" :aria-expanded="expanded" @tap="expanded = !expanded">{{ expanded ? "收起信息使用说明" : "查看信息使用说明" }}</button>
+    <view v-if="expanded" class="consent-details">
+      <text>姓名用于报名核对，证件号码用于出行保险，联系电话用于行前联系。</text>
+      <text>常用参加人仅在您选择保存后保留；订单留存本次报名信息。联系电话不是登录凭证。</text>
+    </view>
     <checkbox-group @change="accepted = $event.detail.value.includes('consent')">
       <label class="consent-choice" :class="{ 'consent-choice--on': accepted }">
         <checkbox class="consent-checkbox" value="consent" :checked="accepted" :disabled="busy" color="var(--accent-primary)" />
-        <text>我已知悉并同意上述必要信息处理</text>
+        <text>同意微信登录与账号管理</text>
       </label>
     </checkbox-group>
     <text v-if="error" class="consent-error">{{ error }}</text>
@@ -46,6 +54,12 @@ async function login(): Promise<void> {
 </template>
 <style scoped>
 .consent-card { margin-top: var(--space-5); padding: var(--space-5); border-radius: var(--radius-card); background: var(--surface-elevated); }
+.consent-symbol { display: inline-flex; padding: var(--space-4); margin-bottom: var(--space-4); border-radius: var(--radius-banner); background: var(--accent-soft); }
+.consent-details-toggle { min-height: var(--size-touch-target); padding: 0; margin: 0; text-align: left; background: transparent; color: var(--accent-primary); font-size: var(--font-body-sm); line-height: var(--size-touch-target); }
+.consent-details-toggle::after, .consent-login::after { border: 0; }
+.consent-details { padding: var(--space-3); border-radius: var(--radius-control); background: var(--surface-secondary); color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.6; }
+.consent-details text { display: block; }
+.consent-details text + text { margin-top: var(--space-2); }
 .consent-title, .consent-copy, .consent-error { display: block; }
 .consent-title { font-size: var(--font-h3); font-weight: 600; }
 .consent-copy { margin-top: var(--space-3); font-size: var(--font-body-sm); line-height: 1.6; color: var(--text-secondary); }

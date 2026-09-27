@@ -342,6 +342,10 @@ async function runJourney(program) {
 
   await (await required(page, ".primary-button")).tap()
   await page.waitFor(100)
+  const loginPrompt = await componentWithText(page, "再逛会")
+  await (await required(loginPrompt, ".login-prompt-cancel")).tap()
+  await (await required(page, ".primary-button")).tap()
+  await (await required(await componentWithText(page, "再逛会"), ".login-prompt-confirm")).tap()
   const consent = await componentWithText(page, "确认身份，保存本次报名")
   if (fixture.requests.some(entry => entry.method === "POST" && entry.path === "/enrollment/members")) throw new Error("Personal data was sent before identity consent")
   await (await required(consent, ".consent-choice")).tap()

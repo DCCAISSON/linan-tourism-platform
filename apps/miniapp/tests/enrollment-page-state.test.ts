@@ -1,24 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { effectScope, nextTick, type EffectScope } from "vue"
 import { DOMAIN_POLICY_VERSION } from "@linan/contracts"
-import type { TourSession, SavedEnrollmentMember, CreateOrderPayload, Order } from "../src/api"
+import type { TourSession, SavedEnrollmentMember, CreateOrderPayload, Order, Grade, SchoolClass } from "../src/api"
 import { useEnrollmentPage } from "../src/pages/index/useEnrollmentPage"
+import { ApiError } from "../src/api"
 
 vi.mock("vue", async (importOriginal) => ({ ...await importOriginal<typeof import("vue")>(), onMounted: () => undefined }))
 vi.mock("@dcloudio/uni-app", () => ({ onLoad: () => undefined }))
 const apiCalls = vi.hoisted(() => ({
+  listGrades: vi.fn<(schoolId: string) => Promise<readonly Grade[]>>(),
+  listClasses: vi.fn<(gradeId: string) => Promise<readonly SchoolClass[]>>(),
   listEnrollmentMembers: vi.fn<() => Promise<readonly SavedEnrollmentMember[]>>(),
   submitEnrollment: vi.fn(async () => ({ id: "enrollment-one", status: "submitted" })),
   createOrder: vi.fn<(payload: CreateOrderPayload) => Promise<Order>>(),
 }))
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
+  apiCalls.listGrades.mockResolvedValue([])
+  apiCalls.listClasses.mockResolvedValue([])
+  apiCalls.submitEnrollment.mockResolvedValue({ id: "enrollment-one", status: "submitted" })
   apiCalls.listEnrollmentMembers.mockResolvedValue([])
   apiCalls.createOrder.mockResolvedValue({ id: "order-one", code: "ORDER", enrollmentId: "enrollment-one", status: "pending_payment", amountFen: 100, paidFen: 0, payerName: "家长", participantCount: 1 })
 })
 vi.mock("../src/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("../src/api")>(),
-  createMiniappApi: () => ({ ...apiCalls, listGrades: async () => [], checkEnrollmentAvailability: async () => undefined }),
+  createMiniappApi: () => ({ ...apiCalls, checkEnrollmentAvailability: async () => undefined }),
 }))
 const scopes: EffectScope[] = []
 afterEach(() => { for (const scope of scopes) scope.stop(); scopes.length = 0 })
@@ -168,5 +174,254 @@ describe("enrollment submission and common participant scope", () => {
     await nextTick()
     // Then
     expect(page.submissionCode.value).toBe("")
+  })
+})
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => { throw new Error("Promise not initialized") }
+  let reject: (reason: Error) => void = () => { throw new Error("Promise not initialized") }
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail })
+  return { promise, resolve, reject }
+}
+const schoolOptions = [
+  { id: "school-a", code: "A", name: "本地学校甲" },
+  { id: "school-b", code: "B", name: "本地学校乙" },
+]
+function gradesFor(schoolId: string): Grade[] {
+  return [1, 2].map((number) => ({ id: `${schoolId}-g${number}`, organizationId: schoolId, code: `G${number}`, name: `${number}年级` }))
+}
+function classesFor(gradeId: string): SchoolClass[] {
+  return [1, 2].map((number) => ({ id: `${gradeId}-c${number}`, gradeId, code: `C${number}`, name: `${number}班` }))
+}
+
+describe("enrollment option requests", () => {
+  it("keeps the latest school options when an earlier request resolves last", async () => {
+    // Given
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    const first = deferred<readonly Grade[]>()
+    apiCalls.listGrades.mockImplementation((schoolId) => schoolId === "school-a" ? first.promise : Promise.resolve(gradesFor(schoolId)))
+    const previous = page.onSchoolChange({ detail: { value: 0 } })
+    // When
+    await page.onSchoolChange({ detail: { value: "1" } })
+    first.resolve(gradesFor("school-a"))
+    await previous
+    // Then
+    expect(page.catalog.grades).toEqual(gradesFor("school-b"))
+    expect(page.draft.selectedGradeId).toBe("")
+    expect(page.gradeState.value).toBe("ready")
+    expect(page.schoolIndex.value).toBe(1)
+  })
+
+  it("keeps the latest class options when an earlier grade request resolves last", async () => {
+    // Given
+    const page = pageState()
+    page.catalog.grades = gradesFor("school-a")
+    const first = deferred<readonly SchoolClass[]>()
+    apiCalls.listClasses.mockImplementation((gradeId) => gradeId.endsWith("g1") ? first.promise : Promise.resolve(classesFor(gradeId)))
+    const previous = page.onGradeChange({ detail: { value: 0 } })
+    // When
+    await page.onGradeChange({ detail: { value: 1 } })
+    first.resolve(classesFor("school-a-g1"))
+    await previous
+    // Then
+    expect(page.catalog.classes).toEqual(classesFor("school-a-g2"))
+    expect(page.draft.selectedClassId).toBe("")
+    expect(page.gradeIndex.value).toBe(1)
+  })
+
+  it("clears dependent choices and rejects pending classes when changing school", async () => {
+    // Given
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    page.catalog.grades = gradesFor("school-a")
+    const classes = deferred<readonly SchoolClass[]>()
+    apiCalls.listClasses.mockReturnValue(classes.promise)
+    page.draft.selectedSchoolId = "school-a"
+    const previous = page.onGradeChange({ detail: { value: 0 } })
+    Object.assign(page.draft, { selectedClassId: "old-class", selectedTourSessionId: "old-session", agreementAccepted: true })
+    page.submissionCode.value = "old-submission"
+    // When
+    await page.onSchoolChange({ detail: { value: 1 } })
+    classes.resolve(classesFor("school-a-g1"))
+    await previous
+    // Then
+    expect(page.catalog.classes).toEqual([])
+    expect(page.classState.value).toBe("idle")
+    expect(page.draft).toMatchObject({ selectedGradeId: "", selectedClassId: "", selectedTourSessionId: "", agreementAccepted: false })
+    expect(page.submissionCode.value).toBe("")
+  })
+
+  it("ignores an old failure while the current school is loading", async () => {
+    // Given
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    const first = deferred<readonly Grade[]>()
+    const second = deferred<readonly Grade[]>()
+    apiCalls.listGrades.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const previous = page.onSchoolChange({ detail: { value: 0 } })
+    const current = page.onSchoolChange({ detail: { value: 1 } })
+    // When
+    first.reject(new Error("old request failed"))
+    await previous
+    // Then
+    expect(page.gradeState.value).toBe("loading")
+    expect(page.gradeError.value).toBe("")
+    second.resolve([])
+    await current
+  })
+
+  it("retries a failed grade request and leaves the returned choices unselected", async () => {
+    // Given
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    apiCalls.listGrades.mockRejectedValueOnce(new Error("网络暂不可用"))
+    await page.onSchoolChange({ detail: { value: 1 } })
+    expect(page.gradeState.value).toBe("error")
+    expect(page.gradeError.value).toBe("网络暂不可用")
+    apiCalls.listGrades.mockResolvedValue(gradesFor("school-b"))
+    // When
+    await page.retryGrades()
+    // Then
+    expect(page.gradeState.value).toBe("ready")
+    expect(page.gradeError.value).toBe("")
+    expect(page.catalog.grades).toHaveLength(2)
+    expect(page.draft.selectedGradeId).toBe("")
+  })
+
+  it("distinguishes an empty class response from a failed request after retry", async () => {
+    // Given
+    const page = pageState()
+    page.catalog.grades = gradesFor("school-a")
+    apiCalls.listClasses.mockRejectedValueOnce(new Error("连接失败"))
+    await page.onGradeChange({ detail: { value: 1 } })
+    expect(page.classState.value).toBe("error")
+    // When
+    await page.retryClasses()
+    // Then
+    expect(page.classState.value).toBe("empty")
+    expect(page.classError.value).toBe("")
+    expect(page.draft.selectedClassId).toBe("")
+  })
+
+  it("selects every second option using server IDs and keeps each school's session price", async () => {
+    // Given: fixture data are local only, never written to the public API.
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    page.catalog.sessions = schoolOptions.map((school, index) => ({ ...session(`session-${school.id}`), organizationId: school.id, priceFen: 100 + index * 100 }))
+    apiCalls.listGrades.mockImplementation(async (schoolId) => gradesFor(schoolId))
+    apiCalls.listClasses.mockImplementation(async (gradeId) => classesFor(gradeId))
+    // When
+    await page.onSchoolChange({ detail: { value: 1 } })
+    await page.onGradeChange({ detail: { value: 1 } })
+    page.onClassChange({ detail: { value: 1 } })
+    page.onSessionChange({ detail: { value: 0 } })
+    // Then
+    expect(page.draft).toMatchObject({ selectedSchoolId: "school-b", selectedGradeId: "school-b-g2", selectedClassId: "school-b-g2-c2", selectedTourSessionId: "session-school-b" })
+    expect(page.classIndex.value).toBe(1)
+    expect(page.availableSessions.value.map((item) => item.priceFen)).toEqual([200])
+    expect(page.selectedSession.value?.priceFen).toBe(200)
+  })
+})
+
+describe("enrollment action login prompt", () => {
+  it("clears saved private members and keeps local input when login refresh returns 401", async () => {
+    // Given
+    const page = pageState()
+    page.draft.contactName = "家长甲"
+    page.draft.familyMembers = [
+      { id: "saved", code: "saved", displayName: "常用成员", fromCommonList: true, remoteMemberId: "saved", selected: false },
+      { id: "selected-saved", code: "selected-saved", displayName: "本次已选成员", fromCommonList: true, remoteMemberId: "selected-saved", selected: true },
+      { id: "local", code: "local", displayName: "本次成员", selected: true },
+    ]
+    apiCalls.listEnrollmentMembers.mockRejectedValue(new ApiError(401, "登录已过期，请重新登录"))
+    // When
+    await page.completeLogin()
+    await nextTick()
+    // Then
+    expect(page.authenticated.value).toBe(false)
+    expect(page.draft.familyMembers.map((member) => member.displayName)).toEqual(["本次已选成员", "本次成员"])
+    expect(page.draft.familyMembers[0]?.id).not.toBe("selected-saved")
+    expect(page.draft.familyMembers[0]?.remoteMemberId).toBeUndefined()
+    expect(page.draft.familyMembers[0]?.fromCommonList).toBeUndefined()
+    expect(page.draft.familyMembers[0]?.identityNumber).toBe("")
+    expect(page.draft.contactName).toBe("家长甲")
+    expect(page.loginPromptVisible.value).toBe(false)
+    expect(page.loginRequested.value).toBe(true)
+    expect(page.errorMessage.value).toBe("登录已过期，请重新登录")
+  })
+
+  it("removes unselected historical members after a submission 401 while retaining the chosen draft", async () => {
+    // Given
+    const page = pageState()
+    page.catalog.schools = [{ id: "school", code: "school", name: "学校" }]
+    page.catalog.sessions = [session("first")]
+    Object.assign(page.draft, { selectedSchoolId: "school", selectedTourSessionId: "first", contactName: "家长", contactPhone: "19900003099" })
+    apiCalls.listEnrollmentMembers.mockResolvedValue(["selected", "history"].map((id) => ({ id, code: id, displayName: id, participantKind: "student", schoolId: "school", gradeId: "grade", classId: "class" })))
+    await page.completeLogin()
+    page.toggleMember("selected")
+    page.draft.familyMembers.push({ id: "local", code: "local", displayName: "手填草稿", selected: false })
+    await nextTick()
+    page.draft.agreementAccepted = true
+    await nextTick()
+    page.pageMode.value = "review"
+    apiCalls.submitEnrollment.mockRejectedValueOnce(new ApiError(401, "登录已过期"))
+    // When
+    await page.submitEnrollment()
+    page.cancelLogin()
+    await nextTick()
+    // Then
+    expect(page.authenticated.value).toBe(false)
+    expect(page.draft.familyMembers.map((member) => member.displayName)).toEqual(["selected", "手填草稿"])
+    expect(page.draft.familyMembers[0]?.remoteMemberId).toBeUndefined()
+    expect(page.draft.familyMembers[0]?.fromCommonList).toBeUndefined()
+    expect(page.draft.contactName).toBe("家长")
+    expect(page.errorMessage.value).toBe("登录已过期")
+    await page.onSchoolChange({ detail: { value: 0 } })
+    expect(page.draft.familyMembers.map((member) => member.displayName)).toEqual(["selected", "手填草稿"])
+    apiCalls.listEnrollmentMembers.mockResolvedValue([{ id: "selected", code: "selected", displayName: "selected", participantKind: "student", schoolId: "school", gradeId: "grade", classId: "class" }])
+    await page.completeLogin()
+    page.validationShown.value = true
+    const selected = page.draft.familyMembers.find((member) => member.selected)
+    if (selected === undefined) throw new Error("Selected draft missing")
+    expect(selected.remoteMemberId).toBeUndefined()
+    expect(new Set(page.draft.familyMembers.map((member) => member.id)).size).toBe(page.draft.familyMembers.length)
+    expect(page.memberFieldError(selected, "identityNumber")).not.toBe("")
+    page.removeMember(selected.id)
+    page.toggleMember("selected")
+    expect(page.draft.familyMembers.find((member) => member.id === "selected")).toMatchObject({ remoteMemberId: "selected", selected: true })
+  })
+
+  it("keeps the draft and closes the prompt when the guest cancels login", () => {
+    // Given
+    const page = pageState()
+    page.authenticated.value = false
+    page.draft.contactName = "家长甲"
+    page.requestLogin()
+    expect(page.loginPromptVisible.value).toBe(true)
+    expect(page.loginRequested.value).toBe(false)
+    // When
+    page.cancelLogin()
+    // Then
+    expect(page.loginPromptVisible.value).toBe(false)
+    expect(page.loginRequested.value).toBe(false)
+    expect(page.draft.contactName).toBe("家长甲")
+    expect(apiCalls.listEnrollmentMembers).not.toHaveBeenCalled()
+  })
+
+  it("opens the existing consent step only after confirming the login prompt", async () => {
+    // Given
+    const page = pageState()
+    page.authenticated.value = false
+    vi.stubGlobal("uni", { pageScrollTo: vi.fn() })
+    page.requestLogin()
+    // When
+    page.confirmLogin()
+    await nextTick()
+    // Then
+    expect(page.loginPromptVisible.value).toBe(false)
+    expect(page.loginRequested.value).toBe(true)
+    expect(apiCalls.listEnrollmentMembers).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
   })
 })
