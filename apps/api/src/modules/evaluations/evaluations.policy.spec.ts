@@ -9,6 +9,7 @@ import type { EvaluationSummaryRow } from "./evaluations.types.js"
 
 const rows: readonly EvaluationSummaryRow[] = [
   {
+    id: "eval-a", version: 1, standardId: "std-a",
     personRef: "paid:line-a",
     displayName: "学生甲",
     organizationId: "school-a",
@@ -22,6 +23,7 @@ const rows: readonly EvaluationSummaryRow[] = [
     confirmedAt: "2026-09-23T00:00:00.000Z",
   },
   {
+    id: "eval-b", version: 1, standardId: "std-a",
     personRef: "paid:line-b",
     displayName: "学生乙",
     organizationId: "school-b",
@@ -35,6 +37,7 @@ const rows: readonly EvaluationSummaryRow[] = [
     confirmedAt: "2026-09-23T00:00:00.000Z",
   },
   {
+    id: "eval-c", version: 1, standardId: null,
     personRef: "paid:line-c",
     displayName: "学生丙",
     organizationId: "school-a",

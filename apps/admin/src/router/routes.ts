@@ -176,13 +176,13 @@ export const routes: RouteRecordRaw[] = [
         path: "evaluations",
         name: routeNames.evaluations,
         component: EvaluationsView,
-        meta: { title: "学生评价", requiredPermission: "evaluations.read" },
+        meta: { title: "学生评价", requiredAnyPermission: ["evaluations.read", "evaluations.school_report"] },
       },
       {
         path: "evaluation-standards",
         name: routeNames.evaluationStandards,
         component: EvaluationStandardsView,
-        meta: { title: "评价标准", requiredPermission: "evaluations.standard.write" },
+        meta: { title: "评价标准", requiredAnyPermission: ["evaluations.standard.write", "evaluations.standard.confirm"] },
       },
       {
         path: "feedback",

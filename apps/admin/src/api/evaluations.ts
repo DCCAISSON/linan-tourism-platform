@@ -9,8 +9,12 @@ export type EvaluationStandardSummary = {
   readonly title: string
   readonly confirmedAt: string | null
   readonly version: number
+  readonly items: readonly { readonly code: "A" | "B"; readonly label: string; readonly description: string }[]
 }
 export type EvaluationRow = {
+  readonly id: string
+  readonly version: number
+  readonly standardId: string | null
   readonly personRef: string
   readonly displayName: string
   readonly organizationId: string
@@ -24,6 +28,8 @@ export type EvaluationRow = {
   readonly confirmedAt: string | null
 }
 export type EvaluationDashboard = {
+  readonly organizationId: string
+  readonly students: readonly { readonly personRef: string; readonly displayName: string; readonly gradeName: string | null; readonly className: string | null }[]
   readonly standards: readonly EvaluationStandardSummary[]
   readonly evaluations: readonly EvaluationRow[]
 }
@@ -48,6 +54,12 @@ export async function createEvaluationStandard(input: StandardDraftInput): Promi
   return parseStandard(await request("/evaluations/staff/standards", input))
 }
 
+export async function loadEvaluationStandards(sessionId: string): Promise<readonly EvaluationStandardSummary[]> {
+  const value = await request(`/evaluations/staff/sessions/${encodeURIComponent(sessionId)}/standards`)
+  if (!Array.isArray(value)) throw invalidResponse()
+  return value.map(parseStandard)
+}
+
 export async function confirmEvaluationStandard(id: string, expectedVersion: number): Promise<EvaluationStandardSummary> {
   return parseStandard(await request(`/evaluations/staff/standards/${encodeURIComponent(id)}/confirm`, { expectedVersion, confirmed: true }))
 }
@@ -58,12 +70,52 @@ export async function confirmEvaluationSession(sessionId: string): Promise<reado
   return value.map(parseEvaluationRow)
 }
 
+export type EvaluationObservation = Pick<EvaluationRow, "personRef" | "internalComment" | "excellent" | "attention" | "gradeCode">
+export type SchoolEvaluationRow = Pick<EvaluationRow, "personRef" | "displayName" | "gradeName" | "className"> & { readonly gradeCode: "A" | "B"; readonly gradeLabel: string }
+
+export async function loadSchoolEvaluations(sessionId: string, organizationId: string): Promise<readonly SchoolEvaluationRow[]> {
+  const value = await request(`/evaluations/school/sessions/${encodeURIComponent(sessionId)}?organizationId=${encodeURIComponent(organizationId)}`)
+  if (!Array.isArray(value)) throw invalidResponse()
+  return value.map((value) => {
+    const row = readRecord(value)
+    const gradeCode = readGrade(row["gradeCode"])
+    if (gradeCode === null) throw invalidResponse()
+    return { personRef: readText(row, "personRef"), displayName: readText(row, "displayName"), gradeName: readNullableText(row, "gradeName"), className: readNullableText(row, "className"), gradeCode, gradeLabel: readText(row, "gradeLabel") }
+  })
+}
+
+export async function batchEvaluate(input: { readonly tourSessionId: string; readonly standardId: string | null; readonly observations: readonly EvaluationObservation[]; readonly idempotencyKey: string }): Promise<void> {
+  await request("/evaluations/staff/batch", input)
+}
+
+export async function reviseEvaluation(row: EvaluationRow, input: Omit<EvaluationObservation, "personRef">): Promise<void> {
+  await request(`/evaluations/staff/${encodeURIComponent(row.id)}`, { ...input, expectedVersion: row.version })
+}
+
+export async function downloadEvaluationReport(sessionId: string, organizationId: string, format: "xlsx" | "wordxml"): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/evaluations/school/sessions/${encodeURIComponent(sessionId)}/report?organizationId=${encodeURIComponent(organizationId)}&format=${format}`, { credentials: "include" })
+  if (!response.ok) throw new RosterApiError(response.status, readErrorMessage(await readJson(response)) ?? "报告导出失败")
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `学校评价报告.${format === "xlsx" ? "xlsx" : "xml"}`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function parseEvaluationDashboard(value: unknown): EvaluationDashboard {
   const record = readRecord(value)
   const standards = record["standards"]
   const evaluations = record["evaluations"]
   if (!Array.isArray(standards) || !Array.isArray(evaluations)) throw invalidResponse()
-  return { standards: standards.map(parseStandard), evaluations: evaluations.map(parseEvaluationRow) }
+  const students = record["students"]
+  if (!Array.isArray(students)) throw invalidResponse()
+  return { organizationId: readText(record, "organizationId"), students: students.map((value) => {
+    const student = readRecord(value)
+    return { personRef: readText(student, "personRef"), displayName: readText(student, "displayName"), gradeName: readNullableText(student, "gradeName"), className: readNullableText(student, "className") }
+  }), standards: standards.map(parseStandard), evaluations: evaluations.map(parseEvaluationRow) }
 }
 
 export function parseSchoolReportResult(value: unknown): SchoolReportResult {
@@ -89,18 +141,29 @@ async function readJson(response: Response): Promise<unknown> {
 
 function parseStandard(value: unknown): EvaluationStandardSummary {
   const record = readRecord(value)
+  const items = record["items"]
+  if (!Array.isArray(items)) throw invalidResponse()
   return {
     id: readText(record, "id"),
     tourSessionId: readText(record, "tourSessionId"),
     title: readText(record, "title"),
     confirmedAt: readNullableText(record, "confirmedAt"),
     version: readCount(record, "version"),
+    items: items.map((value) => {
+      const item = readRecord(value)
+      const code = readGrade(item["code"])
+      if (code === null) throw invalidResponse()
+      return { code, label: readText(item, "label"), description: readText(item, "description") }
+    }),
   }
 }
 
 function parseEvaluationRow(value: unknown): EvaluationRow {
   const record = readRecord(value)
   return {
+    id: readText(record, "id"),
+    version: readCount(record, "version"),
+    standardId: readNullableText(record, "standardId"),
     personRef: readText(record, "personRef"),
     displayName: readText(record, "displayName"),
     organizationId: readText(record, "organizationId"),

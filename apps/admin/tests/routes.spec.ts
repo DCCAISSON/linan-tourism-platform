@@ -93,8 +93,8 @@ describe("admin routes", () => {
       "execution.read",
       "execution.read",
       "health.read",
-      "evaluations.read",
-      "evaluations.standard.write",
+      undefined,
+      undefined,
       "feedback.read",
       "insurance.read",
       "media.read",
@@ -107,6 +107,8 @@ describe("admin routes", () => {
       "refunds.execute",
     ])
     expect(routes[2]?.children?.find(route => route.name === routeNames.paymentReconciliation)?.meta?.["requiredCapability"]).toBe("paymentReconciliationEnabled")
+    expect(routes[2]?.children?.find(route => route.name === routeNames.evaluations)?.meta?.["requiredAnyPermission"]).toEqual(["evaluations.read", "evaluations.school_report"])
+    expect(routes[2]?.children?.find(route => route.name === routeNames.evaluationStandards)?.meta?.["requiredAnyPermission"]).toEqual(["evaluations.standard.write", "evaluations.standard.confirm"])
   })
 
   it("chooses the first route the staff account is allowed to open", () => {
@@ -121,6 +123,8 @@ describe("admin routes", () => {
     expect(firstAuthorizedRouteName(["notifications.read"])).toBe(routeNames.notifications)
     expect(firstAuthorizedRouteName(["execution.read"])).toBe(routeNames.execution)
     expect(firstAuthorizedRouteName(["health.read"])).toBe(routeNames.healthAccess)
+    expect(firstAuthorizedRouteName(["evaluations.school_report"])).toBe(routeNames.evaluations)
+    expect(firstAuthorizedRouteName(["evaluations.standard.confirm"])).toBe(routeNames.evaluationStandards)
     expect(firstAuthorizedRouteName([])).toBeNull()
   })
 })

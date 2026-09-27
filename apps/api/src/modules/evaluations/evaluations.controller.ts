@@ -28,6 +28,11 @@ export class EvaluationsController {
     return this.evaluations.createStandard(await this.access.resolve(headers), parseEvaluationStandard(body))
   }
 
+  @Get("staff/sessions/:sessionId/standards")
+  async standards(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string) {
+    return this.evaluations.standards(await this.access.resolve(headers), sessionId)
+  }
+
   @Post("staff/standards/:id/confirm")
   async confirmStandard(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string, @Body() body: unknown) {
     this.access.assertUnsafeOrigin(headers)
@@ -62,7 +67,7 @@ export class EvaluationsController {
     const result = await this.evaluations.schoolReport(await this.access.resolve(headers), sessionId, organizationId, format === "wordxml" ? "wordxml" : "xlsx")
     response.setHeader("Content-Type", result.contentType)
     response.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`)
-    response.setHeader("X-Linan-Report-Format", result.formatLabel)
+    response.setHeader("X-Linan-Report-Format", format === "wordxml" ? "wordxml" : "xlsx")
     response.send(result.body)
   }
 }

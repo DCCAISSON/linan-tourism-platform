@@ -31,15 +31,28 @@ export class EvaluationsService {
     @Inject(ExecutionAccessService) private readonly execution: ExecutionAccessService,
   ) {}
 
+  async standards(staff: StaffAccess, tourSessionId: string): Promise<readonly EvaluationStandardSummary[]> {
+    const permission = staff.permissionKeys.has("evaluations.standard.write") ? "evaluations.standard.write" : "evaluations.standard.confirm"
+    assertEvaluationPermission(staff, permission)
+    const db = await this.database.getDataSource()
+    await assertStaffSession(db.manager, staff, tourSessionId)
+    const rows = await db.manager.find(EvaluationStandardEntity, { where: { tourSessionId }, order: { createdAt: "DESC" } })
+    return rows.map(toStandardSummary)
+  }
+
   async dashboard(staff: StaffAccess, tourSessionId: string): Promise<EvaluationDashboard> {
     assertEvaluationPermission(staff, "evaluations.read")
     const db = await this.database.getDataSource()
-    await assertStaffSession(db.manager, staff, tourSessionId)
-    const [standards, evaluations] = await Promise.all([
+    const session = await assertStaffSession(db.manager, staff, tourSessionId)
+    if (staff.kind === "guide") await this.execution.assertAssigned(staff, tourSessionId)
+    const [standards, evaluations, snapshot] = await Promise.all([
       db.manager.find(EvaluationStandardEntity, { where: { tourSessionId }, order: { createdAt: "DESC" } }),
       db.manager.find(StudentEvaluationEntity, { where: { tourSessionId }, order: { updatedAt: "DESC" } }),
+      readTravelers(db.manager, tourSessionId),
     ])
-    return { standards: standards.map(toStandardSummary), evaluations: evaluations.map(toSummaryRow) }
+    const students = snapshot.travelers.filter((row) => row.active && row.conflict === null && (row.participantKind === "student" || row.importedRole === "student"))
+      .map(({ personRef, displayName, gradeName, className }) => ({ personRef, displayName, gradeName, className }))
+    return { organizationId: session.organizationId, students, standards: standards.map(toStandardSummary), evaluations: evaluations.map(toSummaryRow) }
   }
 
   async createStandard(staff: StaffAccess, input: EvaluationStandardInput): Promise<EvaluationStandardSummary> {
@@ -150,14 +163,14 @@ export class EvaluationsService {
     if (format === "xlsx") {
       return { filename: "school-evaluation-report.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", body: await createSchoolEvaluationWorkbook(rows), formatLabel: "Excel 基础格式" }
     }
-    return { filename: "school-evaluation-report.xml", contentType: "application/msword", body: createSchoolEvaluationWordXml(rows, { title: "研学评价报告", templateNote: "基础格式，未获得正式模板" }), formatLabel: "Word XML 基础格式" }
+    return { filename: "school-evaluation-report.xml", contentType: "application/msword", body: createSchoolEvaluationWordXml(rows, { title: "研学评价报告", templateNote: "本报告仅列出已确认的评价等级，不含内部观察记录。" }), formatLabel: "Word XML 基础格式" }
   }
 }
 
 async function assertStaffSession(manager: EntityManager, access: StaffAccess, tourSessionId: string): Promise<TourSessionEntity> {
   const session = await manager.findOneBy(TourSessionEntity, { id: tourSessionId })
   if (session === null) throw new NotFoundException({ code: "tour_session_not_found", message: "session not found" })
-  if (!access.scopes.some((scope) => scope.kind === "all" || scope.id === session.organizationId || (scope.kind === "tour_session" && scope.id === session.id))) {
+  if (!access.scopes.some((scope) => scope.kind === "all" || ((scope.kind === "organization" || scope.kind === "school") && scope.id === session.organizationId) || (scope.kind === "tour_session" && scope.id === session.id))) {
     throw new ForbiddenException({ code: "evaluation_scope_forbidden", message: "session scope forbidden" })
   }
   return session
@@ -221,11 +234,14 @@ function assertStandardHasAB(items: readonly StandardItemInput[]): void {
 }
 
 function toStandardSummary(row: EvaluationStandardEntity): EvaluationStandardSummary {
-  return { id: row.id, tourSessionId: row.tourSessionId, title: row.title, confirmedAt: row.confirmedAt?.toISOString() ?? null, version: row.version }
+  return { id: row.id, tourSessionId: row.tourSessionId, title: row.title, confirmedAt: row.confirmedAt?.toISOString() ?? null, version: row.version, items: row.items }
 }
 
 function toSummaryRow(row: StudentEvaluationEntity): EvaluationSummaryRow {
   return {
+    id: row.id,
+    version: row.version,
+    standardId: row.standardId,
     personRef: readStoredPersonRef(row.personRef),
     displayName: row.displayName,
     organizationId: row.organizationId,

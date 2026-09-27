@@ -37,6 +37,9 @@ export type EvaluationRevisionInput = {
   readonly gradeCode: EvaluationGradeCode | null
 }
 export type EvaluationSummaryRow = {
+  readonly id: string
+  readonly version: number
+  readonly standardId: string | null
   readonly personRef: PersonRef
   readonly displayName: string
   readonly organizationId: string
@@ -63,8 +66,11 @@ export type EvaluationStandardSummary = {
   readonly title: string
   readonly confirmedAt: string | null
   readonly version: number
+  readonly items: readonly StandardItemInput[]
 }
 export type EvaluationDashboard = {
+  readonly organizationId: string
+  readonly students: readonly { readonly personRef: PersonRef; readonly displayName: string; readonly gradeName: string | null; readonly className: string | null }[]
   readonly standards: readonly EvaluationStandardSummary[]
   readonly evaluations: readonly EvaluationSummaryRow[]
 }

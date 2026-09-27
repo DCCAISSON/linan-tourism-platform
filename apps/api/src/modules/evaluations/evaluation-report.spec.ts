@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { createSchoolEvaluationWorkbook, createSchoolEvaluationWordXml } from "./evaluation-report.js"
 import type { SchoolEvaluationRow } from "./evaluations.types.js"
+import { filterSchoolConfirmedGrades } from "./evaluations.policy.js"
 
 const rows: readonly SchoolEvaluationRow[] = [
   { personRef: "paid:line-a", displayName: "学生甲", gradeName: "五年级", className: "一班", gradeCode: "A", gradeLabel: "表现优秀" },
@@ -11,6 +12,25 @@ const rows: readonly SchoolEvaluationRow[] = [
 ]
 
 describe("school evaluation reports", () => {
+  it("excludes ungraded students and internal negative observations from generated reports", async () => {
+    const first = rows[0]
+    if (first === undefined) throw new Error("report fixture missing")
+    const internal = { ...first, id: "eval-a", version: 1, standardId: "std-a", organizationId: "school-a", internalComment: "内部负面记录不可外发", excellent: false, attention: true, confirmedAt: "2026-09-27T00:00:00.000Z" }
+    const output = filterSchoolConfirmedGrades([internal, { ...internal, id: "eval-b", personRef: "paid:line-c", displayName: "未评价学生", gradeCode: null, gradeLabel: null, confirmedAt: null }], "school-a")
+    const buffer = await createSchoolEvaluationWorkbook(output)
+    const workbook = new ExcelJS.Workbook()
+    const arrayBuffer = new ArrayBuffer(buffer.length)
+    new Uint8Array(arrayBuffer).set(buffer)
+    await workbook.xlsx.load(arrayBuffer)
+    const workbookText = JSON.stringify(workbook.getWorksheet("学校评价报告")?.getSheetValues())
+    const wordText = createSchoolEvaluationWordXml(output, { title: "研学评价报告", templateNote: "基础格式" }).toString("utf8")
+    for (const content of [workbookText, wordText]) {
+      expect(content).toContain("学生甲")
+      expect(content).not.toContain("内部负面记录不可外发")
+      expect(content).not.toContain("未评价学生")
+      expect(content).not.toContain("attention")
+    }
+  })
   it("creates an Excel workbook with the same confirmed grade counts", async () => {
     const buffer = await createSchoolEvaluationWorkbook(rows)
     await writeArtifact("school-evaluation-report.xlsx", buffer)
