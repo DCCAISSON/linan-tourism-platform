@@ -7,6 +7,8 @@ import { ExecutionDailyReportEntity } from "../../domain/entities/execution-dail
 import { ExecutionPersonDailyReportEntity } from "../../domain/entities/execution-person-daily-report.entity.js"
 import { ExecutionEventEntity } from "../../domain/entities/execution-event.entity.js"
 import { ExecutionHealthAuthorizationEntity } from "../../domain/entities/execution-health-authorization.entity.js"
+import { OrderLineEntity } from "../../domain/entities/order-line.entity.js"
+import { RosterEntryEntity } from "../../domain/entities/roster-entry.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
 import { ExecutionGuideAssignmentEntity } from "../../domain/entities/execution-guide-assignment.entity.js"
 import { readTransportConfirmation } from "../transport/transport-confirmation.read.js"
@@ -18,7 +20,7 @@ import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import { decryptPersonValue, encryptValue, PERSON_DATA_KEY_VERSION } from "../enrollment/person-data.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
-import { findScopedOrder } from "../order/order.persistence.js"
+import { findScopedOrder, lockScopedOrder } from "../order/order.persistence.js"
 import { readTravelers, resolveTraveler, toTravelerDto } from "../travelers/travelers.read-model.js"
 import type { PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
 import { executionForbidden } from "./execution-access.policy.js"
@@ -178,18 +180,23 @@ export class ExecutionService {
   async authorizeHealth(identity: EnrollmentIdentity, orderId: string, input: HealthAuthorizationInput): Promise<HealthAuthorizationResponse> {
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
-      const scoped = await findScopedOrder(manager, identity, orderId)
-      const snapshot = await readTravelers(manager, scoped.enrollment.tourSessionId)
-      const traveler = resolveTraveler(snapshot, input.personRef)
-      if (traveler.orderId !== scoped.order.id) throw executionForbidden("只能授权本订单人员的健康信息")
+      const scoped = await lockScopedOrder(manager, identity, orderId)
+      if (scoped.order.status !== "pending_payment" && scoped.order.status !== "paid") throw executionForbidden("当前订单不能新增健康授权")
+      if (!input.personRef.startsWith("paid:")) throw executionForbidden("只能授权本订单人员的健康信息")
+      const line = await manager.findOneBy(OrderLineEntity, { id: input.personRef.slice(5), orderId: scoped.order.id })
+      if (line === null) throw executionForbidden("只能授权本订单人员的健康信息")
+      const roster = await manager.findOneBy(RosterEntryEntity, { enrollmentParticipantId: line.enrollmentParticipantId, enrollmentId: scoped.enrollment.id })
+      if (roster?.status === "cancelled") throw executionForbidden("已取消人员不能新增健康授权")
       const previous = await manager.findOneBy(ExecutionHealthAuthorizationEntity, { tourSessionId: scoped.enrollment.tourSessionId, personRef: input.personRef })
+      const healthJson = JSON.stringify({ allergies: input.allergies, medicalNotes: input.medicalNotes, emergencyMedicine: input.emergencyMedicine })
+      if (previous !== null && previous.revokedAt === null && decryptPersonValue(previous.encryptedHealthJson, previous.keyVersion) === healthJson) return toHealthAuthorization(previous)
       const now = new Date()
       const row = previous ?? manager.create(ExecutionHealthAuthorizationEntity, { id: `hea-${randomUUID()}` })
       row.tourSessionId = scoped.enrollment.tourSessionId
       row.orderId = scoped.order.id
       row.personRef = input.personRef
       row.familyActorId = identity.actorId
-      row.encryptedHealthJson = encryptValue(JSON.stringify({ allergies: input.allergies, medicalNotes: input.medicalNotes, emergencyMedicine: input.emergencyMedicine }))
+      row.encryptedHealthJson = encryptValue(healthJson)
       row.keyVersion = PERSON_DATA_KEY_VERSION
       row.authorizedAt = now
       row.revokedAt = null
@@ -203,7 +210,7 @@ export class ExecutionService {
   async revokeHealth(identity: EnrollmentIdentity, orderId: string, personRef: PersonRef): Promise<HealthAuthorizationResponse> {
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
-      const scoped = await findScopedOrder(manager, identity, orderId)
+      const scoped = await lockScopedOrder(manager, identity, orderId)
       const row = await manager.findOneBy(ExecutionHealthAuthorizationEntity, { tourSessionId: scoped.enrollment.tourSessionId, personRef })
       if (row === null || row.orderId !== scoped.order.id) throw new NotFoundException({ code: "execution_health_not_found", message: "健康授权不存在" })
       row.revokedAt = new Date()

@@ -9,6 +9,7 @@ import { useEnrollmentPage } from "../index/useEnrollmentPage"
 
 const page = useEnrollmentPage()
 const {
+  healthState, healthNeedsLogin, healthMessage, retryHealthNotes, openHealthOrder,
   loginPromptVisible, confirmLogin,
   authenticated, completeLogin, loginRequested, requestLogin, cancelLogin, validationShown, selectedSession,
   backToEdit,
@@ -78,6 +79,20 @@ const {
 
       <EnrollmentForm v-if="pageMode === 'editing'" :page="page" />
       <EnrollmentReview v-if="pageMode === 'review' || pageMode === 'submitting'" :page="page" />
+      <view v-if="healthState !== 'idle' && (pageMode === 'paymentPending' || pageMode === 'paid')" class="health-save-state" aria-live="polite">
+        <text class="health-save-title">{{ healthState === 'saved' ? '健康备注已保存' : healthState === 'saving' ? '保存健康备注' : '报名已提交，健康备注待保存' }}</text>
+        <text class="health-save-message">{{ healthMessage }}</text>
+        <view v-if="healthState === 'error'">
+          <view v-if="healthNeedsLogin && loginRequested" id="enrollment-login-field">
+            <WechatConsent title="重新确认身份，继续保存健康备注" login-label="同意并继续" @authenticated="completeLogin" />
+            <button class="secondary-button" @tap="cancelLogin">暂不登录</button>
+          </view>
+          <button v-else-if="healthNeedsLogin" class="primary-button health-login-button" @tap="retryHealthNotes">重新登录并保存</button>
+          <button v-else class="primary-button health-retry-button" @tap="retryHealthNotes">重试健康备注</button>
+          <text class="health-save-message">离开本页后，尚未保存的备注将清除；也可稍后从订单重新填写。</text>
+        </view>
+        <button v-if="healthState !== 'saving'" class="secondary-button health-order-entry" @tap="openHealthOrder">查看订单</button>
+      </view>
       <OrderStatusPanel v-if="pageMode === 'paymentPending' || pageMode === 'paid'" :page="page" />
 
       <view v-if="!loginRequested && (pageMode === 'editing' || pageMode === 'review' || pageMode === 'submitting')" class="bottom-actions">
@@ -293,4 +308,8 @@ const {
 .readiness-line {
   margin-top: 12px;
 }
+.health-save-state { margin-top: var(--space-6); padding: var(--space-5); border-radius: var(--radius-card); background: var(--surface-elevated); }
+.health-save-title { display: block; color: var(--text-primary); font-size: var(--font-h3); font-weight: 600; line-height: 1.4; }
+.health-save-message { display: block; margin: var(--space-3) 0; color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.5; }
+.health-order-entry { margin-top: var(--space-3); }
 </style>

@@ -107,7 +107,7 @@ export function createFixtureServer(baseUrl) {
       participants: fixture.members.map((member, index) => {
         const participantKind = member.participantKind === "adult" ? "adult" : "student"
         return {
-          id: `line-${index}`, enrollmentParticipantId: `person-${index}`, displayName: member.displayName,
+          id: `line-${index}`, enrollmentParticipantId: `person-${index}`, familyMemberId: member.id, displayName: member.displayName,
           participantKind, gradeName: participantKind === "adult" ? null : grade.name,
           className: participantKind === "adult" ? null : schoolClass.name, amountFen: 12_800,
           refundedFen: 0, refundStatus: "none",

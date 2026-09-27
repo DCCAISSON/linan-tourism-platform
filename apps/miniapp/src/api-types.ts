@@ -124,6 +124,7 @@ export type OrderHistoryItem = Order & {
 export type OrderParticipant = {
   readonly id: string
   readonly enrollmentParticipantId: string
+  readonly familyMemberId: string
   readonly displayName: string
   readonly participantKind: "student" | "adult"
   readonly gradeName: string | null

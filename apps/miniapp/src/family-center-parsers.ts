@@ -54,6 +54,7 @@ function parseOrderParticipant(value: unknown): OrderParticipant {
   const record = readRecord(value)
   return {
     id: readString(record, "id"), enrollmentParticipantId: readString(record, "enrollmentParticipantId"),
+    familyMemberId: readString(record, "familyMemberId"),
     displayName: readString(record, "displayName"), participantKind: readParticipantKind(record),
     gradeName: readNullableText(record, "gradeName"),
     className: readNullableText(record, "className"), amountFen: readNonNegativeInteger(record, "amountFen"),

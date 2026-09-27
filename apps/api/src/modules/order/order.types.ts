@@ -30,6 +30,7 @@ export type OrderHistoryItem = OrderResponse & {
 export type OrderParticipant = {
   readonly id: string
   readonly enrollmentParticipantId: string
+  readonly familyMemberId: string
   readonly displayName: string
   readonly participantKind: "student" | "adult"
   readonly gradeName: string | null

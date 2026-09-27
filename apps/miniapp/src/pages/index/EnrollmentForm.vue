@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { ref } from "vue"
-import { formatDateLabel, formatFen } from "../../enrollment-flow"
+import { formatDateLabel, formatFen, type FamilyMember } from "../../enrollment-flow"
 import { memberFieldAnchor } from "../../enrollment-validation"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
@@ -34,6 +34,14 @@ const {
   sessionNames,
   toggleMember,
 } = props.page
+
+function updateHealthNotes(member: FamilyMember, event: unknown): void {
+  if (typeof event !== "object" || event === null || !("detail" in event)) return
+  const detail = event.detail
+  if (typeof detail === "object" && detail !== null && "value" in detail && typeof detail.value === "string") {
+    member.healthNotes = detail.value
+  }
+}
 </script>
 
 <template>
@@ -131,6 +139,19 @@ const {
       <button v-if="member.fromCommonList" class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
         {{ member.selected ? "取消选择" : "选择" }}
       </button>
+      <view v-if="member.selected" class="member-health" :data-member-id="member.id">
+        <text class="health-label">健康补充（选填）</text>
+        <text class="health-hint">如有过敏、身体不适或需特别照顾的事项，可在这里说明；不填写也可报名。</text>
+        <textarea :value="member.healthNotes ?? ''" class="health-notes-input" :maxlength="2000" placeholder="请填写本次出行需留意的事项" placeholder-class="input-placeholder" @input="updateHealthNotes(member, $event)" />
+        <text class="health-count">{{ member.healthNotes?.length ?? 0 }}/2000</text>
+        <checkbox-group @change="member.healthConsent = $event.detail.value.includes('health-consent')">
+          <label class="consent-button health-consent-choice" :class="{ 'consent-button--on': member.healthConsent }">
+            <checkbox class="choice-control" value="health-consent" :checked="member.healthConsent === true" color="var(--accent-primary)" />
+            <text>同意保存健康备注，仅供本次活动有健康信息权限的工作人员查看。</text>
+          </label>
+        </checkbox-group>
+        <text class="health-hint">可在订单的“健康信息与授权”中撤回。不勾选时，备注不会随报名提交。</text>
+      </view>
     </view>
   </view>
 
@@ -371,7 +392,34 @@ const {
 
 .member-row {
   gap: 8px;
+  flex-wrap: wrap;
 }
+
+.member-health {
+  flex: 1 0 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.health-label { display: block; color: var(--text-primary); font-size: var(--font-body); font-weight: 600; }
+.health-hint { display: block; margin-top: var(--space-2); color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.5; }
+.health-notes-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: calc(var(--space-10) * 2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  color: var(--text-primary);
+  background: var(--surface-primary);
+  font-size: var(--font-body);
+  line-height: 1.5;
+}
+.health-count { display: block; margin-top: var(--space-1); text-align: right; color: var(--text-tertiary); font-size: var(--font-caption); }
+.health-consent-choice { font-size: var(--font-body-sm); }
 
 .member-row__fields {
   flex: 1 1 auto;

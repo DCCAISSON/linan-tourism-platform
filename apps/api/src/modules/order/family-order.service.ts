@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
 import {
-  CatalogItemEntity, EnrollmentEntity, FamilyEntity, OrderEntity, OrderLineEntity,
+  CatalogItemEntity, EnrollmentEntity, EnrollmentParticipantEntity, FamilyEntity, OrderEntity, OrderLineEntity,
   OrganizationEntity, TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
@@ -41,6 +41,8 @@ export class FamilyOrderService {
 
 export async function toOrderDetail(manager: EntityManager, scoped: ScopedOrder): Promise<OrderDetailResponse> {
   const lines = await manager.find(OrderLineEntity, { where: { orderId: scoped.order.id }, order: { id: "ASC" } })
+  const participants = await manager.findBy(EnrollmentParticipantEntity, { enrollmentId: scoped.enrollment.id })
+  const memberIds = new Map(participants.map(participant => [participant.id, participant.familyMemberId]))
   const refundView = await buildOrderRefundView(manager, scoped.order.id, scoped.order.amountFen)
   return {
     ...await toHistoryItem(manager, scoped),
@@ -50,14 +52,19 @@ export async function toOrderDetail(manager: EntityManager, scoped: ScopedOrder)
     emergencyContactPhone: scoped.enrollment.emergencyContactPhone,
     refundSummary: refundView.summary,
     refundHistory: refundView.history,
-    participants: lines.map((line) => ({
-      id: line.id, enrollmentParticipantId: line.enrollmentParticipantId,
-      displayName: line.displayNameSnapshot, participantKind: line.participantKindSnapshot,
-      gradeName: line.gradeNameSnapshot,
-      className: line.classNameSnapshot, amountFen: line.amountFen,
-      refundedFen: refundView.participants.get(line.id)?.refundedFen ?? 0,
-      refundStatus: refundView.participants.get(line.id)?.refundStatus ?? "none",
-    })),
+    participants: lines.map((line) => {
+      const familyMemberId = memberIds.get(line.enrollmentParticipantId)
+      if (familyMemberId === undefined) throw orderNotFound()
+      return {
+        id: line.id, enrollmentParticipantId: line.enrollmentParticipantId,
+        familyMemberId,
+        displayName: line.displayNameSnapshot, participantKind: line.participantKindSnapshot,
+        gradeName: line.gradeNameSnapshot,
+        className: line.classNameSnapshot, amountFen: line.amountFen,
+        refundedFen: refundView.participants.get(line.id)?.refundedFen ?? 0,
+        refundStatus: refundView.participants.get(line.id)?.refundStatus ?? "none",
+      }
+    }),
   }
 }
 

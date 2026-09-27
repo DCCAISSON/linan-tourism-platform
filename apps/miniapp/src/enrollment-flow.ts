@@ -21,6 +21,8 @@ export type FamilyMember = {
   fromCommonList?: boolean
   selected: boolean
   remoteMemberId?: string
+  healthNotes?: string
+  healthConsent?: boolean
 }
 
 export type EmergencyContact = {

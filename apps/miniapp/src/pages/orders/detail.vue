@@ -148,7 +148,7 @@ function participantPlacement(person: OrderParticipant): string {
       <button v-if="order.status === 'paid'" class="button-secondary action-gap" @tap="openAlbum">查看活动影像</button>
       <button v-if="order.status === 'paid' || order.status === 'refunded'" class="button-secondary action-gap" @tap="openPretrip">查看行前服务</button>
       <button v-if="order.status === 'paid' || order.status === 'refunded'" class="button-secondary action-gap" @tap="openFeedback">提交服务反馈</button>
-      <button v-if="order.status === 'paid' || order.status === 'refunded'" class="button-secondary action-gap" @tap="openHealth">公开摘要与健康授权</button>
+      <button class="button-secondary action-gap health-order-entry" @tap="openHealth">健康信息与授权</button>
       <button v-if="order.status === 'paid' || order.status === 'refunded'" class="button-secondary action-gap" @tap="openNotifications">通知授权与接收入口</button>
       <button class="button-secondary action-gap" @tap="load">刷新订单状态</button>
     </view>

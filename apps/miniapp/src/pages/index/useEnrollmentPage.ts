@@ -23,6 +23,7 @@ import {
 } from "../../enrollment-validation"
 import { readableError, readPickerIndex, readStateTone, stateLabel } from "./page-helpers"
 import { canUseWechatPayment, paymentCapabilitiesClosed, paymentUnavailableNotice } from "../../payment-policy"
+import { useEnrollmentHealth } from "./useEnrollmentHealth"
 
 export type PickerChangeEvent = {
   readonly detail: {
@@ -47,6 +48,7 @@ export function useEnrollmentPage() {
   const submissionCode = ref("")
   const currentTimeIso = ref(new Date().toISOString())
   const order = ref<Order | null>(null)
+  const health = useEnrollmentHealth()
   const payment = ref<WechatMiniappPayment | null>(null)
   const paymentCapabilities = ref<ServiceCapabilities>(paymentCapabilitiesClosed)
   const wantedSessionId = ref("")
@@ -95,7 +97,7 @@ export function useEnrollmentPage() {
   const canReview = computed(() => loadState.value === "ready" && pageMode.value === "editing")
   const canSubmit = computed(() => authenticated.value && pageMode.value === "review" && readiness.value.ready)
   const wechatPaymentAvailable = computed(() => canUseWechatPayment({ capabilities: paymentCapabilities.value, buildWechatPaymentEnabled }))
-  const canRetryPayment = computed(() => wechatPaymentAvailable.value && canStartPayment(order.value) && pageMode.value === "paymentPending")
+  const canRetryPayment = computed(() => health.healthState.value !== "saving" && wechatPaymentAvailable.value && canStartPayment(order.value) && pageMode.value === "paymentPending")
   const loadStateLabel = computed(() => stateLabel(loadState.value, pageMode.value))
   const stateTone = computed(() => readStateTone(loadState.value, pageMode.value))
   const orderLabel = computed(() => orderStatusLabel(order.value))
@@ -294,6 +296,10 @@ export function useEnrollmentPage() {
     loginRequested.value = false
     loginPromptVisible.value = false
     api = createMiniappApi()
+    if (order.value !== null && health.healthNeedsLogin.value) {
+      await retryHealthNotes()
+      return
+    }
     try {
       savedMembers.value = await api.listEnrollmentMembers()
       const available = savedMembers.value.filter((member) => member.schoolId === draft.selectedSchoolId)
@@ -332,7 +338,10 @@ export function useEnrollmentPage() {
   }
 
   watch(draft, () => { errorMessage.value = "" })
-  watch(() => [draft.selectedTourSessionId, selectedSession.value?.activeNotice?.id, selectedSession.value?.activeNotice?.version], () => { draft.agreementAccepted = false })
+  watch(() => [draft.selectedTourSessionId, selectedSession.value?.activeNotice?.id, selectedSession.value?.activeNotice?.version], () => {
+    draft.agreementAccepted = false
+    for (const member of draft.familyMembers) member.healthConsent = false
+  })
   watch(() => [draft.selectedGradeId, draft.selectedClassId], () => {
     for (const member of draft.familyMembers) {
       if (!member.fromCommonList && member.participantKind !== "adult" && member.remoteMemberId !== undefined) {
@@ -384,17 +393,30 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
     try {
       if (submissionCode.value.length === 0) {
-        await api.checkEnrollmentAvailability(draft.selectedTourSessionId, new Date().toISOString())
-        const memberIds = await prepareSelectedMembersForSubmit(draft, api.createEnrollmentMember)
-        const payload = buildEnrollmentPayload(draft, catalog, memberIds)
+        const submittedDraft = { ...draft, emergencyContact: { ...draft.emergencyContact }, familyMembers: selectedMembers.value.map((member) => ({ ...member })) }
+        await api.checkEnrollmentAvailability(submittedDraft.selectedTourSessionId, new Date().toISOString())
+        let memberIds: readonly string[]
+        try {
+          memberIds = await prepareSelectedMembersForSubmit(submittedDraft, api.createEnrollmentMember)
+        } finally {
+          for (const member of submittedDraft.familyMembers) {
+            const original = draft.familyMembers.find((entry) => entry.id === member.id)
+            if (original !== undefined && member.remoteMemberId !== undefined) original.remoteMemberId = member.remoteMemberId
+          }
+        }
+        const payload = buildEnrollmentPayload(submittedDraft, catalog, memberIds)
         const submission = await api.submitEnrollment(payload)
         submissionCode.value = submission.id
+        health.captureHealth(submittedDraft.familyMembers)
       }
       const createdOrder = await api.createOrder(
         buildCreateOrderPayload(submissionCode.value, draft.contactName, createOrderRequestKey(submissionCode.value)),
       )
       order.value = createdOrder
       pageMode.value = nextPageModeForOrder(createdOrder)
+      const healthSaved = await health.saveHealth(createdOrder.id, draft.familyMembers)
+      if (health.healthNeedsLogin.value) authenticated.value = false
+      if (!healthSaved) return
       if (wechatPaymentAvailable.value && canStartPayment(createdOrder)) {
         await startPayment()
       }
@@ -412,9 +434,22 @@ export function useEnrollmentPage() {
     }
   }
 
+  async function retryHealthNotes(): Promise<void> {
+    const currentOrder = order.value
+    if (currentOrder === null || health.healthState.value === "saving") return
+    if (!authenticated.value) { requestLogin(); return }
+    await health.saveHealth(currentOrder.id, draft.familyMembers)
+    if (health.healthNeedsLogin.value) authenticated.value = false
+  }
+
+  function openHealthOrder(): void {
+    const currentOrder = order.value
+    if (currentOrder !== null) uni.navigateTo({ url: `/pages/orders/detail?orderId=${encodeURIComponent(currentOrder.id)}` })
+  }
+
   async function startPayment(): Promise<void> {
     const currentOrder = order.value
-    if (!canStartPayment(currentOrder)) return
+    if (!canStartPayment(currentOrder) || health.healthState.value === "saving") return
     errorMessage.value = ""
     pageMode.value = "paymentPending"
     try {
@@ -461,9 +496,11 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
 
 
   function resetCheckout(): void {
+    if (order.value !== null) return
     submissionCode.value = ""
     order.value = null
     payment.value = null
+    health.resetHealth()
   }
 
   function memberFieldError(member: FamilyMember, field: MemberFieldName): string {
@@ -475,6 +512,8 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
   }
 
   return {
+    healthState: health.healthState, healthNeedsLogin: health.healthNeedsLogin, healthMessage: health.healthMessage,
+    retryHealthNotes, openHealthOrder,
     loginPromptVisible, confirmLogin,
     schoolIndex, gradeIndex, classIndex, sessionIndex,
     gradeState, classState, gradeError, classError, retryGrades, retryClasses,

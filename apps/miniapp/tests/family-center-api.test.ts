@@ -17,8 +17,8 @@ describe("family center API", () => {
       ...history, contactName: "演示家长", contactPhone: null, emergencyContactName: null, emergencyContactPhone: null,
       refundSummary: { status: "none", refundedFen: 0, pendingFen: 0, failedCount: 0 }, refundHistory: [],
       participants: [
-        { id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 12_800, refundedFen: 0, refundStatus: "none" },
-        { id: "line-b", enrollmentParticipantId: "person-b", displayName: "演示乙", participantKind: "adult", gradeName: null, className: null, amountFen: 12_800, refundedFen: 0, refundStatus: "none" },
+        { id: "line-a", enrollmentParticipantId: "person-a", familyMemberId: "member-a", displayName: "演示甲", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 12_800, refundedFen: 0, refundStatus: "none" },
+        { id: "line-b", enrollmentParticipantId: "person-b", familyMemberId: "member-b", displayName: "演示乙", participantKind: "adult", gradeName: null, className: null, amountFen: 12_800, refundedFen: 0, refundStatus: "none" },
       ],
     }
     const api = createMiniappApi({
@@ -65,7 +65,7 @@ describe("family center API", () => {
     const api = createMiniappApi({ request: async () => ({ statusCode: 200, data: {
       ...history, contactName: "演示家长", contactPhone: null, emergencyContactName: null, emergencyContactPhone: null,
       refundSummary: { status: "none", refundedFen: 0, pendingFen: 0, failedCount: 0 }, refundHistory: [],
-      participants: [{ id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", participantKind: "student", gradeName: null, className: null, amountFen: 128.5 }],
+      participants: [{ id: "line-a", enrollmentParticipantId: "person-a", familyMemberId: "member-a", displayName: "演示甲", participantKind: "student", gradeName: null, className: null, amountFen: 128.5 }],
     } }) })
     // When / Then
     await expect(api.getOrderDetail("order-a")).rejects.toEqual(new ApiError(0, "amountFen 响应格式不正确"))
@@ -81,8 +81,8 @@ const refundDetail = {
     lines: [{ lineId: "line-a", displayName: "演示甲", amountFen: 12_800 }],
   }],
   participants: [
-    { id: "line-a", enrollmentParticipantId: "person-a", displayName: "演示甲", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 12_800, refundedFen: 12_800, refundStatus: "refunded" },
-    { id: "line-b", enrollmentParticipantId: "person-b", displayName: "演示乙", participantKind: "adult", gradeName: null, className: null, amountFen: 12_800, refundedFen: 0, refundStatus: "none" },
+    { id: "line-a", enrollmentParticipantId: "person-a", familyMemberId: "member-a", displayName: "演示甲", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 12_800, refundedFen: 12_800, refundStatus: "refunded" },
+    { id: "line-b", enrollmentParticipantId: "person-b", familyMemberId: "member-b", displayName: "演示乙", participantKind: "adult", gradeName: null, className: null, amountFen: 12_800, refundedFen: 0, refundStatus: "none" },
   ],
 } as const
 
@@ -119,6 +119,7 @@ describe("family center refund API", () => {
 
   it.each([
     [{ ...refundDetail, refundSummary: undefined }, "响应格式不正确"],
+    [{ ...refundDetail, participants: [{ ...refundDetail.participants[0], familyMemberId: undefined }] }, "familyMemberId 响应格式不正确"],
     [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, status: "unknown" } }, "status 响应格式不正确"],
     [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, refundedFen: -1 } }, "refundedFen 响应格式不正确"],
     [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, pendingFen: 0.5 } }, "pendingFen 响应格式不正确"],

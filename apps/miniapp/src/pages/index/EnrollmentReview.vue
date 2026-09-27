@@ -58,6 +58,9 @@ function maskedPhone(member: FamilyMember): string {
     <text v-for="(member, index) in selectedMembers" :key="member.id" class="review-panel__item">
       成员 {{ index + 1 }}：{{ member.displayName }}｜{{ memberPlacement(member) }}｜证件 {{ maskedIdentity(member) }}｜电话 {{ maskedPhone(member) }}
     </text>
+    <view v-for="member in selectedMembers" :key="`health-${member.id}`" class="health-review-state" :data-member-id="member.id">
+      <text>{{ member.displayName }} · 健康备注：{{ !member.healthNotes?.trim() ? '未填写' : member.healthConsent ? '已单独授权，将随本次报名保存' : '未授权，不随报名提交' }}</text>
+    </view>
     <text class="review-panel__item">预计金额：{{ estimatedAmount }}</text>
     <text class="review-panel__item">联系人：{{ draft.contactName }} · {{ draft.contactPhone }}</text>
     <text class="review-panel__item">紧急联系人：{{ draft.emergencySameAsParent ? draft.contactName : draft.emergencyContact.name }}</text>
@@ -92,4 +95,5 @@ function maskedPhone(member: FamilyMember): string {
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
+.health-review-state { margin-top: var(--space-2); padding: var(--space-3); border-radius: var(--radius-control); background: var(--accent-soft); color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.5; overflow-wrap: anywhere; }
 </style>
