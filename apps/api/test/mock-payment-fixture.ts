@@ -137,6 +137,10 @@ export async function resetMockPaymentData(scope: string): Promise<void> {
     [familyPattern],
   )
   await dataSource.query(
+    "delete ns from notification_business_sources ns join orders o on o.id = ns.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
     "delete o from orders o join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
     [familyPattern],
   )

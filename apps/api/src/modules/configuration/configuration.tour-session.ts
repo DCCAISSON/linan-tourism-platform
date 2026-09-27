@@ -1,3 +1,4 @@
+import { parseEnrollmentScope } from "./configuration.scope.js"
 import { BadRequestException } from "@nestjs/common"
 import type { CatalogItemEntity, NoticeVersionEntity, TourSessionEntity } from "../../domain/entities/index.js"
 import type { NoticeVersionResponse, TourSessionResponse } from "./configuration.types.js"
@@ -11,6 +12,7 @@ export function requireEnrollmentWindow(session: TourSessionEntity, activeNotice
   }
 
   return {
+    enrollmentScope: parseEnrollmentScope(session.enrollmentScopeJson),
     id: session.id,
     organizationId: session.organizationId,
     catalogItemId: session.catalogItemId,

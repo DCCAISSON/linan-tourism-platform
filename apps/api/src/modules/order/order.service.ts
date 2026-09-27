@@ -4,9 +4,10 @@ import {
   EnrollmentParticipantEntity,
   OrderEntity,
   OrderLineEntity,
-  TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
+import { ensureParticipantsInScope, lockTourSession } from "../configuration/configuration.scope.js"
+import { recordOrderNotificationSource } from "../notifications/notification-business-source.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import {
   enrollmentOrderConflict,
@@ -42,14 +43,20 @@ export class OrderService {
           throw enrollmentOrderConflict()
         }
 
-        const session = await manager.findOneBy(TourSessionEntity, { id: enrollment.tourSessionId })
+        const session = await lockTourSession(manager, enrollment.tourSessionId)
         const participants = await manager.find(EnrollmentParticipantEntity, {
           where: { enrollmentId: enrollment.id },
           order: { id: "ASC" },
         })
-        if (session === null || participants.length === 0) {
+        if (participants.length === 0) {
           throw invalidOrderAmount()
         }
+        await ensureParticipantsInScope(manager, session, participants.map((participant) => ({
+          organizationId: participant.organizationId,
+          participantKind: participant.participantKindSnapshot,
+          gradeId: participant.gradeIdSnapshot,
+          classId: participant.classIdSnapshot,
+        })))
         const amountFen = session.priceFen * participants.length
         if (!Number.isSafeInteger(amountFen) || amountFen > MAX_UNSIGNED_INT) {
           throw invalidOrderAmount()
@@ -89,6 +96,7 @@ export class OrderService {
             policyVersion: DOMAIN_POLICY_VERSION,
           })),
         )
+        await recordOrderNotificationSource(manager, { session, order })
         return toOrderResponse(manager, order)
       })
     } catch (error) {

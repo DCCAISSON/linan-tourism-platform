@@ -26,6 +26,9 @@
 .notifications-version-list article { padding: var(--space-4); border-radius: var(--radius-control); background: var(--surface-secondary); }
 .notifications-version-list p { margin: var(--space-2) 0; white-space: pre-wrap; line-height: 1.5; }
 .notifications-version-list small { color: var(--text-secondary); overflow-wrap: anywhere; }
+.notifications-source-card > small { display: block; }
+.notifications-source-card > small > span { display: inline-block; white-space: nowrap; }
+.notifications-source-card > button { display: block; margin-top: var(--space-2); }
 .notifications-entry-list { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
 .notifications-entry { display: grid; grid-template-columns: 160px minmax(160px, 1fr) minmax(240px, 2fr) auto auto; gap: var(--space-3); align-items: end; padding: var(--space-4); border-radius: var(--radius-control); background: var(--surface-secondary); }
 .notifications-entry strong { align-self: center; }

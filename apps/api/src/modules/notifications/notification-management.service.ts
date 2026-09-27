@@ -10,6 +10,8 @@ import { NotificationRecipientAuthorizationEntity } from "../../domain/entities/
 import { OrderEntity } from "../../domain/entities/order.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
 import { CatalogItemEntity } from "../../domain/entities/catalog-item.entity.js"
+import { NotificationBusinessSourceEntity } from "../../domain/entities/notification-business-source.entity.js"
+import { businessSourceAllowsOrder, businessSourceIsCurrent, requireBusinessSource } from "./notification-business-source.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
 import { NotificationAccessService, notificationScopeMatches } from "./notification-access.service.js"
@@ -51,7 +53,8 @@ export class NotificationManagementService {
       manager.findBy(NotificationChannelEntryEntity, { tourSessionId: sessionId }),
       manager.find(NotificationDeliveryTaskEntity, { where: { tourSessionId: sessionId }, order: { createdAt: "DESC" } }),
     ])
-    return { contents: contents.map(toContent), entries: entries.map(toEntry), tasks: tasks.map(toTaskSummary), canWrite: access.permissionKeys.has("notifications.write"), canSend: access.permissionKeys.has("notifications.send"), wechatConfigured: loadWechatSubscribeConfig() !== null }
+    const sources = await businessSources(manager, sessionId)
+    return { sources, contents: contents.map(toContent), entries: entries.map(toEntry), tasks: tasks.map(toTaskSummary), canWrite: access.permissionKeys.has("notifications.write"), canSend: access.permissionKeys.has("notifications.send"), wechatConfigured: loadWechatSubscribeConfig() !== null }
   }
 
   async createContent(access: StaffAccess, sessionId: string, input: ContentVersionInput) {
@@ -83,10 +86,11 @@ export class NotificationManagementService {
     })
   }
 
-  async preview(access: StaffAccess, sessionId: string, authorizationIds: readonly string[]): Promise<readonly NotificationTargetPreview[]> {
+  async preview(access: StaffAccess, sessionId: string, authorizationIds: readonly string[], sourceId?: string): Promise<readonly NotificationTargetPreview[]> {
     const manager = (await this.database.getDataSource()).manager
     await this.access.staffSession(manager, access, sessionId, "notifications.read")
-    return (await selectedAuthorizations(manager, sessionId, authorizationIds)).map((row) => ({
+    const source = sourceId === undefined ? undefined : await requireBusinessSource(manager, sessionId, sourceId)
+    return (await selectedAuthorizations(manager, sessionId, authorizationIds, source)).map((row) => ({
       authorizationId: row.id, orderId: row.orderId, receiverName: row.receiverName,
       relation: row.relation, channel: row.channel,
     }))
@@ -97,21 +101,33 @@ export class NotificationManagementService {
     return source.transaction(async (manager) => {
       const session = await this.access.staffSession(manager, access, sessionId, "notifications.write")
       await manager.findOneOrFail(TourSessionEntity, { where: { id: session.id }, lock: { mode: "pessimistic_write" } })
-      const fingerprint = notificationTaskFingerprint(input.contentVersionId, input.authorizationIds)
-      const existing = await manager.findOneBy(NotificationDeliveryTaskEntity, { tourSessionId: session.id, idempotencyKey: input.idempotencyKey })
+      const businessSource = input.sourceId === undefined ? undefined : await requireBusinessSource(manager, session.id, input.sourceId)
+      const fingerprint = notificationTaskFingerprint(input.contentVersionId, input.authorizationIds, input.sourceId)
+      if (businessSource?.linkedTaskId) {
+        const linked = await manager.findOneOrFail(NotificationDeliveryTaskEntity, { where: { id: businessSource.linkedTaskId, tourSessionId: session.id }, lock: { mode: "pessimistic_read" } })
+        if (linked.requestFingerprint !== fingerprint) throw conflict("该业务来源已关联其他通知任务，请查看原任务")
+        return taskDetail(manager, linked)
+      }
+      const existing = await manager.findOne(NotificationDeliveryTaskEntity, { where: { tourSessionId: session.id, idempotencyKey: input.idempotencyKey }, lock: { mode: "pessimistic_read" } })
       if (existing !== null) {
         if (existing.requestFingerprint !== fingerprint) throw conflict("该幂等键已用于不同通知任务")
+        const existingSource = await manager.findOne(NotificationBusinessSourceEntity, { where: { linkedTaskId: existing.id }, lock: { mode: "pessimistic_read" } })
+        if ((existingSource?.id ?? undefined) !== input.sourceId) throw conflict("该幂等键已用于不同业务来源")
         return taskDetail(manager, existing)
       }
       const content = await manager.findOneBy(NotificationContentVersionEntity, { id: input.contentVersionId, tourSessionId: session.id })
       if (content === null) throw missing("通知内容版本不存在")
-      const recipients = await selectedAuthorizations(manager, session.id, input.authorizationIds)
+      const recipients = await selectedAuthorizations(manager, session.id, input.authorizationIds, businessSource)
       const task = manager.create(NotificationDeliveryTaskEntity, {
         id: randomUUID(), organizationId: session.organizationId, tourSessionId: session.id,
         contentVersionId: content.id, createdByStaffId: access.actorId,
         idempotencyKey: input.idempotencyKey, requestFingerprint: fingerprint, createdAt: new Date(),
       })
       await manager.save(task)
+      if (businessSource !== undefined) {
+        businessSource.linkedTaskId = task.id
+        await manager.save(businessSource)
+      }
       await manager.save(recipients.map((authorization) => manager.create(NotificationDeliveryTargetEntity, {
         id: randomUUID(), taskId: task.id, authorizationId: authorization.id, authorizationVersion: authorization.version,
         orderId: authorization.orderId, receiverName: authorization.receiverName, relation: authorization.relation,
@@ -123,12 +139,13 @@ export class NotificationManagementService {
   }
 }
 
-async function selectedAuthorizations(manager: EntityManager, sessionId: string, ids: readonly string[]): Promise<readonly NotificationRecipientAuthorizationEntity[]> {
-  const rows = await manager.findBy(NotificationRecipientAuthorizationEntity, { id: In([...ids]), active: true })
+async function selectedAuthorizations(manager: EntityManager, sessionId: string, ids: readonly string[], source?: NotificationBusinessSourceEntity): Promise<readonly NotificationRecipientAuthorizationEntity[]> {
+  const lock = source !== undefined && manager.queryRunner?.isTransactionActive === true ? { mode: "pessimistic_read" as const } : undefined
+  const rows = await manager.find(NotificationRecipientAuthorizationEntity, { where: { id: In([...ids]), active: true }, ...(lock === undefined ? {} : { lock }) })
   const byId = new Map(rows.map((row) => [row.id, row]))
-  const orders = await manager.findBy(OrderEntity, { id: In(rows.map((row) => row.orderId)) })
+  const orders = await manager.find(OrderEntity, { where: { id: In(rows.map((row) => row.orderId)) }, ...(lock === undefined ? {} : { lock }) })
   const orderById = new Map(orders.map((order) => [order.id, order]))
-  const enrollments = await manager.findBy(EnrollmentEntity, { id: In(orders.map((order) => order.enrollmentId)) })
+  const enrollments = await manager.find(EnrollmentEntity, { where: { id: In(orders.map((order) => order.enrollmentId)) }, ...(lock === undefined ? {} : { lock }) })
   const enrollmentById = new Map(enrollments.map((enrollment) => [enrollment.id, enrollment]))
   return ids.map((id) => {
     const row = byId.get(id)
@@ -137,12 +154,28 @@ async function selectedAuthorizations(manager: EntityManager, sessionId: string,
     if (row === undefined || order === undefined || enrollment === undefined || enrollment.tourSessionId !== sessionId || row.organizationId !== order.organizationId) {
       throw conflict("所选通知接收人未授权或不属于本团")
     }
+    if (source !== undefined && (!businessSourceAllowsOrder(source, order) || enrollment.status === "cancelled")) throw conflict("所选接收人不属于该业务来源的有效已付款订单")
     return row
   })
 }
 
+async function businessSources(manager: EntityManager, sessionId: string) {
+  const sources = await manager.find(NotificationBusinessSourceEntity, { where: { sessionId }, order: { createdAt: "DESC" } })
+  const enrollments = await manager.findBy(EnrollmentEntity, { tourSessionId: sessionId })
+  const orders = await manager.findBy(OrderEntity, { enrollmentId: In(enrollments.filter(row => row.status !== "cancelled").map(row => row.id)) })
+  const authorizations = await manager.findBy(NotificationRecipientAuthorizationEntity, { orderId: In(orders.map(row => row.id)), active: true })
+  return Promise.all(sources.map(async source => {
+    const current = await businessSourceIsCurrent(manager, source)
+    const allowedOrders = new Set(orders.filter(order => businessSourceAllowsOrder(source, order)).map(order => order.id))
+    const authorizationIds = current ? authorizations.filter(row => allowedOrders.has(row.orderId)).map(row => row.id) : []
+    return { id: source.id, kind: source.kind, orderId: source.orderId, sourceVersion: source.sourceVersion,
+      title: source.title, bodyText: source.bodyText, createdAt: source.createdAt.toISOString(), linkedTaskId: source.linkedTaskId,
+      status: !current ? "expired" : source.linkedTaskId !== null ? "linked" : authorizationIds.length === 0 ? "awaiting_authorization" : "pending", authorizationIds }
+  }))
+}
+
 async function taskDetail(manager: EntityManager, task: NotificationDeliveryTaskEntity) {
-  const targets = await manager.find(NotificationDeliveryTargetEntity, { where: { taskId: task.id }, order: { createdAt: "ASC" } })
+  const targets = await manager.find(NotificationDeliveryTargetEntity, { where: { taskId: task.id }, order: { createdAt: "ASC" }, ...(manager.queryRunner?.isTransactionActive === true ? { lock: { mode: "pessimistic_read" as const } } : {}) })
   return { ...toTaskSummary(task), targets: targets.map((target) => ({ id: target.id, authorizationId: target.authorizationId, orderId: target.orderId, receiverName: target.receiverName, relation: target.relation, channel: target.channel, status: target.status })) }
 }
 

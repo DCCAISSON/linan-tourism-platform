@@ -92,7 +92,8 @@ export class StaffNotificationsController {
   @Post("sessions/:sessionId/preview")
   async preview(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string, @Body() body: unknown) {
     this.staffAccess.assertUnsafeOrigin(headers)
-    return this.notifications.preview(await this.staffAccess.resolve(headers), parseNotificationId(sessionId), parsePreview(body).authorizationIds)
+    const input = parsePreview(body)
+    return this.notifications.preview(await this.staffAccess.resolve(headers), parseNotificationId(sessionId), input.authorizationIds, input.sourceId)
   }
 
   @Post("sessions/:sessionId/tasks")

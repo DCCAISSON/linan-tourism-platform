@@ -1,4 +1,4 @@
-import type { CatalogItem, School, TourSession } from "./api"
+import type { CatalogItem, Grade, SchoolClass, School, TourSession } from "./api"
 import { readTripGate } from "./checkout-flow"
 
 export type ActivityTrip = {
@@ -41,4 +41,14 @@ export function activityTrips(activities: readonly CatalogItem[], sessions: read
       : `已付款有效人数${session.occupiedCapacity == null ? "暂未提供" : ` ${session.occupiedCapacity}`} / 最低人数 ${session.minimumParticipants}`
     return [{ activity, session, schoolName: schools.find((school) => school.id === session.organizationId)?.name ?? "学校信息待完善", registrationLabel: gate.open ? "报名开放" : gate.reason, canEnroll: gate.open, minimumParticipantsLabel }]
   })
+}
+
+export function enrollmentGrades(grades: readonly Grade[], session: TourSession | undefined): readonly Grade[] {
+  const scope = session?.enrollmentScope
+  return scope == null ? grades : grades.filter(grade => scope.some(entry => entry.gradeId === grade.id))
+}
+
+export function enrollmentClasses(classes: readonly SchoolClass[], session: TourSession | undefined): readonly SchoolClass[] {
+  const scope = session?.enrollmentScope
+  return scope == null ? classes : classes.filter(item => scope.some(entry => entry.gradeId === item.gradeId && (entry.classIds === null || entry.classIds.includes(item.id))))
 }

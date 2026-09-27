@@ -1,4 +1,5 @@
-﻿import { BadRequestException } from "@nestjs/common"
+import { parseEnrollmentScope } from "./configuration.scope.js"
+import { BadRequestException } from "@nestjs/common"
 import { TOUR_SESSION_STATUS, type TourSessionStatus } from "@linan/contracts"
 import type {
   NewCatalogItem,
@@ -207,6 +208,7 @@ export function parseTourSession(body: unknown): NewTourSession {
     status: readTourSessionStatus(record),
     priceFen,
     capacity: readInteger(record, "capacity"),
+    enrollmentScope: "enrollmentScope" in record ? parseEnrollmentScope(record["enrollmentScope"]) : undefined,
     minimumParticipants: readMinimumParticipants(record) ?? null,
     startsAt,
     endsAt,
@@ -276,6 +278,7 @@ export function parseTourSessionPatch(body: unknown): UpdateTourSession {
     status: readOptionalTourSessionStatus(record),
     priceFen,
     capacity: readOptionalInteger(record, "capacity"),
+    enrollmentScope: "enrollmentScope" in record ? parseEnrollmentScope(record["enrollmentScope"]) : undefined,
     minimumParticipants: readMinimumParticipants(record),
     startsAt: readOptionalDate(record, "startsAt"),
     endsAt: readOptionalDate(record, "endsAt"),

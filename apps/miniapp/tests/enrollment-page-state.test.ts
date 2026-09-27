@@ -425,3 +425,24 @@ describe("enrollment action login prompt", () => {
     vi.unstubAllGlobals()
   })
 })
+
+describe("session enrollment scope", () => {
+  it("filters school grades and classes and clears invalid selections when changing session", async () => {
+    const page = pageState()
+    page.draft.selectedSchoolId = "school"
+    page.catalog.sessions = [session("all"), { ...session("limited"), enrollmentScope: [{ gradeId: "g1", classIds: ["c1"] }] }]
+    apiCalls.listGrades.mockResolvedValue([{ id: "g1", organizationId: "school", code: "g1", name: "一年级" }, { id: "g2", organizationId: "school", code: "g2", name: "二年级" }])
+    apiCalls.listClasses.mockResolvedValue([{ id: "c1", gradeId: "g1", code: "c1", name: "一班" }, { id: "c2", gradeId: "g1", code: "c2", name: "二班" }])
+    await page.onSessionChange({ detail: { value: 0 } })
+    await page.onGradeChange({ detail: { value: 0 } })
+    page.onClassChange({ detail: { value: 1 } })
+    expect(page.draft.selectedClassId).toBe("c2")
+    await page.onSessionChange({ detail: { value: 1 } })
+    expect(page.catalog.grades.map(item => item.id)).toEqual(["g1"])
+    expect(page.catalog.classes.map(item => item.id)).toEqual(["c1"])
+    expect(page.draft.selectedClassId).toBe("")
+    await page.onSessionChange({ detail: { value: 0 } })
+    expect(page.catalog.grades).toHaveLength(2)
+    expect(page.catalog.classes).toHaveLength(2)
+  })
+})

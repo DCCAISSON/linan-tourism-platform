@@ -28,6 +28,7 @@ import { MediaAssetEntity } from "./media-asset.entity.js"
 import { MediaProviderEntity } from "./media-provider.entity.js"
 import { NoticeVersionEntity } from "./notice-version.entity.js"
 import { NotificationChannelEntryEntity } from "./notification-channel-entry.entity.js"
+import { NotificationBusinessSourceEntity } from "./notification-business-source.entity.js"
 import { NotificationContentVersionEntity } from "./notification-content-version.entity.js"
 import { NotificationDeliveryAttemptEntity, NotificationDeliveryTargetEntity, NotificationDeliveryTaskEntity } from "./notification-delivery.entity.js"
 import { NotificationRecipientAuthorizationEntity } from "./notification-recipient-authorization.entity.js"
@@ -50,6 +51,7 @@ import { RosterImportPersonEntity } from "./roster-import-person.entity.js"
 import { SchoolClassEntity } from "./school-class.entity.js"
 import { SchoolGradeEntity } from "./school-grade.entity.js"
 import { ServiceFeedbackEntity } from "./service-feedback.entity.js"
+import { SessionArchiveEntity } from "./session-archive.entity.js"
 import { StaffAccountEntity } from "./staff-account.entity.js"
 import { StaffAccountPermissionEntity } from "./staff-account-permission.entity.js"
 import { StaffAccountScopeEntity } from "./staff-account-scope.entity.js"
@@ -97,6 +99,7 @@ export { MediaAssetEntity } from "./media-asset.entity.js"
 export { MediaProviderEntity } from "./media-provider.entity.js"
 export { NoticeVersionEntity } from "./notice-version.entity.js"
 export { NotificationChannelEntryEntity } from "./notification-channel-entry.entity.js"
+export { NotificationBusinessSourceEntity } from "./notification-business-source.entity.js"
 export { NotificationContentVersionEntity } from "./notification-content-version.entity.js"
 export { NotificationDeliveryAttemptEntity, NotificationDeliveryTargetEntity, NotificationDeliveryTaskEntity } from "./notification-delivery.entity.js"
 export { NotificationRecipientAuthorizationEntity } from "./notification-recipient-authorization.entity.js"
@@ -119,6 +122,7 @@ export { RosterImportPersonEntity } from "./roster-import-person.entity.js"
 export { SchoolClassEntity } from "./school-class.entity.js"
 export { SchoolGradeEntity } from "./school-grade.entity.js"
 export { ServiceFeedbackEntity } from "./service-feedback.entity.js"
+export { SessionArchiveEntity } from "./session-archive.entity.js"
 export { StaffAccountEntity } from "./staff-account.entity.js"
 export { StaffAccountPermissionEntity } from "./staff-account-permission.entity.js"
 export { StaffAccountScopeEntity } from "./staff-account-scope.entity.js"
@@ -152,6 +156,7 @@ export const DOMAIN_ENTITIES = [
   EvaluationStandardEntity,
   StudentEvaluationEntity,
   ServiceFeedbackEntity,
+  SessionArchiveEntity,
   ExecutionAttendanceEntity,
   ExecutionDailyReportEntity,
   ExecutionPersonDailyReportEntity,
@@ -192,6 +197,7 @@ export const DOMAIN_ENTITIES = [
   NotificationContentVersionEntity,
   NotificationRecipientAuthorizationEntity,
   NotificationChannelEntryEntity,
+  NotificationBusinessSourceEntity,
   NotificationDeliveryTaskEntity,
   NotificationDeliveryTargetEntity,
   NotificationDeliveryAttemptEntity,

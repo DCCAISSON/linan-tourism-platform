@@ -1,3 +1,4 @@
+import { parseEnrollmentScope } from "./enrollment-scope-parser"
 import type { OrderStatus, PaymentStatus, TourSessionStatus } from "@linan/contracts"
 import { ApiError } from "./api-error"
 import type {
@@ -63,6 +64,7 @@ export function parseTourSession(value: unknown): TourSession {
     status: readTourSessionStatus(record),
     priceFen: readNumber(record, "priceFen"),
     capacity: readNumber(record, "capacity"),
+    enrollmentScope: parseEnrollmentScope(record["enrollmentScope"]),
     minimumParticipants: readOptionalCount(record, "minimumParticipants"),
     occupiedCapacity: readOptionalCount(record, "occupiedCapacity"),
     startsAt: readIsoString(record, "startsAt"),

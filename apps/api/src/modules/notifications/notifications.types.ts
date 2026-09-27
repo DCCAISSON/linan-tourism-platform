@@ -26,12 +26,14 @@ export type ContentVersionInput = {
 }
 
 export type NotificationTaskInput = {
+  readonly sourceId?: string
   readonly contentVersionId: string
   readonly authorizationIds: readonly string[]
   readonly idempotencyKey: string
 }
 
 export type NotificationPreviewInput = {
+  readonly sourceId?: string
   readonly authorizationIds: readonly string[]
 }
 

@@ -11,6 +11,12 @@ const orderId = ref("")
 const pretrip = ref<FamilyPretrip | null>(null)
 const state = ref<LoadState>("loading")
 const error = ref("")
+const mapError = ref("")
+const mapLocation = computed(() => {
+  const config = pretrip.value?.config
+  if (!config || config.gatheringLatitude === null || config.gatheringLongitude === null) return null
+  return { latitude: config.gatheringLatitude, longitude: config.gatheringLongitude, name: config.gatheringPlace, address: config.gatheringPlace }
+})
 const statusText = { current: "车辆安排已确认", stale: "车辆安排待重排", unconfirmed: "车辆安排待确认" } as const
 const assignedPeople = computed(() => pretrip.value?.persons.filter((person) => person.vehicleStatus === "assigned") ?? [])
 
@@ -37,6 +43,19 @@ ${link.url}`, showCancel: false })
     uni.showToast({ title: readableError(cause, "附件链接生成失败"), icon: "none" })
   }
 }
+
+function openGatheringLocation(): void {
+  const location = mapLocation.value
+  if (location === null) return
+  mapError.value = ""
+  uni.openLocation({
+    ...location,
+    fail: (cause) => {
+      mapError.value = cause.errMsg.toLowerCase().includes("cancel") ? "已取消打开地图，可重新打开" : "地图打开失败，请重试或联系行前联系人"
+      uni.showToast({ title: mapError.value, icon: "none" })
+    },
+  })
+}
 </script>
 
 <template>
@@ -47,6 +66,8 @@ ${link.url}`, showCancel: false })
       <view class="info-card">
         <text class="card-title">集合信息</text>
         <text v-if="pretrip.config" class="detail-line">{{ pretrip.config.gatheringAt ?? '时间待通知' }} · {{ pretrip.config.gatheringPlace }}</text>
+        <button v-if="mapLocation" class="button-secondary action-gap gathering-map-button" @tap="openGatheringLocation">打开集合地点地图</button>
+        <text v-if="mapError" class="detail-line gathering-map-error">{{ mapError }}</text>
         <text v-if="pretrip.config" class="detail-line">联系人：{{ pretrip.config.contactName }} {{ pretrip.config.contactPhone }}</text>
         <text v-if="pretrip.config" class="detail-line">{{ pretrip.config.itineraryNote }}</text>
         <text v-else class="detail-line">行前信息待发布。</text>

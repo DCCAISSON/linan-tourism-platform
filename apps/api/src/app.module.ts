@@ -14,6 +14,7 @@ import { OrderModule } from "./modules/order/order.module.js"
 import { PretripModule } from "./modules/pretrip/pretrip.module.js"
 import { RefundApplicationModule } from "./modules/refund-applications/refund-application.module.js"
 import { RosterModule } from "./modules/roster/roster.module.js"
+import { SessionArchivesModule } from "./modules/session-archives/session-archives.module.js"
 import { TransportModule } from "./modules/transport/transport.module.js"
 import { TravelersModule } from "./modules/travelers/travelers.module.js"
 import { WechatModule } from "./modules/wechat/wechat.module.js"
@@ -21,7 +22,7 @@ import { CapabilitiesController } from "./capabilities.controller.js"
 import { HealthController } from "./health.controller.js"
 
 @Module({
-  imports: [IamModule, ConfigurationModule, EnrollmentModule, OrderModule, RosterModule, TransportModule, TravelersModule, RefundApplicationModule, WechatModule, ExecutionModule, EvaluationsModule, FeedbackModule, InsuranceModule, MediaModule, CrmModule, BusinessModule, PretripModule, NotificationsModule],
+  imports: [IamModule, ConfigurationModule, EnrollmentModule, OrderModule, RosterModule, TransportModule, TravelersModule, RefundApplicationModule, WechatModule, ExecutionModule, EvaluationsModule, FeedbackModule, InsuranceModule, MediaModule, CrmModule, BusinessModule, PretripModule, NotificationsModule, SessionArchivesModule],
   controllers: [HealthController, CapabilitiesController],
 })
 export class AppModule {}

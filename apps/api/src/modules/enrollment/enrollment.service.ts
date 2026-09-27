@@ -14,6 +14,7 @@ import {
   TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
+import { ensureParticipantsInScope, lockTourSession } from "../configuration/configuration.scope.js"
 import { throwWriteConflict } from "../configuration/configuration.errors.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import { ConfigurationService } from "../configuration/configuration.service.js"
@@ -138,10 +139,7 @@ export class EnrollmentService {
     const dataSource = await this.database.getDataSource()
     try {
       return await dataSource.transaction(async (manager) => {
-        const session = await manager.findOneBy(TourSessionEntity, { id: input.tourSessionId })
-        if (session === null) {
-          throw new NotFoundException({ code: "not_found", message: "tour session was not found" })
-        }
+        const session = await lockTourSession(manager, input.tourSessionId)
         const notice = await this.requireActiveNotice(manager, session, input)
         const family = await findFamilyByCode(manager, identity.familyCode, session.organizationId)
         if (family === null) {
@@ -151,6 +149,7 @@ export class EnrollmentService {
         if (members.length !== input.memberIds.length) {
           throw memberNotFound()
         }
+        await ensureParticipantsInScope(manager, session, members)
         const enrollment = await manager.save(EnrollmentEntity, {
           id: makeId("enrollment"),
           organizationId: session.organizationId,

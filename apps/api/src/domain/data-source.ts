@@ -34,6 +34,10 @@ import { AddTransportDocumentSnapshot1765998000000 } from "../migrations/1765998
 import { AddEvaluationDimensions1766001600000 } from "../migrations/1766001600000-AddEvaluationDimensions.js"
 import { AddExecutionNodes1766005200000 } from "../migrations/1766005200000-AddExecutionNodes.js"
 import { BusinessInquiryCustomerLinks1766008800000 } from "../migrations/1766008800000-business-inquiry-customer-links.js"
+import { AddEnrollmentScope1766016000000 } from "../migrations/1766016000000-AddEnrollmentScope.js"
+import { AddPretripCoordinates1766016060000 } from "../migrations/1766016060000-AddPretripCoordinates.js"
+import { AddNotificationBusinessSources1766016180000 } from "../migrations/1766016180000-AddNotificationBusinessSources.js"
+import { AddSessionArchives1766016120000 } from "../migrations/1766016120000-AddSessionArchives.js"
 
 export const DOMAIN_DATA_SOURCE_OPTIONS = {
   type: "mysql",
@@ -76,6 +80,10 @@ export const DOMAIN_DATA_SOURCE_OPTIONS = {
     AddEvaluationDimensions1766001600000,
     AddExecutionNodes1766005200000,
     BusinessInquiryCustomerLinks1766008800000,
+    AddEnrollmentScope1766016000000,
+    AddPretripCoordinates1766016060000,
+    AddSessionArchives1766016120000,
+    AddNotificationBusinessSources1766016180000,
   ],
 } satisfies DataSourceOptions
 

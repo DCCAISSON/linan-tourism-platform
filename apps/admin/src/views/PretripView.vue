@@ -15,7 +15,9 @@
           </select>
         </label>
         <label class="pretrip-field">集合时间<input v-model="draft.gatheringAt" type="datetime-local"></label>
-        <label class="pretrip-field">集合地点<input v-model="draft.gatheringPlace" type="text"></label>
+        <label class="pretrip-field">集合地点<input v-model="draft.gatheringPlace" type="text" @input="clearGatheringCoordinates"></label>
+        <label class="pretrip-field">集合纬度（GCJ-02）<input v-model="draft.gatheringLatitude" type="text" inputmode="decimal" placeholder="-90 至 90" aria-describedby="coordinates-help"></label>
+        <label class="pretrip-field">集合经度（GCJ-02）<input v-model="draft.gatheringLongitude" type="text" inputmode="decimal" placeholder="-180 至 180" aria-describedby="coordinates-help"></label>
         <label class="pretrip-field">出行方式
           <select v-model="draft.travelMode"><option value="group">统一集合</option><option value="self">自行前往</option><option value="mixed">混合出行</option></select>
         </label>
@@ -24,6 +26,7 @@
         <label class="pretrip-field">客服入口<input v-model="draft.serviceContact" type="text"></label>
         <label class="pretrip-field">告知书版本ID<input v-model="draft.noticeVersionId" type="text"></label>
       </div>
+      <p id="coordinates-help" class="pretrip-state">请填写 GCJ-02 坐标。纬度、经度须同时填写或同时清空；未填写时仅向家长展示集合地址。</p>
       <label class="pretrip-field">行程须知<textarea v-model="draft.itineraryNote" rows="4" /></label>
       <div class="pretrip-actions">
         <button type="submit" :disabled="tourSessionId === '' || loading">读取配置</button>
@@ -67,9 +70,16 @@ const saving = ref(false)
 const message = ref("")
 const failed = ref(false)
 const version = ref(0)
-const draft = reactive<{ gatheringAt: string; gatheringPlace: string; travelMode: PretripTravelMode; itineraryNote: string; contactName: string; contactPhone: string; serviceContact: string; noticeVersionId: string }>({ gatheringAt: "", gatheringPlace: "", travelMode: "group", itineraryNote: "", contactName: "", contactPhone: "", serviceContact: "", noticeVersionId: "" })
+const draft = reactive<{ gatheringAt: string; gatheringPlace: string; gatheringLatitude: string; gatheringLongitude: string; travelMode: PretripTravelMode; itineraryNote: string; contactName: string; contactPhone: string; serviceContact: string; noticeVersionId: string }>({ gatheringAt: "", gatheringPlace: "", gatheringLatitude: "", gatheringLongitude: "", travelMode: "group", itineraryNote: "", contactName: "", contactPhone: "", serviceContact: "", noticeVersionId: "" })
 
 onMounted(async () => { sessions.value = await listTourSessions() })
+
+function clearGatheringCoordinates(): void {
+  draft.gatheringLatitude = ""
+  draft.gatheringLongitude = ""
+  failed.value = false
+  message.value = "集合地址已修改，请重新填写对应坐标；留空则仅展示地址"
+}
 
 async function loadConfig(): Promise<void> {
   loading.value = true
@@ -79,6 +89,8 @@ async function loadConfig(): Promise<void> {
     version.value = config.version
     draft.gatheringAt = config.gatheringAt === null ? "" : config.gatheringAt.slice(0, 16)
     draft.gatheringPlace = config.gatheringPlace
+    draft.gatheringLatitude = config.gatheringLatitude === null ? "" : String(config.gatheringLatitude)
+    draft.gatheringLongitude = config.gatheringLongitude === null ? "" : String(config.gatheringLongitude)
     draft.travelMode = config.travelMode
     draft.itineraryNote = config.itineraryNote
     draft.contactName = config.contactName
@@ -97,12 +109,23 @@ async function loadConfig(): Promise<void> {
 }
 
 async function saveConfig(): Promise<void> {
+  const latitudeText = draft.gatheringLatitude.trim()
+  const longitudeText = draft.gatheringLongitude.trim()
+  const gatheringLatitude = latitudeText === "" ? null : Number(latitudeText)
+  const gatheringLongitude = longitudeText === "" ? null : Number(longitudeText)
+  if ((gatheringLatitude === null) !== (gatheringLongitude === null) || (gatheringLatitude !== null && (!Number.isFinite(gatheringLatitude) || Math.abs(gatheringLatitude) > 90)) || (gatheringLongitude !== null && (!Number.isFinite(gatheringLongitude) || Math.abs(gatheringLongitude) > 180))) {
+    failed.value = true
+    message.value = "请同时填写有效纬度（-90 至 90）和经度（-180 至 180），或同时清空"
+    return
+  }
   saving.value = true
   failed.value = false
   try {
     const saved = await savePretripConfig(tourSessionId.value, {
       gatheringAt: draft.gatheringAt === "" ? null : new Date(draft.gatheringAt).toISOString(),
       gatheringPlace: draft.gatheringPlace,
+      gatheringLatitude,
+      gatheringLongitude,
       travelMode: draft.travelMode,
       itineraryNote: draft.itineraryNote,
       contactName: draft.contactName,

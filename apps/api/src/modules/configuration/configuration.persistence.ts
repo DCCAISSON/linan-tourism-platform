@@ -84,6 +84,9 @@ export function updateTourSessionEntity(
   session: TourSessionEntity,
   input: UpdateTourSession,
 ): void {
+  if (input.enrollmentScope !== undefined) {
+    session.enrollmentScopeJson = input.enrollmentScope
+  }
   if (input.catalogItemId !== undefined) {
     session.catalogItemId = input.catalogItemId
   }

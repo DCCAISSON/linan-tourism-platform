@@ -32,6 +32,7 @@
         <router-link v-if="hasPermission('crm.read')" class="admin-nav__item" to="/crm">客户管理</router-link>
         <router-link v-if="hasPermission('business.read') || hasPermission('business.write') || hasPermission('business.followup')" class="admin-nav__item" to="/business">商旅业务</router-link>
         <router-link v-if="hasPermission('staff_accounts.manage')" class="admin-nav__item" to="/staff-accounts">账号权限</router-link>
+        <router-link v-if="hasPermission('orders.read') || hasPermission('roster.export') || hasPermission('transport.export') || hasPermission('execution.manage') || hasPermission('evaluations.school_report')" class="admin-nav__item" to="/session-archives">团期归档</router-link>
       </nav>
     </aside>
 

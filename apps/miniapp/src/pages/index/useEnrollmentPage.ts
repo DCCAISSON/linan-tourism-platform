@@ -6,7 +6,7 @@ import {
   type ServiceCapabilities, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatMiniappPayment,
 } from "../../api"
 import { getWechatSessionToken } from "../../wechat-token"
-import { activeEnrollmentOptions } from "../../activity-catalog"
+import { activeEnrollmentOptions, enrollmentGrades, enrollmentClasses } from "../../activity-catalog"
 import {
   buildCreateOrderPayload, canStartPayment, createOrderRequestKey,
   nextPageModeForOrder, orderStatusLabel, readTripGate,
@@ -199,8 +199,12 @@ export function useEnrollmentPage() {
     try {
       const grades = await api.listGrades(schoolId)
       if (request !== gradeRequest || schoolId !== draft.selectedSchoolId) return
-      catalog.grades = [...grades]
-      gradeState.value = grades.length === 0 ? "empty" : "ready"
+      catalog.grades = [...enrollmentGrades(grades, selectedSession.value)]
+      gradeState.value = catalog.grades.length === 0 ? "empty" : "ready"
+      if (!catalog.grades.some(item => item.id === draft.selectedGradeId)) {
+        draft.selectedGradeId = ""
+        draft.selectedClassId = ""
+      }
     } catch (error) {
       if (request !== gradeRequest || schoolId !== draft.selectedSchoolId) return
       gradeState.value = "error"
@@ -229,8 +233,9 @@ export function useEnrollmentPage() {
     try {
       const classes = await api.listClasses(gradeId)
       if (request !== classRequest || gradeId !== draft.selectedGradeId) return
-      catalog.classes = [...classes]
-      classState.value = classes.length === 0 ? "empty" : "ready"
+      catalog.classes = [...enrollmentClasses(classes, selectedSession.value)]
+      classState.value = catalog.classes.length === 0 ? "empty" : "ready"
+      if (!catalog.classes.some(item => item.id === draft.selectedClassId)) draft.selectedClassId = ""
     } catch (error) {
       if (request !== classRequest || gradeId !== draft.selectedGradeId) return
       classState.value = "error"
@@ -243,10 +248,20 @@ export function useEnrollmentPage() {
     resetCheckout()
   }
 
-  function onSessionChange(event: PickerChangeEvent): void {
+  async function onSessionChange(event: PickerChangeEvent): Promise<void> {
     currentTimeIso.value = new Date().toISOString()
     draft.selectedTourSessionId = availableSessions.value[readPickerIndex(event)]?.id ?? draft.selectedTourSessionId
+    gradeRequest++
+    classRequest++
+    catalog.grades = [...enrollmentGrades(catalog.grades, selectedSession.value)]
+    catalog.classes = [...enrollmentClasses(catalog.classes, selectedSession.value)]
+    if (!catalog.grades.some(item => item.id === draft.selectedGradeId)) draft.selectedGradeId = ""
+    if (!catalog.classes.some(item => item.id === draft.selectedClassId)) draft.selectedClassId = ""
+    classState.value = "idle"
+    classError.value = ""
     resetCheckout()
+    await retryGrades()
+    if (draft.selectedGradeId) await retryClasses()
   }
 
   function addMember(): void {

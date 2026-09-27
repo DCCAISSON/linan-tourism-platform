@@ -18,6 +18,19 @@
     </form>
 
     <template v-if="session">
+      <section class="notifications-panel" aria-labelledby="source-title">
+        <div class="notifications-section-heading"><div><h3 id="source-title">业务通知待办</h3><p>报名成单与行前安排保存后生成。选择待办可预填摘要，再选择实际模板、预览授权接收人并创建任务。</p></div></div>
+        <p v-if="session.sources.length === 0" class="notifications-empty">暂无业务通知待办。</p>
+        <div v-else class="notifications-version-list">
+          <article v-for="source in session.sources" :key="source.id" class="notifications-source-card">
+            <strong>{{ source.title }} · 第 {{ source.sourceVersion }} 版</strong>
+            <p>{{ source.bodyText }}</p><small>{{ source.createdAt }} · <span>{{ sourceStatusLabel(source.status) }}</span></small>
+            <p v-if="source.orderId">来源订单：{{ source.orderId }}</p>
+            <button v-if="source.linkedTaskId" type="button" :disabled="busy" @click="loadTask(source.linkedTaskId)">查看关联任务</button>
+            <button v-else-if="session.canWrite" type="button" :disabled="busy || source.status === 'expired'" @click="selectSource(source)">{{ selectedSourceId === source.id ? '已选择此待办' : '填写通知并处理' }}</button>
+          </article>
+        </div>
+      </section>
       <p v-if="!session.wechatConfigured" class="notifications-notice">微信订阅通知尚未配置完成。可保存内容和预览接收人；发送前请完成微信接入配置。</p>
       <section class="notifications-panel" aria-labelledby="content-title">
         <div class="notifications-section-heading">
@@ -74,7 +87,9 @@
           <div><h3 id="task-builder-title">接收人预览与建任务</h3><p>请选择家庭已授权的接收人，核对后再创建任务。</p></div>
         </div>
         <form class="notifications-form-grid" @submit.prevent="previewTargets">
-          <div class="notifications-field-wide"><label v-for="recipient in recipients" :key="recipient.authorizationId" class="notifications-check"><input v-model="authorizationIds" :value="recipient.authorizationId" :disabled="busy" type="checkbox" />{{ recipient.receiverName }} · {{ relationLabel(recipient.relation) }} · {{ channelLabel(recipient.channel) }}</label><p v-if="recipients.length === 0" class="notifications-empty">本团尚无有效接收人授权，请由家庭在订单通知页授权。</p></div>
+          <p v-if="selectedSource" class="notifications-notice">当前来源：{{ selectedSource.title }}（第 {{ selectedSource.sourceVersion }} 版）。{{ sourceStatusLabel(selectedSource.status) }}；请选择实际内容版本，模板未配置时保留待处理。</p>
+          <button v-if="selectedSource" type="button" :disabled="busy" @click="clearSource">取消来源选择</button>
+          <div class="notifications-field-wide"><label v-for="recipient in availableRecipients" :key="recipient.authorizationId" class="notifications-check"><input v-model="authorizationIds" :value="recipient.authorizationId" :disabled="busy" type="checkbox" />{{ recipient.receiverName }} · {{ relationLabel(recipient.relation) }} · {{ channelLabel(recipient.channel) }}</label><p v-if="availableRecipients.length === 0" class="notifications-empty">当前范围尚无有效已授权接收人，请由家庭在已付款订单的通知页授权。</p></div>
           <button type="submit" :disabled="busy || authorizationIds.length === 0">预览接收人</button>
         </form>
         <p v-if="preview.length === 0" class="notifications-empty">暂无已预览的授权接收人。未授权记录不会进入任务。</p>
@@ -146,6 +161,7 @@ import {
 import type { NotificationContentVersion, NotificationSessionOption, NotificationChannelEntry, NotificationDeliveryStatus, NotificationEntryKind, NotificationRelation, NotificationSession, NotificationTargetPreview, NotificationTask, NotificationTaskStatus } from "@/api/notifications"
 import { canRetryNotificationTargets, createNotificationPreviewSelection, isNotificationPreviewCurrent, notificationAttemptTargetLabel } from "@/api/notifications.policy"
 import type { NotificationPreviewSelection } from "@/api/notifications.policy"
+import type { NotificationBusinessSource } from "@/api/notifications"
 import "@/styles/notifications.css"
 
 type EntryForm = { readonly kind: NotificationEntryKind; label: string; url: string; enabled: boolean; version: number }
@@ -161,6 +177,9 @@ const sessionOptions = ref<readonly NotificationSessionOption[]>([])
 const templateFields = ref<{ key: string; value: string }[]>([])
 const previewSelection = ref<NotificationPreviewSelection | null>(null)
 const selectedContentId = ref("")
+const selectedSourceId = ref("")
+const selectedSource = computed(() => session.value?.sources.find(source => source.id === selectedSourceId.value))
+const availableRecipients = computed(() => selectedSource.value === undefined ? recipients.value : recipients.value.filter(row => selectedSource.value?.authorizationIds.includes(row.authorizationId)))
 const idempotencyKey = ref(newIdempotencyKey())
 const busy = ref(false)
 const message = ref("")
@@ -174,15 +193,15 @@ const entryForms = reactive<EntryForm[]>([
 const previewCurrent = computed(() => preview.value.length > 0 && isNotificationPreviewCurrent(previewSelection.value, loadedSessionId.value, authorizationIds.value))
 const hasRetryableTargets = computed(() => canRetryNotificationTargets(detail.value?.targets ?? []))
 watch(sessionId, invalidateLoadedSession)
-watch([selectedContentId, authorizationIds], () => { idempotencyKey.value = newIdempotencyKey() }, { deep: true })
+watch([selectedContentId, authorizationIds, selectedSourceId], () => { idempotencyKey.value = newIdempotencyKey() }, { deep: true })
 onMounted(loadOptions)
 
 async function loadOptions(): Promise<void> { await run(async () => { sessionOptions.value = await getNotificationSessions() }) }
 async function loadSession(): Promise<void> { const requestedSessionId = sessionId.value; clearLoadedState(); await run(async () => { const [loaded, options] = await Promise.all([getNotificationSession(requestedSessionId), getNotificationRecipients(requestedSessionId)]); if (sessionId.value !== requestedSessionId) throw new Error("团期已变化，请重新读取。"); loadedSessionId.value = requestedSessionId; session.value = loaded; recipients.value = options; applyEntries(loaded.entries); message.value = "团期通知已读取。" }) }
 async function saveContent(): Promise<void> { const activeSessionId = loadedSessionId.value; if (activeSessionId === "") return; await run(async () => { await createNotificationContent(activeSessionId, { title: contentDraft.title, bodyText: contentDraft.bodyText, templateId: emptyToNull(contentDraft.templateId), miniappPage: emptyToNull(contentDraft.miniappPage), templateData: readTemplateFields() }); contentDraft.title = ""; contentDraft.bodyText = ""; session.value = await getNotificationSession(activeSessionId); message.value = "内容版本已创建。" }) }
 async function saveEntry(kind: NotificationEntryKind): Promise<void> { const activeSessionId = loadedSessionId.value; const form = entryForms.find(item => item.kind === kind); if (form === undefined || activeSessionId === "") return; await run(async () => { if (form.enabled && !form.url.startsWith("https://")) throw new Error("启用入口必须使用 HTTPS 地址。"); const saved = await saveNotificationEntry(activeSessionId, kind, { label: form.label, url: form.url, enabled: form.enabled, expectedVersion: form.version }); Object.assign(form, saved); message.value = form.enabled ? "入口已保存并启用。" : "入口已保存为停用。" }) }
-async function previewTargets(): Promise<void> { const selection = createNotificationPreviewSelection(loadedSessionId.value, authorizationIds.value); if (selection.sessionId === "" || selection.authorizationIds.length === 0) return; await run(async () => { const loadedPreview = await previewNotificationTargets(selection.sessionId, selection.authorizationIds); preview.value = loadedPreview; previewSelection.value = selection; message.value = loadedPreview.length === 0 ? "没有可用授权接收人。" : `已预览 ${loadedPreview.length} 名授权接收人。` }) }
-async function createTask(): Promise<void> { const selection = previewSelection.value; if (!previewCurrent.value || selection === null) return; await run(async () => { detail.value = await createNotificationTask(selection.sessionId, { contentVersionId: selectedContentId.value, authorizationIds: selection.authorizationIds, idempotencyKey: idempotencyKey.value }); session.value = await getNotificationSession(selection.sessionId); idempotencyKey.value = newIdempotencyKey(); message.value = "通知任务已创建，尚未发送。" }) }
+async function previewTargets(): Promise<void> { const selection = createNotificationPreviewSelection(loadedSessionId.value, authorizationIds.value); if (selection.sessionId === "" || selection.authorizationIds.length === 0) return; await run(async () => { const loadedPreview = await previewNotificationTargets(selection.sessionId, selection.authorizationIds, selectedSourceId.value || undefined); preview.value = loadedPreview; previewSelection.value = selection; message.value = loadedPreview.length === 0 ? "没有可用授权接收人。" : `已预览 ${loadedPreview.length} 名授权接收人。` }) }
+async function createTask(): Promise<void> { const selection = previewSelection.value; if (!previewCurrent.value || selection === null) return; await run(async () => { detail.value = await createNotificationTask(selection.sessionId, { ...(selectedSourceId.value === "" ? {} : { sourceId: selectedSourceId.value }), contentVersionId: selectedContentId.value, authorizationIds: selection.authorizationIds, idempotencyKey: idempotencyKey.value }); session.value = await getNotificationSession(selection.sessionId); idempotencyKey.value = newIdempotencyKey(); message.value = "通知任务已创建，尚未发送。" }) }
 async function loadTask(taskId: string): Promise<void> { await run(async () => { detail.value = await getNotificationTask(taskId) }) }
 async function sendTask(): Promise<void> { const taskId = detail.value?.id; if (taskId === undefined) return; await run(async () => { detail.value = await sendNotificationTask(taskId); await refreshSession(); message.value = "发送尝试已完成，请核对目标和尝试状态。" }) }
 async function retryTask(): Promise<void> { const taskId = detail.value?.id; if (taskId === undefined) return; await run(async () => { detail.value = await retryNotificationTask(taskId); await refreshSession(); message.value = "已明确重试可重试失败目标。" }) }
@@ -190,7 +209,7 @@ async function refreshSession(): Promise<void> { if (loadedSessionId.value !== "
 async function run(action: () => Promise<void>): Promise<void> { busy.value = true; error.value = ""; message.value = ""; try { await action() } catch (cause) { error.value = cause instanceof Error ? cause.message : readableNotificationError(cause) } finally { busy.value = false } }
 
 function invalidateLoadedSession(): void { if (loadedSessionId.value !== "" && sessionId.value !== loadedSessionId.value) clearLoadedState() }
-function clearLoadedState(): void { loadedSessionId.value = ""; session.value = null; detail.value = null; preview.value = []; recipients.value = []; authorizationIds.value = []; previewSelection.value = null; selectedContentId.value = ""; Object.assign(contentDraft, { title: "", bodyText: "", templateId: "", miniappPage: "" }); templateFields.value = []; idempotencyKey.value = newIdempotencyKey() }
+function clearLoadedState(): void { loadedSessionId.value = ""; session.value = null; detail.value = null; preview.value = []; recipients.value = []; authorizationIds.value = []; previewSelection.value = null; selectedContentId.value = ""; selectedSourceId.value = ""; Object.assign(contentDraft, { title: "", bodyText: "", templateId: "", miniappPage: "" }); templateFields.value = []; idempotencyKey.value = newIdempotencyKey() }
 function applyEntries(entries: readonly NotificationChannelEntry[]): void { for (const form of entryForms) Object.assign(form, entries.find(entry => entry.kind === form.kind) ?? { label: "", url: "", enabled: false, version: 0 }) }
 function readTemplateFields(): Readonly<Record<string, { readonly value: string }>> {
   const output: Record<string, { readonly value: string }> = {}
@@ -202,6 +221,18 @@ function readTemplateFields(): Readonly<Record<string, { readonly value: string 
   return output
 }
 function reuseContent(content: NotificationContentVersion): void { Object.assign(contentDraft, { title: content.title, bodyText: content.bodyText, templateId: content.templateId ?? "", miniappPage: content.miniappPage ?? "" }); templateFields.value = Object.entries(content.templateData).map(([key, field]) => ({ key, value: field.value })) }
+function selectSource(source: NotificationBusinessSource): void {
+  selectedSourceId.value = source.id
+  selectedContentId.value = ""
+  authorizationIds.value = []
+  preview.value = []
+  previewSelection.value = null
+  Object.assign(contentDraft, { title: source.title, bodyText: source.bodyText, templateId: "", miniappPage: "pages/orders/detail" })
+  templateFields.value = []
+  message.value = "业务摘要已填写。请核对并选择真实模板；保存内容后预览接收人。"
+}
+function clearSource(): void { selectedSourceId.value = ""; authorizationIds.value = []; preview.value = []; previewSelection.value = null }
+function sourceStatusLabel(status: NotificationBusinessSource["status"]): string { return { expired: "已过期，禁止发送", linked: "已关联任务", awaiting_authorization: "等待有效付款及接收人授权", pending: "待选择模板并创建任务" }[status] }
 function newIdempotencyKey(): string { return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `notification-${Date.now()}` }
 function emptyToNull(value: string): string | null { return value === "" ? null : value }
 function attemptTargetLabel(targetId: string): string { return notificationAttemptTargetLabel(targetId, detail.value?.targets ?? []) }

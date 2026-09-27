@@ -65,6 +65,9 @@ export class TourSessionEntity {
   @Column({ name: "enrollment_closes_at", type: "datetime", precision: 6, nullable: true })
   enrollmentClosesAt: Date | null = null
 
+  @Column({ name: "enrollment_scope_json", type: "json", nullable: true })
+  enrollmentScopeJson: import("../../modules/configuration/configuration.scope.js").EnrollmentScope = null
+
   @Column({ name: "active_notice_id", type: "varchar", length: 64, nullable: true })
   activeNoticeId: string | null = null
 

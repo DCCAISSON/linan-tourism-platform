@@ -66,3 +66,28 @@ describe("miniapp pretrip API", () => {
     await expect(api.getPretrip("order-1")).rejects.toEqual(new ApiError(0, "pretrip.vehicle.sequence response format is invalid"))
   })
 })
+
+describe("pretrip coordinates", () => {
+  it("keeps supplied GCJ-02 coordinates", async () => {
+    // Given
+    const api = createPretripApi({ request: async () => ({ statusCode: 200, data: { ...validPretrip, config: { ...validPretrip.config, gatheringLatitude: 30.23, gatheringLongitude: 119.72 } } }) })
+    // When
+    const result = await api.getPretrip("order-1")
+    // Then
+    expect(result.config).toMatchObject({ gatheringLatitude: 30.23, gatheringLongitude: 119.72 })
+  })
+  it.each([[30, null], [null, 120], [91, 120], [30, Infinity], ["30", 120]])("rejects malformed coordinate pairs %s / %s", async (gatheringLatitude, gatheringLongitude) => {
+    // Given
+    const api = createPretripApi({ request: async () => ({ statusCode: 200, data: { ...validPretrip, config: { ...validPretrip.config, gatheringLatitude, gatheringLongitude } } }) })
+    // When / Then
+    await expect(api.getPretrip("order-1")).rejects.toThrow(ApiError)
+  })
+  it("keeps an old address-only response available without map coordinates", async () => {
+    // Given
+    const api = createPretripApi({ request: async () => ({ statusCode: 200, data: validPretrip }) })
+    // When
+    const result = await api.getPretrip("order-1")
+    // Then
+    expect(result.config).toMatchObject({ gatheringPlace: "Gate A", gatheringLatitude: null, gatheringLongitude: null })
+  })
+})

@@ -1,7 +1,21 @@
 import { ConflictException } from "@nestjs/common"
 import { describe, expect, it } from "vitest"
 import type { TravelerRecord } from "../travelers/travelers.types.js"
-import { assertSchoolAdjustmentTraveler, parseTransportSnapshot } from "./pretrip.service.js"
+import { assertSchoolAdjustmentTraveler, parseTransportSnapshot, updateGatheringCoordinates } from "./pretrip.service.js"
+import { PretripConfigEntity } from "../../domain/entities/pretrip-config.entity.js"
+import { parsePretripConfig } from "./pretrip.parser.js"
+
+describe("gathering address and coordinates", () => {
+  it.each(["same", "changed"])("handles legacy coordinates when the address is %s", (kind) => {
+    // Given
+    const row = Object.assign(new PretripConfigEntity(), { gatheringPlace: "Gate A", gatheringLatitude: 30.23, gatheringLongitude: 119.72 })
+    const input = parsePretripConfig({ gatheringPlace: kind === "same" ? "Gate A" : "Gate B", gatheringAt: null, travelMode: "group", itineraryNote: "Water", contactName: "Operator", contactPhone: "13800000000", serviceContact: "service", expectedVersion: 1, attachments: [] })
+    // When
+    updateGatheringCoordinates(row, input)
+    // Then
+    expect([row.gatheringLatitude, row.gatheringLongitude]).toEqual(kind === "same" ? [30.23, 119.72] : [null, null])
+  })
+})
 
 const session = { id: "session-1", organizationId: "school-1" } as const
 const activeTraveler: TravelerRecord = {

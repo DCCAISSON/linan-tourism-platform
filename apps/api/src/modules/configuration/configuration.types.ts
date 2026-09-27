@@ -1,3 +1,4 @@
+import type { EnrollmentScope } from "./configuration.scope.js"
 import type { TourSessionStatus } from "@linan/contracts"
 
 export type SchoolResponse = {
@@ -52,6 +53,7 @@ export type NoticeVersionResponse = {
 }
 
 export type TourSessionResponse = {
+  readonly enrollmentScope: EnrollmentScope
   readonly id: string
   readonly organizationId: string
   readonly catalogItemId: string
@@ -112,6 +114,7 @@ export type NewCatalogItem = {
 }
 
 export type NewTourSession = {
+  readonly enrollmentScope?: EnrollmentScope | undefined
   readonly organizationId: string
   readonly catalogItemId: string
   readonly code: string
@@ -149,6 +152,7 @@ export type UpdateCatalogItem = {
 }
 
 export type UpdateTourSession = {
+  readonly enrollmentScope?: EnrollmentScope | undefined
   readonly catalogItemId: string | undefined
   readonly code: string | undefined
   readonly status: TourSessionStatus | undefined

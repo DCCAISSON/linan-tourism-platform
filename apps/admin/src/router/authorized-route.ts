@@ -41,6 +41,9 @@ const authorizedRouteOrder: readonly { readonly permissionKey: StaffPermissionKe
   { permissionKey: "business.write", routeName: routeNames.business },
   { permissionKey: "business.followup", routeName: routeNames.business },
   { permissionKey: "staff_accounts.manage", routeName: routeNames.staffAccounts },
+  { permissionKey: "roster.export", routeName: routeNames.sessionArchives },
+  { permissionKey: "transport.export", routeName: routeNames.sessionArchives },
+  { permissionKey: "execution.manage", routeName: routeNames.sessionArchives },
 ]
 
 export function firstAuthorizedRouteName(permissionKeys: readonly StaffPermissionKey[], capabilities: PlatformCapabilities = enabledPlatformCapabilities): string | null {

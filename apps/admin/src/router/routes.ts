@@ -23,6 +23,7 @@ import PaymentReconciliationView from "@/views/PaymentReconciliationView.vue"
 import PretripView from "@/views/PretripView.vue"
 import RefundApplicationsView from "@/views/RefundApplicationsView.vue"
 import SchoolConfirmationView from "@/views/SchoolConfirmationView.vue"
+import SessionArchivesView from "@/views/SessionArchivesView.vue"
 import StaffAccountsView from "@/views/StaffAccountsView.vue"
 import TransportView from "@/views/TransportView.vue"
 import TravelersView from "@/views/TravelersView.vue"
@@ -50,6 +51,7 @@ export const routeNames = {
   pretrip: "pretrip",
   refundApplications: "refund-applications",
   schoolConfirmation: "school-confirmation",
+  sessionArchives: "session-archives",
   transport: "transport",
   travelers: "travelers",
   staffAccounts: "staff-accounts",
@@ -221,6 +223,12 @@ export const routes: RouteRecordRaw[] = [
         name: routeNames.business,
         component: BusinessView,
         meta: { title: "商旅业务", requiredAnyPermission: ["business.read", "business.write", "business.followup"] },
+      },
+      {
+        path: "session-archives",
+        name: routeNames.sessionArchives,
+        component: SessionArchivesView,
+        meta: { title: "团期归档", requiredAnyPermission: ["orders.read", "roster.export", "transport.export", "execution.manage", "evaluations.school_report"] },
       },
       {
         path: "staff-accounts",

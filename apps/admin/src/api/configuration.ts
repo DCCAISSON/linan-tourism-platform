@@ -9,6 +9,7 @@ import {
   parseTourSession,
 } from "./configuration.parsers"
 import type {
+  EnrollmentScope,
   CatalogItem,
   CatalogContentPayload,
   CatalogItemPayload,
@@ -28,6 +29,7 @@ import type {
 
 export { ApiError, readableApiError }
 export type {
+  EnrollmentScope,
   CatalogItem,
   CatalogContentPayload,
   CatalogItemPayload,
@@ -200,4 +202,9 @@ function readErrorMessage(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+export async function updateEnrollmentScope(id: string, enrollmentScope: EnrollmentScope): Promise<TourSession> {
+  const value = await request(`/configuration/tour-sessions/${encodeURIComponent(id)}/enrollment-scope`, jsonRequest("PUT", { enrollmentScope }))
+  return parseTourSession(value)
 }

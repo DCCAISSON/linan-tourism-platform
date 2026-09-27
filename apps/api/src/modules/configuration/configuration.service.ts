@@ -1,6 +1,8 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common"
 import { DOMAIN_POLICY_VERSION, ORDER_STATUS, ROSTER_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
 import { In } from "typeorm"
+import { ensureScopeHierarchy, lockTourSession } from "./configuration.scope.js"
+import type { EnrollmentScope } from "./configuration.scope.js"
 import {
   CatalogItemEntity,
   NoticeVersionEntity,
@@ -215,11 +217,16 @@ export class ConfigurationService {
     await findSchool(dataSource, input.organizationId)
     ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, input.catalogItemId), input.organizationId)
     try {
-      const session = await dataSource.getRepository(TourSessionEntity).save({
+      const session = await dataSource.transaction(async (manager) => {
+        const enrollmentScopeJson = input.enrollmentScope ?? null
+        await ensureScopeHierarchy(manager, { organizationId: input.organizationId, enrollmentScopeJson })
+        return manager.save(TourSessionEntity, {
         ...input,
+        enrollmentScopeJson,
         minimumParticipants: input.minimumParticipants ?? null,
         id: makeId("session"),
         policyVersion: DOMAIN_POLICY_VERSION,
+        })
       })
       return requireEnrollmentWindow(session, null, 0)
     } catch (error) {
@@ -274,10 +281,7 @@ export class ConfigurationService {
     const dataSource = await this.database.getDataSource()
     try {
       return await dataSource.transaction(async (manager) => {
-        const session = await manager.findOneBy(TourSessionEntity, { id: tourSessionId })
-        if (session === null) {
-          throw new BadRequestException({ code: "not_found", message: "tour session was not found" })
-        }
+        const session = await lockTourSession(manager, tourSessionId)
         const notice = await manager.findOneBy(NoticeVersionEntity, { id: noticeVersionId })
         if (notice === null || notice.tourSessionId !== session.id || notice.organizationId !== session.organizationId) {
           throw new BadRequestException({ code: "not_found", message: "notice version was not found" })
@@ -293,12 +297,16 @@ export class ConfigurationService {
 
   async updateTourSession(id: string, input: UpdateTourSession): Promise<TourSessionResponse> {
     const dataSource = await this.database.getDataSource()
-    const session = await findTourSessionEntity(dataSource, id)
-    updateTourSessionEntity(session, input)
-    ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, session.catalogItemId), session.organizationId)
-    ensureTourSessionDates(session)
     try {
-      return this.withActiveNotice(await dataSource.getRepository(TourSessionEntity).save(session))
+      const saved = await dataSource.transaction(async (manager) => {
+        const session = await lockTourSession(manager, id)
+        updateTourSessionEntity(session, input)
+        ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, session.catalogItemId), session.organizationId)
+        ensureTourSessionDates(session)
+        if (input.enrollmentScope !== undefined) await ensureScopeHierarchy(manager, session)
+        return manager.save(TourSessionEntity, session)
+      })
+      return this.withActiveNotice(saved)
     } catch (error) {
       throwWriteConflict(error)
     }
@@ -343,6 +351,17 @@ export class ConfigurationService {
     }
     const notice = await dataSource.getRepository(NoticeVersionEntity).findOneBy({ id: session.activeNoticeId })
     return requireEnrollmentWindow(session, notice, occupiedCapacity)
+  }
+
+  async updateEnrollmentScope(id: string, enrollmentScope: EnrollmentScope): Promise<TourSessionResponse> {
+    const dataSource = await this.database.getDataSource()
+    const saved = await dataSource.transaction(async (manager) => {
+      const session = await lockTourSession(manager, id)
+      session.enrollmentScopeJson = enrollmentScope
+      await ensureScopeHierarchy(manager, session)
+      return manager.save(TourSessionEntity, session)
+    })
+    return this.withActiveNotice(saved)
   }
 
   private async countPaidParticipants(id: string): Promise<number> {

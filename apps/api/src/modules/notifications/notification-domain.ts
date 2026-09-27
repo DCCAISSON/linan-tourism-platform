@@ -2,8 +2,8 @@ import { createHash } from "node:crypto"
 import type { NotificationDeliveryStatus, NotificationDeliveryTaskStatus } from "../../domain/entities/notification-delivery.entity.js"
 import type { NotificationDispatchMode } from "./notifications.types.js"
 
-export function notificationTaskFingerprint(contentVersionId: string, authorizationIds: readonly string[]): string {
-  return createHash("sha256").update(JSON.stringify({ contentVersionId, authorizationIds: [...authorizationIds].sort() })).digest("hex")
+export function notificationTaskFingerprint(contentVersionId: string, authorizationIds: readonly string[], sourceId?: string): string {
+  return createHash("sha256").update(JSON.stringify({ contentVersionId, authorizationIds: [...authorizationIds].sort(), ...(sourceId === undefined ? {} : { sourceId }) })).digest("hex")
 }
 
 export function canDispatchTarget(mode: NotificationDispatchMode, status: NotificationDeliveryStatus): boolean {

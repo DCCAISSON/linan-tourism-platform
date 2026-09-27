@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest"
 import { canDispatchTarget, isAuthorizationCurrent, notificationTaskFingerprint, summarizeTaskStatus } from "./notification-domain.js"
 
 describe("notification task idempotency", () => {
+  it("separates business sources with the same content and recipients", () => {
+    expect(notificationTaskFingerprint("content", ["recipient"], "source-a"))
+      .not.toBe(notificationTaskFingerprint("content", ["recipient"], "source-b"))
+  })
   it("uses the selected target set independent of request order", () => {
     expect(notificationTaskFingerprint("content-1", ["authorization-2", "authorization-1"]))
       .toBe(notificationTaskFingerprint("content-1", ["authorization-1", "authorization-2"]))

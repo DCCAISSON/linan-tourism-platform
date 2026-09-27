@@ -4,6 +4,19 @@ import { firstAuthorizedRouteName, hasRoutePermission } from "@/router/authorize
 import { routeNames, routes } from "@/router/routes"
 
 describe("admin routes", () => {
+  it("admits existing archive export permissions and rejects unrelated grants", () => {
+    // Given an archive entry guarded by its source module permissions.
+    const archives = routes[2]?.children?.find(route => route.path === "session-archives")
+    // When an account opens the archive entry, Then its existing grant is enforced.
+    expect(archives).toBeDefined()
+    for (const permission of ["orders.read", "roster.export", "transport.export", "execution.manage", "evaluations.school_report"] as const) {
+      expect(hasRoutePermission([permission], archives?.meta ?? {})).toBe(true)
+    }
+    expect(hasRoutePermission(["refunds.manage"], archives?.meta ?? {})).toBe(false)
+    expect(hasRoutePermission([], archives?.meta ?? {})).toBe(false)
+    expect(firstAuthorizedRouteName(["roster.export"])).toBe("session-archives")
+    expect(firstAuthorizedRouteName(["transport.export"])).toBe("session-archives")
+  })
   it("requires both execution read and management for the management entry", () => {
     const management = routes[2]?.children?.find(route => route.name === routeNames.executionManagement)
     expect(management).toBeDefined()
@@ -11,7 +24,7 @@ describe("admin routes", () => {
     expect(hasRoutePermission(["execution.manage"], management?.meta ?? {})).toBe(false)
     expect(hasRoutePermission(["execution.read", "execution.manage"], management?.meta ?? {})).toBe(true)
     expect(firstAuthorizedRouteName(["execution.read", "execution.manage"])).toBe(routeNames.executionManagement)
-    expect(firstAuthorizedRouteName(["execution.manage"])).toBeNull()
+    expect(firstAuthorizedRouteName(["execution.manage"])).toBe(routeNames.sessionArchives)
   })
   it("admits each business capability without requiring unrelated grants", () => {
     const business = routes[2]?.children?.find(route => route.name === routeNames.business)
@@ -69,6 +82,7 @@ describe("admin routes", () => {
       refundApplications: "refund-applications",
       roster: "roster",
       schoolConfirmation: "school-confirmation",
+      sessionArchives: "session-archives",
       staffAccounts: "staff-accounts",
       transport: "transport",
       travelers: "travelers",
@@ -96,6 +110,7 @@ describe("admin routes", () => {
       "media",
       "crm",
       "business",
+      "session-archives",
       "staff-accounts",
     ])
     expect(routes[2]?.children?.map(route => route.meta?.["requiredPermission"])).toEqual([
@@ -120,6 +135,7 @@ describe("admin routes", () => {
       "insurance.read",
       "media.read",
       "crm.read",
+      undefined,
       undefined,
       "staff_accounts.manage",
     ])

@@ -13,6 +13,8 @@ export type PretripAttachmentInput = {
 export type PretripConfigPayload = {
   readonly gatheringAt: string | null
   readonly gatheringPlace: string
+  readonly gatheringLatitude: number | null
+  readonly gatheringLongitude: number | null
   readonly travelMode: PretripTravelMode
   readonly itineraryNote: string
   readonly contactName: string
@@ -34,6 +36,8 @@ export type PretripConfig = {
   readonly tourSessionId: string
   readonly gatheringAt: string | null
   readonly gatheringPlace: string
+  readonly gatheringLatitude: number | null
+  readonly gatheringLongitude: number | null
   readonly travelMode: PretripTravelMode
   readonly itineraryNote: string
   readonly contactName: string

@@ -1,5 +1,6 @@
 import { ApiError } from "./configuration.errors"
 import type {
+  NotificationBusinessSource,
   NotificationAttempt,
   NotificationChannel,
   NotificationChannelEntry,
@@ -18,6 +19,7 @@ import type {
 export function parseNotificationSession(value: unknown): NotificationSession {
   const record = readRecord(value, "notification session")
   return {
+    sources: record["sources"] === undefined ? [] : readArray(record, "sources", "notification session").map(parseBusinessSource),
     canWrite: record["canWrite"] === true,
     canSend: record["canSend"] === true,
     wechatConfigured: record["wechatConfigured"] === true,
@@ -25,6 +27,22 @@ export function parseNotificationSession(value: unknown): NotificationSession {
     entries: readArray(record, "entries", "notification session").map(parseEntry),
     tasks: readArray(record, "tasks", "notification session").map(parseTaskSummary),
   }
+}
+
+function parseBusinessSource(value: unknown): NotificationBusinessSource {
+  const row = readRecord(value, "notification source")
+  const kind = row["kind"]
+  const status = row["status"]
+  if (kind !== "order_created" && kind !== "pretrip_updated") throw invalid("notification source.kind")
+  if (status !== "expired" && status !== "linked" && status !== "awaiting_authorization" && status !== "pending") throw invalid("notification source.status")
+  const authorizationIds = readArray(row, "authorizationIds", "notification source").map(id => {
+    if (typeof id !== "string") throw invalid("notification source.authorizationIds")
+    return id
+  })
+  return { id: readString(row, "id", "notification source"), kind, status, authorizationIds,
+    orderId: readNullableString(row, "orderId", "notification source"), sourceVersion: readCount(row, "sourceVersion", "notification source"),
+    title: readString(row, "title", "notification source"), bodyText: readString(row, "bodyText", "notification source"),
+    createdAt: readString(row, "createdAt", "notification source"), linkedTaskId: readNullableString(row, "linkedTaskId", "notification source") }
 }
 
 export function parseNotificationContent(value: unknown): NotificationContentVersion {

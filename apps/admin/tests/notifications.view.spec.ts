@@ -31,6 +31,42 @@ describe("notification admin page policies", () => {
     app.unmount()
   })
 
+  it("prefills a business source, filters recipients and sends source identity only when creating a task", async () => {
+    stubResponses()
+    const originalFetch = globalThis.fetch
+    const requests: { readonly url: string; readonly body: unknown }[] = []
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (init?.method === "POST") requests.push({ url, body: JSON.parse(String(init.body)) })
+      if (url.endsWith("/preview")) return Response.json(task.targets)
+      if (url.endsWith("/tasks")) return Response.json(task)
+      if (url.endsWith("/recipients")) return Response.json([
+        { ...task.targets[0], receiverName: "林女士" },
+        { ...task.targets[0], authorizationId: "other", orderId: "other-order", receiverName: "其他订单家长" },
+      ])
+      if (url.endsWith("/sessions/session-1")) return Response.json({ ...session, sources: [{ id: "source-1", kind: "order_created", orderId: "order-1", sourceVersion: 1, title: "报名订单已创建", bodyText: "请核对订单", createdAt: "2026-09-28", linkedTaskId: null, status: "pending", authorizationIds: ["authorization-1"] }] })
+      return originalFetch(input, init)
+    }))
+    const app = mountPage()
+    await loadSession("session-1")
+    buttonByText("填写通知并处理").click()
+    await nextTick()
+    expect(controlByLabel("标题").value).toBe("报名订单已创建")
+    expect(controlByLabel("正文").value).toBe("请核对订单")
+    expect(document.body.textContent).not.toContain("其他订单家长")
+    controlByLabel("林女士").click()
+    await nextTick()
+    buttonByText("预览接收人").click()
+    await vi.waitFor(() => expect(document.body.textContent).toContain("已预览 1 名"))
+    setValue(controlByLabel("内容版本"), "content-1")
+    await nextTick()
+    buttonByText("创建任务").click()
+    await vi.waitFor(() => expect(document.body.textContent).toContain("通知任务已创建，尚未发送"))
+    expect(requests.find(row => row.url.endsWith("/tasks"))?.body).toMatchObject({ sourceId: "source-1", authorizationIds: ["authorization-1"] })
+    expect(requests.some(row => /\/(send|retry)$/.test(row.url))).toBe(false)
+    app.unmount()
+  })
+
   it("enables retry from target state and shows the attempt target policy", async () => {
     stubResponses()
     const app = mountPage()

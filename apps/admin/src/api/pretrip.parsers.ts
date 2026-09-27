@@ -6,6 +6,7 @@ export function parsePretripConfig(value: unknown): PretripConfig {
   return {
     tourSessionId: readString(record, "tourSessionId", "pretrip config"),
     gatheringAt: readNullableString(record, "gatheringAt", "pretrip config"),
+    ...readCoordinates(record),
     gatheringPlace: readString(record, "gatheringPlace", "pretrip config"),
     travelMode: readTravelMode(record, "travelMode"),
     itineraryNote: readString(record, "itineraryNote", "pretrip config"),
@@ -111,4 +112,12 @@ function readTravelMode(record: Record<string, unknown>, key: string): PretripCo
 
 function invalid(field: string): ApiError {
   return new ApiError(0, `${field} response format is invalid`)
+}
+
+function readCoordinates(record: Record<string, unknown>): { readonly gatheringLatitude: number | null; readonly gatheringLongitude: number | null } {
+  const latitude = record["gatheringLatitude"]
+  const longitude = record["gatheringLongitude"]
+  if ((latitude === undefined && longitude === undefined) || (latitude === null && longitude === null)) return { gatheringLatitude: null, gatheringLongitude: null }
+  if (typeof latitude !== "number" || !Number.isFinite(latitude) || Math.abs(latitude) > 90 || typeof longitude !== "number" || !Number.isFinite(longitude) || Math.abs(longitude) > 180) throw invalid("pretrip.config.coordinates")
+  return { gatheringLatitude: latitude, gatheringLongitude: longitude }
 }

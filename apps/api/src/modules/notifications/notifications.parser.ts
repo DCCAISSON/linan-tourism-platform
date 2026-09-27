@@ -47,8 +47,9 @@ export function parseContentVersion(value: unknown): ContentVersionInput {
 }
 
 export function parseTask(value: unknown): NotificationTaskInput {
-  const input = record(value, ["contentVersionId", "authorizationIds", "idempotencyKey"])
+  const input = record(value, ["contentVersionId", "authorizationIds", "idempotencyKey", "sourceId"])
   return {
+    ...(input["sourceId"] === undefined ? {} : { sourceId: identifier(input, "sourceId") }),
     contentVersionId: identifier(input, "contentVersionId"),
     authorizationIds: identifiers(input["authorizationIds"]),
     idempotencyKey: text(input, "idempotencyKey", 128),
@@ -56,8 +57,8 @@ export function parseTask(value: unknown): NotificationTaskInput {
 }
 
 export function parsePreview(value: unknown): NotificationPreviewInput {
-  const input = record(value, ["authorizationIds"])
-  return { authorizationIds: identifiers(input["authorizationIds"]) }
+  const input = record(value, ["authorizationIds", "sourceId"])
+  return { authorizationIds: identifiers(input["authorizationIds"]), ...(input["sourceId"] === undefined ? {} : { sourceId: identifier(input, "sourceId") }) }
 }
 
 export function parseChannelEntry(value: unknown): NotificationEntryInput {

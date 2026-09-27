@@ -265,6 +265,10 @@ export async function resetEnrollmentConsentData(scope: string): Promise<void> {
     [familyPattern],
   )
   await dataSource.query(
+    "delete ns from notification_business_sources ns join orders o on o.id = ns.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
     "delete o from orders o join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
     [familyPattern],
   )
@@ -292,6 +296,10 @@ export async function resetEnrollmentConsentData(scope: string): Promise<void> {
   )
   await dataSource.query(
     "delete nv from notice_versions nv join tour_sessions ts on ts.id = nv.tour_session_id where ts.code like ?",
+    [`session-${scope}%`],
+  )
+  await dataSource.query(
+    "delete ns from notification_business_sources ns join tour_sessions ts on ts.id = ns.session_id where ns.kind = 'pretrip_updated' and ts.code like ?",
     [`session-${scope}%`],
   )
   await dataSource.query("delete from tour_sessions where code like ?", [`session-${scope}%`])

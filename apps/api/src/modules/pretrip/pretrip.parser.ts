@@ -5,6 +5,7 @@ import type { PretripAdjustmentInput, PretripAdjustmentProcessInput, PretripConf
 export function parsePretripConfig(value: unknown): PretripConfigInput {
   const input = record(value)
   return {
+    ...coordinates(input),
     gatheringAt: nullableIso(input["gatheringAt"], "gatheringAt"),
     gatheringPlace: text(input["gatheringPlace"], "gatheringPlace", 255),
     travelMode: travelMode(input["travelMode"]),
@@ -99,4 +100,13 @@ function integer(value: unknown, label: string): number {
 
 function invalid(message: string): BadRequestException {
   return new BadRequestException({ code: "pretrip_invalid_input", message })
+}
+
+function coordinates(input: Record<string, unknown>): Pick<PretripConfigInput, "gatheringLatitude" | "gatheringLongitude"> {
+  const latitude = input["gatheringLatitude"]
+  const longitude = input["gatheringLongitude"]
+  if (latitude === undefined && longitude === undefined) return {}
+  if (latitude === null && longitude === null) return { gatheringLatitude: null, gatheringLongitude: null }
+  if (typeof latitude !== "number" || !Number.isFinite(latitude) || Math.abs(latitude) > 90 || typeof longitude !== "number" || !Number.isFinite(longitude) || Math.abs(longitude) > 180) throw invalid("集合坐标须同时填写有效的纬度（-90 至 90）和经度（-180 至 180），或同时清空")
+  return { gatheringLatitude: latitude, gatheringLongitude: longitude }
 }

@@ -14,6 +14,12 @@ export class PretripConfigEntity {
   @Column({ name: "gathering_place", type: "varchar", length: 255 })
   gatheringPlace = ""
 
+  @Column({ name: "gathering_latitude", type: "double", nullable: true })
+  gatheringLatitude: number | null = null
+
+  @Column({ name: "gathering_longitude", type: "double", nullable: true })
+  gatheringLongitude: number | null = null
+
   @Column({ name: "travel_mode", type: "varchar", length: 16 })
   travelMode: "group" | "self" | "mixed" = "group"
 

@@ -62,6 +62,7 @@ export type NotificationTask = NotificationTaskSummary & {
 }
 
 export type NotificationSession = {
+  readonly sources: readonly NotificationBusinessSource[]
   readonly canWrite: boolean
   readonly canSend: boolean
   readonly wechatConfigured: boolean
@@ -88,7 +89,21 @@ export type NotificationEntryInput = {
 }
 
 export type NotificationTaskInput = {
+  readonly sourceId?: string
   readonly contentVersionId: string
   readonly authorizationIds: readonly string[]
   readonly idempotencyKey: string
+}
+
+export type NotificationBusinessSource = {
+  readonly id: string
+  readonly kind: "order_created" | "pretrip_updated"
+  readonly orderId: string | null
+  readonly sourceVersion: number
+  readonly title: string
+  readonly bodyText: string
+  readonly createdAt: string
+  readonly linkedTaskId: string | null
+  readonly status: "expired" | "linked" | "awaiting_authorization" | "pending"
+  readonly authorizationIds: readonly string[]
 }

@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Inject, Param, Patch, Post, Query } from "@nestjs/common"
 import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
+import { Put } from "@nestjs/common"
+import { parseEnrollmentScope } from "./configuration.scope.js"
 import { ConfigurationService } from "./configuration.service.js"
 import {
   malformedInput,
@@ -204,6 +206,13 @@ export class ConfigurationController {
   private async assertWrite(headers: RequestHeaders): Promise<void> {
     this.staffAccess.assertUnsafeOrigin(headers)
     this.staffAccess.assertConfigurationWrite(await this.staffAccess.resolve(headers))
+  }
+
+  @Put("configuration/tour-sessions/:id/enrollment-scope")
+  async updateEnrollmentScope(@Headers() headers: RequestHeaders, @Param("id") id: string, @Body() body: unknown): Promise<TourSessionResponse> {
+    await this.assertWrite(headers)
+    if (typeof body !== "object" || body === null || !("enrollmentScope" in body)) throw malformedInput("enrollmentScope is required")
+    return this.configuration.updateEnrollmentScope(id, parseEnrollmentScope(body.enrollmentScope))
   }
 }
 

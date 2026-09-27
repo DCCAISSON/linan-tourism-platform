@@ -269,6 +269,7 @@ const {
 
 .bottom-actions {
   position: fixed;
+  z-index: var(--layer-sticky);
   right: 0;
   bottom: 0;
   left: 0;

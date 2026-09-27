@@ -7,6 +7,12 @@ import {
 } from "./notifications.parser.js"
 
 describe("notification request parser", () => {
+  it("preserves an explicit business source and rejects malformed source IDs", () => {
+    const input = { contentVersionId: "content", authorizationIds: ["auth"], idempotencyKey: "task", sourceId: "source" }
+    expect(parseTask(input).sourceId).toBe("source")
+    expect(() => parseTask({ ...input, sourceId: null })).toThrow()
+    expect(() => parseTask({ ...input, sourceId: "" })).toThrow()
+  })
   it("parses explicit recipient authorization without payer fields", () => {
     const result = parseRecipientAuthorization({
       receiverName: "祖母",

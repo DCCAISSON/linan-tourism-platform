@@ -22,8 +22,8 @@ export async function saveNotificationEntry(sessionId: string, kind: Notificatio
   return parseNotificationEntry(await request(`/staff/notifications/sessions/${encodeURIComponent(sessionId)}/entries/${kind}`, jsonRequest("PUT", payload)))
 }
 
-export async function previewNotificationTargets(sessionId: string, authorizationIds: readonly string[]): Promise<readonly NotificationTargetPreview[]> {
-  return parseNotificationPreview(await request(`/staff/notifications/sessions/${encodeURIComponent(sessionId)}/preview`, jsonRequest("POST", { authorizationIds })))
+export async function previewNotificationTargets(sessionId: string, authorizationIds: readonly string[], sourceId?: string): Promise<readonly NotificationTargetPreview[]> {
+  return parseNotificationPreview(await request(`/staff/notifications/sessions/${encodeURIComponent(sessionId)}/preview`, jsonRequest("POST", { authorizationIds, ...(sourceId === undefined ? {} : { sourceId }) })))
 }
 
 export async function createNotificationTask(sessionId: string, payload: NotificationTaskInput): Promise<NotificationTask> {

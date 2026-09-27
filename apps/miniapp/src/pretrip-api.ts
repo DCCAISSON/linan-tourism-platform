@@ -15,6 +15,8 @@ export type FamilyPretrip = {
   readonly config: null | {
     readonly gatheringAt: string | null
     readonly gatheringPlace: string
+    readonly gatheringLatitude: number | null
+    readonly gatheringLongitude: number | null
     readonly travelMode: "group" | "self" | "mixed"
     readonly itineraryNote: string
     readonly contactName: string
@@ -75,6 +77,7 @@ function parseConfig(value: unknown): FamilyPretrip["config"] {
   const record = readRecord(value, "pretrip.config")
   return {
     gatheringAt: readNullableString(record, "gatheringAt", "pretrip.config"),
+    ...readCoordinates(record),
     gatheringPlace: readString(record, "gatheringPlace", "pretrip.config"),
     travelMode: readTravelMode(record, "travelMode"),
     itineraryNote: readString(record, "itineraryNote", "pretrip.config"),
@@ -122,3 +125,11 @@ function readTransportStatus(record: Record<string, unknown>, key: string): Fami
 function readVehicleStatus(record: Record<string, unknown>, key: string): FamilyPretripPerson["vehicleStatus"] { const value = record[key]; if (value === "unconfirmed" || value === "stale" || value === "unassigned" || value === "assigned") return value; throw invalid(`pretrip.person.${key}`) }
 function readErrorMessage(value: unknown): string | undefined { if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined; const message = Object.fromEntries(Object.entries(value))["message"]; return typeof message === "string" ? message : undefined }
 function invalid(field: string): ApiError { return new ApiError(0, `${field} response format is invalid`) }
+
+function readCoordinates(record: Record<string, unknown>): { readonly gatheringLatitude: number | null; readonly gatheringLongitude: number | null } {
+  const latitude = record["gatheringLatitude"]
+  const longitude = record["gatheringLongitude"]
+  if ((latitude === undefined && longitude === undefined) || (latitude === null && longitude === null)) return { gatheringLatitude: null, gatheringLongitude: null }
+  if (typeof latitude !== "number" || !Number.isFinite(latitude) || Math.abs(latitude) > 90 || typeof longitude !== "number" || !Number.isFinite(longitude) || Math.abs(longitude) > 180) throw invalid("pretrip.config.coordinates")
+  return { gatheringLatitude: latitude, gatheringLongitude: longitude }
+}

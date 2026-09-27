@@ -19,6 +19,7 @@ import {
   listTourSessions,
   readableApiError,
   updateTourSession,
+  updateEnrollmentScope,
   updateCatalogContent,
   activateNoticeVersion,
 } from "@/api/configuration"
@@ -143,7 +144,9 @@ export function useCatalogSessions() {
     sessionSubmitting.value = true
     sessionFormError.value = ""
     try {
-      const updated = await updateTourSession(change.id, change.payload)
+      const updated = Object.keys(change.payload).length === 1 && change.payload.enrollmentScope !== undefined
+        ? await updateEnrollmentScope(change.id, change.payload.enrollmentScope)
+        : await updateTourSession(change.id, change.payload)
       tourSessions.value = tourSessions.value.map(session => (session.id === updated.id ? updated : session))
     } catch (error) {
       sessionFormError.value = readableApiError(error)

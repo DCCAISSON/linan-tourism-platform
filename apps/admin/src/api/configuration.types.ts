@@ -52,7 +52,10 @@ export type NoticeVersion = {
   readonly createdAt: string
 }
 
+export type EnrollmentScope = readonly { readonly gradeId: string; readonly classIds: readonly string[] | null }[] | null
+
 export type TourSession = {
+  readonly enrollmentScope?: EnrollmentScope
   readonly id: string
   readonly organizationId: string
   readonly catalogItemId: string
@@ -101,6 +104,7 @@ export type CatalogContentPayload = {
 }
 
 export type TourSessionPayload = {
+  readonly enrollmentScope?: EnrollmentScope
   readonly organizationId: string
   readonly catalogItemId: string
   readonly code: string

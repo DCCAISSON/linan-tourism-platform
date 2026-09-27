@@ -35,6 +35,8 @@
         <label for="session-edit-close">修改报名截止</label>
         <input id="session-edit-close" v-model="editEnrollmentClosesAt" type="date" />
       </div>
+      <SessionEnrollmentScope :key="selectedSessionId" v-model="enrollmentScope" input-id="session-edit-scope" :school-id="selectedSchoolId" @valid="scopeValid = $event" />
+      <button type="button" :disabled="submitting || !scopeValid || !selectedSessionId" @click="saveScope">{{ submitting ? "保存中…" : "保存招生范围" }}</button>
       <p v-if="visibleError" class="form-error">{{ visibleError }}</p>
       <button type="submit" :disabled="submitting || selectedSessionId === ''">保存团期修改</button>
     </fieldset>
@@ -44,6 +46,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 
+import SessionEnrollmentScope from "./SessionEnrollmentScope.vue"
+import type { EnrollmentScope } from "@/api/configuration"
 import type { TourSession, TourSessionUpdatePayload } from "@/api/configuration"
 import { formatDate } from "./format"
 
@@ -66,14 +70,19 @@ const editStartsAt = ref("")
 const localError = ref("")
 const selectedSessionId = ref("")
 
+const enrollmentScope = ref<EnrollmentScope>(null)
+const scopeValid = ref(true)
+const selectedSchoolId = computed(() => props.tourSessions.find(item => item.id === selectedSessionId.value)?.organizationId ?? "")
+function saveScope(): void {
+  if (scopeValid.value && selectedSessionId.value) emit("update", { id: selectedSessionId.value, payload: { enrollmentScope: enrollmentScope.value } })
+}
+
 const visibleError = computed(() => localError.value || props.formError)
 
 watch(
   () => props.tourSessions,
   sessions => {
-    if (selectedSessionId.value === "") {
-      fillEditFields(sessions.at(0))
-    }
+    fillEditFields(sessions.find(item => item.id === selectedSessionId.value) ?? sessions.at(0))
   },
   { immediate: true },
 )
@@ -120,6 +129,7 @@ function submit(): void {
 }
 
 function fillEditFields(session: TourSession | undefined): void {
+  enrollmentScope.value = session?.enrollmentScope ?? null
   selectedSessionId.value = session?.id ?? ""
   editPriceYuan.value = session === undefined ? "" : String(session.priceFen / 100)
   editMinimumParticipants.value = session?.minimumParticipants == null ? "" : String(session.minimumParticipants)

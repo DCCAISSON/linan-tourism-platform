@@ -10,6 +10,9 @@ import {
 import { NotificationRecipientAuthorizationEntity } from "../../domain/entities/notification-recipient-authorization.entity.js"
 import { OrderEntity } from "../../domain/entities/order.entity.js"
 import { EnrollmentEntity } from "../../domain/entities/enrollment.entity.js"
+import { NotificationBusinessSourceEntity } from "../../domain/entities/notification-business-source.entity.js"
+import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
+import { businessSourceAllowsOrder, businessSourceIsCurrent } from "./notification-business-source.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
 import { NotificationAccessService } from "./notification-access.service.js"
@@ -72,11 +75,13 @@ export class NotificationDispatchService {
 
   private async dispatchTarget(manager: EntityManager, task: NotificationDeliveryTaskEntity, targetId: string, mode: NotificationDispatchMode): Promise<void> {
     await manager.transaction(async (transaction) => {
+      const source = await transaction.findOneBy(NotificationBusinessSourceEntity, { linkedTaskId: task.id })
+      if (source !== null) await transaction.findOneOrFail(TourSessionEntity, { where: { id: task.tourSessionId }, lock: { mode: "pessimistic_write" } })
       const target = await transaction.findOneOrFail(NotificationDeliveryTargetEntity, { where: { id: targetId, taskId: task.id }, lock: { mode: "pessimistic_write" } })
       if (!canDispatchTarget(mode, target.status)) return
       const authorization = await transaction.findOneOrFail(NotificationRecipientAuthorizationEntity, { where: { id: target.authorizationId }, lock: { mode: "pessimistic_write" } })
       const attemptNumber = await transaction.countBy(NotificationDeliveryAttemptEntity, { targetId: target.id }) + 1
-      const outcome = await this.sendTarget(transaction, task, target, authorization)
+      const outcome = await this.sendTarget(transaction, task, target, authorization, source)
       const attempt = transaction.create(NotificationDeliveryAttemptEntity, {
         id: randomUUID(), taskId: task.id, targetId: target.id, attemptNumber,
         status: outcome.status, errorCode: outcome.errorCode,
@@ -93,11 +98,18 @@ export class NotificationDispatchService {
     task: NotificationDeliveryTaskEntity,
     target: NotificationDeliveryTargetEntity,
     authorization: NotificationRecipientAuthorizationEntity,
+    source: NotificationBusinessSourceEntity | null = null,
   ): Promise<WechatSubscribeOutcome> {
     if (!isAuthorizationCurrent(authorization.active, authorization.version, target.authorizationVersion)) return manual("authorization_withdrawn", "接收人授权已撤回或变更，未发送")
-    const order = await manager.findOneBy(OrderEntity, { id: authorization.orderId, organizationId: task.organizationId })
+    const order = source === null
+      ? await manager.findOneBy(OrderEntity, { id: authorization.orderId, organizationId: task.organizationId })
+      : await manager.findOne(OrderEntity, { where: { id: authorization.orderId, organizationId: task.organizationId }, lock: { mode: "pessimistic_write" } })
     const enrollment = order === null ? null : await manager.findOneBy(EnrollmentEntity, { id: order.enrollmentId, tourSessionId: task.tourSessionId })
     if (enrollment === null || authorization.orderId !== target.orderId || authorization.organizationId !== task.organizationId) return manual("authorization_scope_changed", "接收人不再属于本团，未发送")
+    if (source !== null) {
+      if (source.sessionId !== task.tourSessionId || !(await businessSourceIsCurrent(manager, source))) return manual("notification_source_expired", "业务通知来源已过期或团期已撤销，未发送")
+      if (order === null || !businessSourceAllowsOrder(source, order) || enrollment.status === "cancelled") return manual("notification_order_ineligible", "业务来源订单不匹配、已退款或已失效，未发送")
+    }
     if (target.channel === "manual") return manual("manual_delivery_required", "该接收人仅允许人工处理")
     if (target.subscriberOpenid === null) return manual("subscriber_openid_missing", "接收人没有可用的微信订阅身份")
     if (target.subscriberOpenid === authorization.familyActorId || /^[a-f0-9]{64}$/i.test(target.subscriberOpenid)) {

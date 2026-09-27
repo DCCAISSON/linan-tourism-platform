@@ -12,6 +12,7 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
 import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
+import { recordPretripNotificationSource } from "../notifications/notification-business-source.js"
 import { findScopedOrder } from "../order/order.persistence.js"
 import { assertTravelerActionable, readTravelers, resolveTraveler } from "../travelers/travelers.read-model.js"
 import type { PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
@@ -76,11 +77,13 @@ export class PretripService {
   async saveStaffConfig(access: StaffAccess, tourSessionId: string, input: PretripConfigInput): Promise<PretripConfigResponse> {
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
-      const session = await requireSession(manager, tourSessionId)
+      const session = await manager.findOne(TourSessionEntity, { where: { id: tourSessionId }, lock: { mode: "pessimistic_write" } })
+      if (session === null) throw missing("tour session not found")
       this.staffAccess.assertPretripManageScope(access, sessionScope(session))
       const current = await manager.findOne(PretripConfigEntity, { where: { tourSessionId: session.id }, lock: { mode: "pessimistic_write" } })
       if ((current?.version ?? 0) !== input.expectedVersion) throw stale("pretrip configuration has changed")
       const row = current ?? manager.create(PretripConfigEntity, { tourSessionId: session.id, version: 0 })
+      updateGatheringCoordinates(row, input)
       Object.assign(row, {
         gatheringAt: input.gatheringAt === null ? null : new Date(input.gatheringAt),
         gatheringPlace: input.gatheringPlace,
@@ -107,6 +110,7 @@ export class PretripService {
         })))
       }
       await audit(manager, session, access.actorId, "pretrip.config.saved", session.id)
+      await recordPretripNotificationSource(manager, { session, config: row })
       return this.configResponse(manager, session.id)
     })
   }
@@ -238,6 +242,12 @@ export class PretripService {
   }
 }
 
+export function updateGatheringCoordinates(row: PretripConfigEntity, input: PretripConfigInput): void {
+  if (input.gatheringLatitude === undefined && input.gatheringPlace === row.gatheringPlace) return
+  row.gatheringLatitude = input.gatheringLatitude ?? null
+  row.gatheringLongitude = input.gatheringLongitude ?? null
+}
+
 async function findOrDefaultConfig(manager: EntityManager, tourSessionId: string): Promise<PretripConfigEntity> {
   const row = await manager.findOneBy(PretripConfigEntity, { tourSessionId })
   return row ?? manager.create(PretripConfigEntity, { tourSessionId, version: 0 })
@@ -312,6 +322,8 @@ function toConfigResponse(row: PretripConfigEntity, attachmentRows: readonly Pre
     tourSessionId: row.tourSessionId,
     gatheringAt: row.gatheringAt?.toISOString() ?? null,
     gatheringPlace: row.gatheringPlace,
+    gatheringLatitude: row.gatheringLatitude,
+    gatheringLongitude: row.gatheringLongitude,
     travelMode: row.travelMode,
     itineraryNote: row.itineraryNote,
     contactName: row.contactName,

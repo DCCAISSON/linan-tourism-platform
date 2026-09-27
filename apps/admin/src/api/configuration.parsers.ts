@@ -1,3 +1,4 @@
+import { parseEnrollmentScope } from "./configuration.enrollment-scope"
 import { ApiError } from "./configuration.errors"
 import type { CatalogItem, Grade, NoticeContent, NoticeVersion, School, SchoolClass, TourSession } from "./configuration.types"
 
@@ -66,6 +67,7 @@ export function parseTourSession(value: unknown): TourSession {
     status: readString(record, "status", "draft"),
     priceFen: readNumber(record, "priceFen"),
     capacity: readNumber(record, "capacity"),
+    enrollmentScope: parseEnrollmentScope(record["enrollmentScope"]),
     minimumParticipants: readOptionalCount(record, "minimumParticipants"),
     occupiedCapacity: readOptionalCount(record, "occupiedCapacity"),
     activeNoticeId: readNullableString(record, "activeNoticeId"),
