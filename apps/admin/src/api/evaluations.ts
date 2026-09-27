@@ -93,7 +93,7 @@ export async function batchEvaluate(input: { readonly tourSessionId: string; rea
   await request("/evaluations/staff/batch", input)
 }
 
-export async function reviseEvaluation(row: EvaluationRow, input: Omit<EvaluationObservation, "personRef">): Promise<void> {
+export async function reviseEvaluation(row: EvaluationRow, input: Omit<EvaluationObservation, "personRef"> & { readonly standardId?: string }): Promise<void> {
   await request(`/evaluations/staff/${encodeURIComponent(row.id)}`, { ...input, expectedVersion: row.version })
 }
 

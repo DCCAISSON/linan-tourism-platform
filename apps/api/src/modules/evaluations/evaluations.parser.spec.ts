@@ -9,9 +9,13 @@ import {
 describe("evaluation parser", () => {
   const draft = {
     tourSessionId: "session-a", title: "观察规则",
-    items: [{ code: "A", label: "A", description: "学校A规则" }, { code: "B", label: "B", description: "学校B规则" }],
+    items: [{ code: "A", label: "优秀", description: "学校A规则" }, { code: "B", label: "合格", description: "学校B规则" }],
     publicFormatNote: "仅输出确认等级",
   }
+
+  it.each(["A", "B"])("rejects an unapproved %s label when creating a new standard", (code) => {
+    expect(() => parseEvaluationStandard({ ...draft, items: draft.items.map((item) => item.code === code ? { ...item, label: "自定义名称" } : item) })).toThrow("新建标准的等级名称须为 A=优秀、B=合格")
+  })
 
   it("accepts optional observation dimensions without assigning a grade or score", () => {
     const dimensions = [{ code: "participation", label: "参与态度", description: "记录参与学习的具体表现" }]
@@ -37,8 +41,8 @@ describe("evaluation parser", () => {
       tourSessionId: "session-a",
       title: "研学表现等级",
       items: [
-        { code: "A", label: "表现优秀", description: "主动协作并完成任务" },
-        { code: "B", label: "达到要求", description: "完成主要活动" },
+        { code: "A", label: "优秀", description: "主动协作并完成任务" },
+        { code: "B", label: "合格", description: "完成主要活动" },
       ],
       publicFormatNote: "基础格式，未取得正式模板",
     })

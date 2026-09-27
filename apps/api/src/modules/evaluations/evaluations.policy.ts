@@ -1,5 +1,6 @@
 import { ForbiddenException } from "@nestjs/common"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
+import type { TravelerDto } from "../travelers/travelers.types.js"
 import type { EvaluationSummaryRow, SchoolEvaluationRow } from "./evaluations.types.js"
 
 export type EvaluationActor = StaffAccess | {
@@ -7,6 +8,10 @@ export type EvaluationActor = StaffAccess | {
   readonly actorId: string
   readonly permissionKeys: ReadonlySet<string>
   readonly scopes: readonly []
+}
+
+export function isEligibleEvaluationStudent(row: Pick<TravelerDto, "active" | "conflict" | "participantKind" | "importedRole">): boolean {
+  return row.active && row.conflict === null && (row.participantKind === "student" || row.importedRole === "student")
 }
 
 export function assertEvaluationPermission(actor: EvaluationActor, permission: string): void {

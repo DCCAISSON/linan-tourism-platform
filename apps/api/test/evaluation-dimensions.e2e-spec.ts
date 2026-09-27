@@ -17,7 +17,7 @@ import { collectBinary, payEnrollment } from "./roster-export-fixture.js"
 
 const dimensions = [{ code: "participation", label: "参与态度", description: "记录具体学习表现" }]
 const facts = [{ code: "participation", observation: "内部逐项观察-EVAL-DIM-MARKER-不得外发" }]
-const evidence = new URL("../../../.omo/evidence/business-continuation-20260927/evaluation/database/", import.meta.url)
+const evidence = new URL("../../../.omo/evidence/confirmed-business-20260927/evaluations/database/", import.meta.url)
 const environment = { NODE_ENV: "development", ADMIN_WEB_ORIGIN: CONTINUATION_ORIGIN, PERSON_DATA_ENCRYPTION_KEY_BASE64: Buffer.alloc(32, 17).toString("base64") }
 const previousEnvironment = Object.keys(environment).map((key) => ({ key, value: process.env[key] }))
 let app: INestApplication
@@ -86,6 +86,8 @@ describe.skipIf(databaseUrl === undefined)("evaluation dimensions with real MySQ
     expect(stored.dimensionObservations).toEqual(facts)
     await batch(standard.id, { personRef: ungradedRef, gradeCode: null }).expect(201)
     await post(`/evaluations/staff/${saved.id}`, revision(saved.version, { gradeCode: "A" })).expect(201)
+    await post(`/evaluations/staff/sessions/${catalog.tourSessionId}/confirm`, {}).expect(409)
+    await batch(standard.id, { personRef: ungradedRef, gradeCode: "B" }).expect(201)
     await post(`/evaluations/staff/sessions/${catalog.tourSessionId}/confirm`, {}).expect(201)
     const confirmed = await dataSource.getRepository(StudentEvaluationEntity).findOneByOrFail({ id: saved.id })
     expect(confirmed.dimensionObservations).toEqual(facts)
@@ -94,12 +96,16 @@ describe.skipIf(databaseUrl === undefined)("evaluation dimensions with real MySQ
     await post(`/evaluations/staff/${saved.id}`, revision(confirmed.version, { dimensionObservations: changed })).expect(201)
     const revoked = await dataSource.getRepository(StudentEvaluationEntity).findOneByOrFail({ id: saved.id })
     expect(revoked).toMatchObject({ gradeCode: "A", dimensionObservations: changed, confirmedAt: null, confirmedByStaffId: null, version: confirmed.version + 1 })
-    expect((await schoolRows()).body).toEqual([])
+    expect((await schoolRows()).body).toEqual([expect.objectContaining({ personRef: ungradedRef, gradeCode: "B" })])
     await post(`/evaluations/staff/${saved.id}`, revision(revoked.version, {})).expect(201)
     expect((await dataSource.getRepository(StudentEvaluationEntity).findOneByOrFail({ id: saved.id })).dimensionObservations).toEqual(changed)
     await post(`/evaluations/staff/sessions/${catalog.tourSessionId}/confirm`, {}).expect(201)
     const exported = await schoolRows()
-    expect(exported.body).toEqual([{ personRef, displayName: "观察学生甲", gradeName: "Grade One", className: "Class One", gradeCode: "A", gradeLabel: "A" }])
+    expect(exported.body).toEqual(expect.arrayContaining([
+      { personRef, displayName: "观察学生甲", gradeName: "Grade One", className: "Class One", gradeCode: "A", gradeLabel: "优秀" },
+      { personRef: ungradedRef, displayName: "未评级学生乙", gradeName: "Grade One", className: "Class One", gradeCode: "B", gradeLabel: "合格" },
+    ]))
+    expect(exported.body).toHaveLength(2)
     expect(JSON.stringify(exported.body)).not.toContain("dimensionObservations")
     for (const format of ["xlsx", "wordxml"] as const) {
       const result = await request(app.getHttpServer()).get(`/evaluations/school/sessions/${catalog.tourSessionId}/report`).set(continuationHeaders(school)).query({ organizationId: catalog.schoolId, format }).buffer(true).parse(collectBinary).expect(200)
@@ -111,11 +117,11 @@ describe.skipIf(databaseUrl === undefined)("evaluation dimensions with real MySQ
         const workbook = new ExcelJS.Workbook()
         await workbook.xlsx.read(Readable.from(result.body))
         const sheet = workbook.getWorksheet("学校评价报告")
-        expect(sheet?.rowCount).toBe(2)
+        expect(sheet?.rowCount).toBe(3)
         content = JSON.stringify(sheet?.getSheetValues())
       }
       expect(content).toContain("观察学生甲")
-      for (const forbidden of ["EVAL-DIM-MARKER", "dimensionObservations", "participation", "未评级学生乙"]) expect(content).not.toContain(forbidden)
+      for (const forbidden of ["EVAL-DIM-MARKER", "dimensionObservations", "participation"]) expect(content).not.toContain(forbidden)
     }
     const beforeClear = await dataSource.getRepository(StudentEvaluationEntity).findOneByOrFail({ id: saved.id })
     await post(`/evaluations/staff/${saved.id}`, revision(beforeClear.version, { dimensionObservations: [] })).expect(201)
@@ -164,7 +170,7 @@ function post(endpoint: string, body: object) {
   return request(app.getHttpServer()).post(endpoint).set(continuationHeaders(staff)).send(body)
 }
 function standardBody(values: readonly EvaluationDimension[] | undefined) {
-  return { tourSessionId: catalog.tourSessionId, title: "学校确认观察标准", items: [{ code: "A", label: "A", description: "学校A规则" }, { code: "B", label: "B", description: "学校B规则" }], publicFormatNote: "仅输出确认等级", ...(values === undefined ? {} : { dimensions: values }) }
+  return { tourSessionId: catalog.tourSessionId, title: "学校确认观察标准", items: [{ code: "A", label: "优秀", description: "学校A规则" }, { code: "B", label: "合格", description: "学校B规则" }], publicFormatNote: "仅输出确认等级", ...(values === undefined ? {} : { dimensions: values }) }
 }
 async function createStandard(values: readonly EvaluationDimension[] | undefined, confirmed = true): Promise<EvaluationStandardSummary> {
   const created = await post("/evaluations/staff/standards", standardBody(values)).expect(201)

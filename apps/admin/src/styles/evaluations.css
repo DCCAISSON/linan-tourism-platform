@@ -119,8 +119,33 @@
   border-radius: var(--radius-control);
   padding: var(--space-4);
 }
+.evaluation-mobile-grade { display: none; }
 @media (max-width: 640px) {
   .evaluation-heading {
     display: grid;
   }
+  .staff-evaluation-table .evaluation-student-core {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: 8em;
+    min-width: 8em;
+    max-width: 8em;
+    padding-inline: var(--space-2);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    background: var(--surface-elevated);
+  }
+  .evaluation-mobile-grade { display: block; }
+  .school-evaluation-table { min-width: 0; table-layout: fixed; }
+  .school-evaluation-table th,
+  .school-evaluation-table td {
+    padding: var(--space-2);
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: var(--font-body-sm);
+  }
+  .school-evaluation-table th:first-child { width: 35%; }
+  .school-evaluation-table th:last-child { width: 25%; }
 }

@@ -16,7 +16,11 @@ const revision = { expectedVersion: 1, gradeCode: "B", internalComment: "修改�
 async function fixture() {
   const row: StudentEvaluationEntity = Object.assign(new StudentEvaluationEntity(), { id: "eval-a", tourSessionId: "session-a", personRef: "paid:line-a", organizationId: "school-a", displayName: "学生甲", standardId: "std-a", standardVersion: 2, gradeCode: "A", gradeLabel: "学校A", confirmedAt: new Date(), confirmedByStaffId: "staff-a" })
   const standard = Object.assign(new EvaluationStandardEntity(), { id: "std-a", tourSessionId: "session-a", confirmedAt: new Date(), version: 2, items: [{ code: "A", label: "学校A", description: "学校A规则" }, { code: "B", label: "学校B", description: "学校B规则" }], dimensions: [{ code: "participation", label: "参与态度", description: "参与事实" }] })
+  const people = ["a", "b"].map((suffix) => ({ id: `line-${suffix}`, tourSessionId: "session-a", organizationId: "school-a", displayName: `学生${suffix}`, participantKind: "student", importedRole: null, identityHash: null, orderStatus: "paid", rosterStatus: "active" }))
+  const lockedRows = { where() { return this }, setLock() { return this }, getMany: async () => [row] }
   const manager = {
+    query: async (sql: string) => sql.includes("from order_lines") ? people : [],
+    createQueryBuilder: () => lockedRows,
     findOne: async () => row,
     findOneBy: async (entity: unknown) => entity === TourSessionEntity ? { id: "session-a", organizationId: "school-a" } : standard,
     find: vi.fn(async () => [standard]),
@@ -27,10 +31,30 @@ async function fixture() {
     { provide: ConfigurationDatabaseService, useValue: { getDataSource: async () => ({ manager, transaction: async (run: (value: typeof manager) => Promise<unknown>) => run(manager) }) } },
     { provide: ExecutionAccessService, useValue: { assertAssigned: assigned } },
   ] }).compile()
-  return { service: module.get(EvaluationsService), row, manager, assigned }
+  return { service: module.get(EvaluationsService), row, manager, assigned, people }
 }
 
 describe("evaluation service workflow", () => {
+  it("rejects final confirmation with missing students and leaves existing confirmation unchanged", async () => {
+    // Given one recorded grade and a second eligible student without a record.
+    const { service, row } = await fixture()
+    row.confirmedAt = null
+    // When final confirmation is requested, then the missing person is named and nothing is confirmed.
+    await expect(service.confirmSession(staff, "session-a")).rejects.toMatchObject({ response: { code: "evaluation_students_ungraded", pendingStudents: [{ personRef: "paid:line-b", displayName: "学生b" }] } })
+    expect(row.confirmedAt).toBeNull()
+    expect(row.version).toBe(1)
+  })
+  it.each(["adult", "inactive"])("rejects revision when the target becomes %s", async (state) => {
+    // Given a previously evaluated person whose current eligibility changed.
+    const { service, people, row } = await fixture()
+    const target = people[0]
+    if (!target) throw new Error("Missing fixture person")
+    if (state === "adult") target.participantKind = "adult"
+    else target.rosterStatus = "cancelled"
+    // When revised, then the target is rejected without changing the record.
+    await expect(service.revise(staff, row.id, revision)).rejects.toBeInstanceOf(ConflictException)
+    expect(row.version).toBe(1)
+  })
   it("persists revised dimension facts and revokes confirmation without changing the manual grade", async () => {
     const { service } = await fixture()
     const dimensionObservations = [{ code: "participation", observation: "补充：主动整理小组记录" }]
@@ -65,6 +89,13 @@ describe("evaluation service workflow", () => {
     const { service, row } = await fixture()
     row.standardId = null
     await expect(service.revise(staff, "eval-a", revision)).rejects.toBeInstanceOf(ConflictException)
+  })
+  it("attaches an explicitly selected confirmed standard when revising an observation without a standard", async () => {
+    const { service, row } = await fixture()
+    row.standardId = null
+    row.gradeCode = null
+    const result = await service.revise(staff, row.id, parseEvaluationRevision({ ...revision, standardId: "std-a" }))
+    expect(result).toMatchObject({ standardId: "std-a", gradeCode: "B", gradeLabel: "学校B", version: 2, confirmedAt: null })
   })
   it("rejects an unassigned guide before exposing evaluation records", async () => {
     const { service, manager } = await fixture()

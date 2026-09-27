@@ -34,6 +34,7 @@ export type BatchEvaluationInput = {
   readonly idempotencyKey: string
 }
 export type EvaluationRevisionInput = {
+  readonly standardId?: string
   readonly dimensionObservations?: readonly DimensionObservation[]
   readonly expectedVersion: number
   readonly internalComment: string

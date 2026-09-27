@@ -10,7 +10,7 @@ import { ExecutionAccessService } from "../execution/execution-access.service.js
 import { assertTravelerActionable, readTravelers, resolveTraveler } from "../travelers/travelers.read-model.js"
 import type { PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
 import { createSchoolEvaluationWorkbook, createSchoolEvaluationWordXml } from "./evaluation-report.js"
-import { assertEvaluationPermission, canReadSchoolEvaluations, filterSchoolConfirmedGrades } from "./evaluations.policy.js"
+import { assertEvaluationPermission, canReadSchoolEvaluations, filterSchoolConfirmedGrades, isEligibleEvaluationStudent } from "./evaluations.policy.js"
 import { resolveDimensionObservations } from "./evaluations.dimensions.js"
 import type {
   BatchEvaluationInput,
@@ -52,7 +52,7 @@ export class EvaluationsService {
       db.manager.find(StudentEvaluationEntity, { where: { tourSessionId }, order: { updatedAt: "DESC" } }),
       readTravelers(db.manager, tourSessionId),
     ])
-    const students = snapshot.travelers.filter((row) => row.active && row.conflict === null && (row.participantKind === "student" || row.importedRole === "student"))
+    const students = snapshot.travelers.filter(isEligibleEvaluationStudent)
       .map(({ personRef, displayName, gradeName, className }) => ({ personRef, displayName, gradeName, className }))
     return { organizationId: session.organizationId, students, standards: standards.map(toStandardSummary), evaluations: evaluations.map(toSummaryRow) }
   }
@@ -101,6 +101,7 @@ export class EvaluationsService {
       for (const observation of input.observations) {
         const traveler = resolveTraveler(snapshot, observation.personRef)
         assertTravelerActionable(traveler)
+        assertEligibleStudent(snapshot.travelers, traveler.personRef)
         rows.push(await upsertEvaluation(manager, staff, traveler, {
           standard,
           idempotencyKey: input.idempotencyKey,
@@ -124,9 +125,17 @@ export class EvaluationsService {
       if (staff.kind === "guide") await this.execution.assertAssignedIn(manager, staff, { sessionId: row.tourSessionId, vehicleId: undefined })
       await assertStaffSession(manager, staff, row.tourSessionId)
       if (row.version !== input.expectedVersion) throw stale()
-      const standard = row.standardId === null ? null : await confirmedStandard(manager, row.standardId, row.tourSessionId)
+      const snapshot = await readTravelers(manager, row.tourSessionId)
+      assertEligibleStudent(snapshot.travelers, row.personRef)
+      if (input.standardId !== undefined && row.standardId !== null && input.standardId !== row.standardId) {
+        throw new ConflictException({ code: "evaluation_standard_locked", message: "已有评价标准不能在逐人修订时更换。" })
+      }
+      const standardId = input.standardId ?? row.standardId
+      const standard = standardId === null ? null : await confirmedStandard(manager, standardId, row.tourSessionId)
       const dimensionObservations = resolveDimensionObservations(row, standard, input.dimensionObservations)
       applyGrade(row, standard, input.gradeCode)
+      row.standardId = standard?.id ?? null
+      row.standardVersion = standard?.version ?? null
       row.dimensionObservations = dimensionObservations
       row.internalComment = input.internalComment
       row.excellent = input.excellent
@@ -144,7 +153,19 @@ export class EvaluationsService {
     const db = await this.database.getDataSource()
     return db.transaction(async (manager) => {
       await assertStaffSession(manager, staff, tourSessionId)
-      const rows = await manager.findBy(StudentEvaluationEntity, { tourSessionId })
+      const snapshot = await readTravelers(manager, tourSessionId)
+      const students = snapshot.travelers.filter(isEligibleEvaluationStudent)
+      const eligibleRefs = new Set<string>(students.map((student) => student.personRef))
+      const records = await manager.createQueryBuilder(StudentEvaluationEntity, "evaluation")
+        .where("evaluation.tourSessionId = :tourSessionId", { tourSessionId }).setLock("pessimistic_write").getMany()
+      const rows = records.filter((row) => eligibleRefs.has(row.personRef))
+      const pendingStudents = students.filter((student) => !rows.some((row) => row.personRef === student.personRef && row.gradeCode !== null))
+        .map(({ personRef, displayName }) => ({ personRef, displayName }))
+      if (pendingStudents.length > 0) throw new ConflictException({ code: "evaluation_students_ungraded", message: `还有 ${pendingStudents.length} 名学生未评价：${pendingStudents.map((student) => student.displayName).join("、")}。请逐人选择等级后确认。`, pendingStudents })
+      for (const standardId of new Set(rows.map((row) => row.standardId))) {
+        if (standardId === null) throw new ConflictException({ code: "evaluation_standard_required", message: "请先选择已确认的评价标准。" })
+        await confirmedStandard(manager, standardId, tourSessionId)
+      }
       for (const row of rows) {
         if (row.gradeCode !== null) {
           row.confirmedAt = new Date()
@@ -161,7 +182,9 @@ export class EvaluationsService {
     if (!canReadSchoolEvaluations(staff, organizationId)) throw new ForbiddenException({ code: "evaluation_school_forbidden", message: "school report forbidden" })
     await assertStaffSession(db.manager, staff, tourSessionId)
     const rows = await db.manager.find(StudentEvaluationEntity, { where: { tourSessionId, organizationId }, order: { className: "ASC", displayName: "ASC" } })
-    return filterSchoolConfirmedGrades(rows.map(toSummaryRow), organizationId)
+    const snapshot = await readTravelers(db.manager, tourSessionId)
+    const eligibleRefs = new Set<string>(snapshot.travelers.filter(isEligibleEvaluationStudent).map((student) => student.personRef))
+    return filterSchoolConfirmedGrades(rows.filter((row) => eligibleRefs.has(row.personRef)).map(toSummaryRow), organizationId)
   }
 
   async schoolReport(staff: StaffAccess, tourSessionId: string, organizationId: string, format: "xlsx" | "wordxml"): Promise<{ readonly filename: string; readonly contentType: string; readonly body: Buffer; readonly formatLabel: string }> {
@@ -170,6 +193,12 @@ export class EvaluationsService {
       return { filename: "school-evaluation-report.xlsx", contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", body: await createSchoolEvaluationWorkbook(rows), formatLabel: "Excel 基础格式" }
     }
     return { filename: "school-evaluation-report.xml", contentType: "application/msword", body: createSchoolEvaluationWordXml(rows, { title: "研学评价报告", templateNote: "本报告仅列出已确认的评价等级，不含内部观察记录。" }), formatLabel: "Word XML 基础格式" }
+  }
+}
+
+function assertEligibleStudent(travelers: readonly TravelerRecord[], personRef: string): void {
+  if (!travelers.some((traveler) => traveler.personRef === personRef && isEligibleEvaluationStudent(traveler))) {
+    throw new ConflictException({ code: "evaluation_student_ineligible", message: "仅可评价当前有效且无名单冲突的学生，请刷新名单。" })
   }
 }
 

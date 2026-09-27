@@ -15,6 +15,7 @@ import type {
 export function parseEvaluationStandard(body: unknown): EvaluationStandardInput {
   const record = inputRecord(body, ["tourSessionId", "title", "items", "publicFormatNote", "dimensions"])
   const items = readItems(record["items"])
+  if (items.some((item) => item.label !== (item.code === "A" ? "优秀" : "合格"))) throw invalid("新建标准的等级名称须为 A=优秀、B=合格")
   const codes = new Set(items.map((item) => item.code))
   if (!codes.has("A") || !codes.has("B")) throw invalid("confirmed standard requires explicit A/B labels")
   return {
@@ -48,8 +49,9 @@ export function parseBatchEvaluation(body: unknown): BatchEvaluationInput {
 }
 
 export function parseEvaluationRevision(body: unknown): EvaluationRevisionInput {
-  const record = inputRecord(body, ["expectedVersion", "internalComment", "excellent", "attention", "gradeCode", "dimensionObservations"])
+  const record = inputRecord(body, ["expectedVersion", "internalComment", "excellent", "attention", "gradeCode", "dimensionObservations", "standardId"])
   return {
+    ...(record["standardId"] === undefined ? {} : { standardId: readId(record, "standardId") }),
     expectedVersion: readVersion(record),
     internalComment: readText(record, "internalComment", 500, true),
     excellent: readBoolean(record, "excellent"),
