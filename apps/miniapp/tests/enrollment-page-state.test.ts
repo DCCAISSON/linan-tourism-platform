@@ -43,6 +43,23 @@ function session(id: string, noticeVersion = "v1"): TourSession {
 }
 
 describe("enrollment draft recovery", () => {
+  it("keeps guest form input and waits for consent before opening review", async () => {
+    const page = pageState()
+    vi.stubGlobal("uni", { pageScrollTo: vi.fn() })
+    page.authenticated.value = false
+    page.catalog.sessions = [session("first")]
+    Object.assign(page.draft, { selectedTourSessionId: "first", selectedSchoolId: "school", contactName: "王女士", contactPhone: "19900003099", familyMembers: [{ id: "local", code: "local", displayName: "学生甲", participantKind: "adult", identityNumber: "110105201001010010", selected: true }] })
+    await nextTick()
+    page.draft.agreementAccepted = true
+    page.enterReview()
+    expect(page.pageMode.value).toBe("editing")
+    expect(apiCalls.submitEnrollment).not.toHaveBeenCalled()
+    await page.completeLogin()
+    expect(page.pageMode.value).toBe("review")
+    expect(page.draft.contactName).toBe("王女士")
+    expect(page.draft.familyMembers[0]?.displayName).toBe("学生甲")
+    vi.unstubAllGlobals()
+  })
   it("keeps and allows deletion of a one-time participant created before a failed submission", async () => {
     // Given: the member API succeeded, but enrollment submission has not completed.
     const page = pageState()

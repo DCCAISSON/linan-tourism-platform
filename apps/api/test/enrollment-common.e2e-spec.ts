@@ -29,6 +29,49 @@ describe.skipIf(databaseUrl === undefined)("Enrollment common participants", () 
   })
   afterAll(closeCatalogTripDatabase)
 
+  it.each(["7", "张3"])("rejects invalid participant names on create and update: %s", async (displayName) => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const headers = familyHeader(scope, "name")
+    const body = memberBody(catalog, "欧阳明", `member-${scope}-name`)
+    const member = await request(app.getHttpServer()).post("/enrollment/members").set(headers).send(body).expect(201)
+    // When
+    const created = await request(app.getHttpServer()).post("/enrollment/members").set(headers).send({ ...body, displayName }).expect(400)
+    const patched = await request(app.getHttpServer()).patch(`/enrollment/members/${member.body.id}`).set(headers).send({ displayName }).expect(400)
+    // Then
+    expect(created.body.code).toBe("malformed_input")
+    expect(patched.body.code).toBe("malformed_input")
+  })
+
+  it.each(["contactName", "emergencyContactName"])("rejects invalid %s through the enrollment API", async (field) => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const headers = familyHeader(scope, "name")
+    const member = await request(app.getHttpServer()).post("/enrollment/members").set(headers)
+      .send(memberBody(catalog, "阿卜杜拉·买买提", `member-${scope}-name`)).expect(201)
+    const body = enrollmentBody({ catalog, memberIds: [member.body.id], contactName: "Anne-Marie", emergencyContactName: "O'Connor", emergencyContactPhone: "19900001111" })
+    // When
+    const response = await request(app.getHttpServer()).post("/enrollments").set(headers).send({ ...body, [field]: "7" }).expect(400)
+    // Then
+    expect(response.body.code).toBe("malformed_input")
+    expect(response.body.message).toContain(field)
+  })
+
+  it("reads historic member names without applying new input rules", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const headers = familyHeader(scope, "old")
+    const member = await request(app.getHttpServer()).post("/enrollment/members").set(headers)
+      .send({ ...memberBody(catalog, "张三", `member-${scope}-old`), saveAsCommon: true }).expect(201)
+    await dataSource.query("UPDATE family_members SET display_name = ? WHERE id = ?", ["7", member.body.id])
+    // When
+    const response = await request(app.getHttpServer()).get(`/enrollment/members/${member.body.id}`).set(headers).expect(200)
+    const listed = await request(app.getHttpServer()).get("/enrollment/members").set(headers).expect(200)
+    // Then
+    expect(response.body.displayName).toBe("7")
+    expect(listed.body).toEqual([expect.objectContaining({ id: member.body.id, displayName: "7" })])
+  })
+
   it("lists only consented common participants while retaining unsaved enrollment history and family isolation", async () => {
     // Given
     const catalog = await createCatalog(app, scope)

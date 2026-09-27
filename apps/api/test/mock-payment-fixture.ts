@@ -37,7 +37,7 @@ export async function createPaidEnrollmentFixture(
       scope: input.scope,
       headers,
       catalog,
-      displayName: `Payment Child ${index + 1}`,
+      displayName: `Payment Child ${String.fromCharCode(65 + index)}`,
       codeSuffix: `${index + 1}`,
     })
     memberIds.push(member.id)

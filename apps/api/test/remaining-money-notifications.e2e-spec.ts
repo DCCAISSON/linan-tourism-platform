@@ -239,7 +239,7 @@ async function paidOrder(target: INestApplication, catalog: CatalogFixture, fami
   const headers = familyHeader(scope, family)
   const memberIds = []
   for (let index = 0; index < count; index += 1) {
-    const displayName = `Todo14 ${family} ${index}`
+    const displayName = `Payment Child ${family} ${String.fromCharCode(65 + index)}`
     const code = `member-${scope}-${family}-${index}`
     const identity = { participantKind: "student" as const, identityNumber: virtualResidentId("20100101", String(identitySequence).padStart(3, "0")), phone: virtualPhone(String(identitySequence)) }
     identitySequence += 1

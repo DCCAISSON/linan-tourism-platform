@@ -6,7 +6,7 @@ import process from "node:process"
 import { fileURLToPath } from "node:url"
 import { closeServer, createFixtureServer, listen } from "./e2e-fixture.mjs"
 import { runDiscoveryAfter, runDiscoveryBefore } from "./discovery-journey.mjs"
-import { assertIncludes, assertNoHorizontalOverflow, evidenceDir, required, screenshot, waitForRoute } from "./e2e-ui.mjs"
+import { assertIncludes, assertNoHorizontalOverflow, componentWithText, evidenceDir, required, screenshot, waitForRoute } from "./e2e-ui.mjs"
 
 const cliPath = process.env.WECHAT_DEVTOOLS_CLI
 if (!cliPath) fail("E2E blocked: WECHAT_DEVTOOLS_CLI is not set; WeChat DevTools automation was not run.")
@@ -311,6 +311,21 @@ async function runJourney(program) {
     emergencyPhone,
   ]
   for (const [index, value] of values.entries()) await inputs[index].input(value)
+  await inputs[5].input("7")
+  await (await required(page, ".primary-button")).tap()
+  assertIncludes(await component.text(), "不能含数字", "numeric parent name rejected")
+  await inputs[5].input(values[5])
+  const otherChoice = await required(component, ".emergency-other-choice")
+  await otherChoice.tap()
+  await page.waitFor(80)
+  const otherName = await required(component, "#enrollment-emergency-name-field input")
+  const otherPhone = await required(component, "#enrollment-emergency-phone-field input")
+  await otherName.input("李先生")
+  await otherPhone.input(virtualPhone(9))
+  await screenshot(program, "15-other-emergency-contact.png")
+  await (await required(component, ".emergency-parent-choice")).tap()
+  await page.waitFor(80)
+  if (await component.$("#enrollment-emergency-name-field")) throw new Error("Other contact should collapse when parent selected")
   assertIncludes(await component.text(), "证件号码", "identity label")
   assertIncludes(await component.text(), "家长手机", "parent phone label")
   assertIncludes(await component.text(), "家长联系人", "contact label")
@@ -327,6 +342,12 @@ async function runJourney(program) {
 
   await (await required(page, ".primary-button")).tap()
   await page.waitFor(100)
+  const consent = await componentWithText(page, "确认身份，保存本次报名")
+  if (fixture.requests.some(entry => entry.method === "POST" && entry.path === "/enrollment/members")) throw new Error("Personal data was sent before identity consent")
+  await (await required(consent, ".consent-choice")).tap()
+  await screenshot(program, "16-signup-identity-confirmation.png")
+  await (await required(consent, ".consent-login")).tap()
+  await page.waitFor(500)
   component = await required(page, "[u-i]")
   assertIncludes(await component.text(), "\u53c2\u4e0e\u4eba\u6570\uff1a2 \u4eba", "two-participant review")
   assertIncludes(await component.text(), "\u6210\u5458 1\uff1a\u5f20\u540c\u5b66", "first participant review")

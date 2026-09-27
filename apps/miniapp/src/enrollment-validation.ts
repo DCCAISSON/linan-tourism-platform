@@ -49,7 +49,7 @@ export function memberFieldAnchor(memberId: string, field: MemberFieldName): str
 export function readMemberFieldError(member: FamilyMember, field: MemberFieldName): string | undefined {
   if (!member.selected) return undefined
   if (field === "displayName") {
-    return member.displayName.trim().length === 0 ? "请填写参加人姓名" : undefined
+    return readNameError(member.displayName, "参加人姓名")
   }
   if (member.remoteMemberId !== undefined) return undefined
   if (field === "identityNumber") {
@@ -65,7 +65,7 @@ export function readMemberFieldError(member: FamilyMember, field: MemberFieldNam
 
 export function readContactFieldError(draft: EnrollmentDraft, field: ContactFieldName): string | undefined {
   if (field === "contactName") {
-    return draft.contactName.trim().length === 0 ? "请填写家长联系人姓名" : undefined
+    return readNameError(draft.contactName, "家长联系人姓名")
   }
   if (field === "contactPhone") {
     const phone = draft.contactPhone.trim()
@@ -73,7 +73,7 @@ export function readContactFieldError(draft: EnrollmentDraft, field: ContactFiel
   }
   if (draft.emergencySameAsParent) return undefined
   if (field === "emergencyContactName") {
-    return draft.emergencyContact.name.trim().length === 0 ? "请填写紧急联系人姓名" : undefined
+    return readNameError(draft.emergencyContact.name, "紧急联系人姓名")
   }
   const phone = draft.emergencyContact.phone.trim()
   if (phone.length === 0) return "请填写紧急联系人电话"
@@ -87,6 +87,15 @@ export function createLocalMemberCode(seed: string = `${Date.now()}-${Math.rando
 
 function isMobilePhone(value: string): boolean {
   return /^1[3-9]\d{9}$/.test(value)
+}
+
+function readNameError(value: string, label: string): string | undefined {
+  const name = value.trim()
+  if (name.length === 0) return `请填写${label}`
+  if (value.length > 120 || !/^[\p{Script=Han}A-Za-z](?:[\p{Script=Han}A-Za-z ·•・\-'’]*[\p{Script=Han}A-Za-z])?$/u.test(name)) {
+    return `${label}请填写中文或英文姓名，不能含数字`
+  }
+  return undefined
 }
 
 function isResidentIdentityNumber(value: string): boolean {

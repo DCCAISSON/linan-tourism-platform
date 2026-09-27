@@ -67,7 +67,7 @@ describe.skipIf(databaseUrl === undefined)("Own-family order history", () => {
       emergencyContactName: "Payment Emergency snapshot", emergencyContactPhone: virtualPhone("0008"),
       participants: expect.arrayContaining([1, 2].map((index) => expect.objectContaining({
         id: expect.any(String), enrollmentParticipantId: expect.any(String),
-        displayName: `Payment Child ${index}`, gradeName: "Grade One", className: "Class One", amountFen: 1200,
+        displayName: `Payment Child ${String.fromCharCode(64 + index)}`, gradeName: "Grade One", className: "Class One", amountFen: 1200,
       }))),
     }))
     expect(response.body.participants).toHaveLength(2)

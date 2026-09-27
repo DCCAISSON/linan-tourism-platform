@@ -36,7 +36,7 @@ const {
 
 <template>
   <view class="section">
-    <view class="section__header">
+    <view class="section__header section__header--school">
       <text class="section__title">学校与班级</text>
       <text class="section__hint">请选择学生所在学校、年级和班级；常用参加人沿用已保存的班级。</text>
     </view>
@@ -106,7 +106,12 @@ const {
           <text v-if="memberFieldError(member, 'phone').length > 0" class="field-error">{{ memberFieldError(member, 'phone') }}</text>
         </view>
         <text v-if="member.participantKind === 'adult'" class="member-row__hint">成人参与人无需选择年级和班级</text>
-        <button class="consent-button save-common-button" :class="{ 'consent-button--on': member.saveAsCommon }" @tap="member.saveAsCommon = !member.saveAsCommon">{{ member.saveAsCommon ? "已勾选" : "未勾选" }}：保存为常用参加人，方便下次报名</button>
+        <checkbox-group @change="member.saveAsCommon = $event.detail.value.includes('save-common')">
+          <label class="consent-button save-common-button" :class="{ 'consent-button--on': member.saveAsCommon }">
+            <checkbox class="choice-control" value="save-common" :checked="member.saveAsCommon" color="var(--accent-primary)" />
+            <text>保存为常用参加人，方便下次报名</text>
+          </label>
+        </checkbox-group>
         <button class="text-button" @tap="removeMember(member.id)">删除本次参加人</button>
       </view>
       <button v-if="member.fromCommonList" class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
@@ -116,19 +121,38 @@ const {
   </view>
 
   <view class="section">
-    <text class="section__title">联系人</text>
+    <text class="section__title">家长联系人</text>
     <text class="required-note"><text class="required-mark">*</text>为必填项，用于报名核对、保险登记和行前联系。</text>
     <view id="enrollment-contact-name-field" class="field-anchor">
-      <view class="input-label input-label--block"><text class="required-mark">*</text>家长联系人</view>
-      <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="家长联系人" placeholder-class="input-placeholder" />
+      <view class="input-label input-label--block"><text class="required-mark">*</text>家长联系人姓名</view>
+      <input v-model="draft.contactName" class="text-input text-input--block" maxlength="120" placeholder="请填写负责本次报名的家长姓名" placeholder-class="input-placeholder" />
       <text v-if="contactFieldError('contactName').length > 0" class="field-error">{{ contactFieldError('contactName') }}</text>
     </view>
     <view id="enrollment-contact-phone-field" class="field-anchor">
       <view class="input-label input-label--block"><text class="required-mark">*</text>家长手机</view>
-      <input v-model="draft.contactPhone" class="text-input text-input--block" maxlength="11" type="number" placeholder="用于报名确认和行前联系" placeholder-class="input-placeholder" />
+      <input v-model="draft.contactPhone" class="text-input text-input--block" maxlength="11" type="number" placeholder="请输入11位手机号码" placeholder-class="input-placeholder" />
+      <text class="required-note">用于报名确认和行前联系，学生联系电话也使用此号码。</text>
       <text v-if="contactFieldError('contactPhone').length > 0" class="field-error">{{ contactFieldError('contactPhone') }}</text>
     </view>
-    <button class="consent-button" :class="{ 'consent-button--on': draft.emergencySameAsParent }" @tap="draft.emergencySameAsParent = !draft.emergencySameAsParent">{{ draft.emergencySameAsParent ? "紧急联系人：同家长（点击填写其他联系人）" : "已选择其他紧急联系人（点击改为家长）" }}</button>
+  </view>
+
+  <view class="section emergency-contact-section">
+    <text class="section__title">紧急联系人</text>
+    <text class="section__hint">用于出行期间的紧急联系，请选择一位联系人。</text>
+    <radio-group @change="draft.emergencySameAsParent = $event.detail.value === 'parent'">
+      <label class="consent-button emergency-parent-choice" :class="{ 'consent-button--on': draft.emergencySameAsParent }">
+        <radio class="choice-control" value="parent" :checked="draft.emergencySameAsParent" color="var(--accent-primary)" />
+        <text>使用家长联系人</text>
+      </label>
+      <label class="consent-button emergency-other-choice" :class="{ 'consent-button--on': !draft.emergencySameAsParent }">
+        <radio class="choice-control" value="other" :checked="!draft.emergencySameAsParent" color="var(--accent-primary)" />
+        <text>添加其他紧急联系人</text>
+      </label>
+    </radio-group>
+    <view v-if="draft.emergencySameAsParent" class="trip-detail">
+      <text class="trip-line">姓名：{{ draft.contactName || "请先填写家长联系人姓名" }}</text>
+      <text class="trip-line">电话：{{ draft.contactPhone || "请先填写家长手机" }}</text>
+    </view>
     <view v-if="!draft.emergencySameAsParent" id="enrollment-emergency-name-field" class="field-anchor">
       <view class="input-label input-label--block"><text class="required-mark">*</text>紧急联系人姓名</view>
       <input v-model="draft.emergencyContact.name" class="text-input text-input--block" maxlength="120" placeholder="紧急联系人姓名" placeholder-class="input-placeholder" />
@@ -175,9 +199,12 @@ const {
       </view>
     </view>
     <text v-else class="section__hint">请先选择已发布告知书的团期。</text>
-    <button v-if="selectedSession?.activeNotice" class="consent-button enrollment-agreement-button" :class="{ 'consent-button--on': draft.agreementAccepted }" @tap="draft.agreementAccepted = !draft.agreementAccepted">
-      {{ draft.agreementAccepted ? "已同意" : "阅读并同意" }}《{{ selectedSession.activeNotice.title }}》（{{ selectedSession.activeNotice.version }}）
-    </button>
+    <checkbox-group v-if="selectedSession?.activeNotice" @change="draft.agreementAccepted = $event.detail.value.includes('agreement')">
+      <label class="consent-button enrollment-agreement-button" :class="{ 'consent-button--on': draft.agreementAccepted }">
+        <checkbox class="choice-control" value="agreement" :checked="draft.agreementAccepted" color="var(--accent-primary)" />
+        <text>我已阅读并同意《{{ selectedSession.activeNotice.title }}》（{{ selectedSession.activeNotice.version }}）</text>
+      </label>
+    </checkbox-group>
   </view>
 </template>
 
@@ -200,6 +227,12 @@ const {
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
+}
+
+.section__header--school {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
 }
 
 .section__title {
@@ -381,12 +414,37 @@ const {
   background: transparent;
 }
 
+.text-button::after {
+  border: 0;
+}
+
+.section__header > .text-button {
+  background: var(--accent-soft);
+}
+
 .consent-button {
-  margin-top: 12px;
-  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
   color: var(--text-secondary);
   line-height: 1.6;
   text-align: left;
+}
+
+.consent-button--on {
+  color: var(--accent-primary);
+  background: var(--accent-soft);
+}
+
+.choice-control {
+  flex: 0 0 auto;
+}
+
+.consent-button > text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .empty-line {

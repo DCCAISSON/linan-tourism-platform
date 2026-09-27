@@ -176,7 +176,7 @@ describe.skipIf(databaseUrl === undefined)("Refund roster and paid capacity", ()
     const memberIds: string[] = []
     for (let index = 0; index < participantCount; index += 1) {
       const member = await createMember({
-        app, scope, headers, catalog, displayName: `Capacity Child ${family} ${index}`, codeSuffix: `${family[0]}${index}`,
+        app, scope, headers, catalog, displayName: `Capacity Child ${family} ${String.fromCharCode(65 + index)}`, codeSuffix: `${family[0]}${index}`,
       })
       memberIds.push(member.id)
     }

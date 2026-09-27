@@ -140,6 +140,17 @@ afterEach(() => {
 })
 
 describe("enrollment invalid field anchors", () => {
+  it.each(["7", "张3", "Alice7", "---"])("rejects an invalid parent name %s before submission", (name) => {
+    expect(readFirstEnrollmentInvalidTarget({ ...validDraft(), contactName: name })?.anchor).toBe("enrollment-contact-name-field")
+  })
+  it.each(["张小明", "欧阳明", "Alice Smith", "O'Neil", "Anne-Marie", "阿依·古丽"])("accepts the name %s", (name) => {
+    expect(readFirstEnrollmentInvalidTarget({ ...validDraft(), contactName: name })).toBeUndefined()
+  })
+  it("rejects numeric emergency and participant names at their own fields", () => {
+    const draft = validDraft()
+    expect(readFirstEnrollmentInvalidTarget({ ...draft, emergencyContact: { ...draft.emergencyContact, name: "7" } })?.anchor).toBe("enrollment-emergency-name-field")
+    expect(readFirstEnrollmentInvalidTarget({ ...draft, familyMembers: [{ ...validMember(), displayName: "7" }] })?.anchor).toBe(memberFieldAnchor("local member/1", "displayName"))
+  })
   it("points the initial school error to the school selector instead of the page top", () => {
     const target = readFirstEnrollmentInvalidTarget(createEmptyDraft())
 

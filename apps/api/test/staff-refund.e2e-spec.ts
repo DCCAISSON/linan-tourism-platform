@@ -376,7 +376,7 @@ describe.skipIf(databaseUrl === undefined)("Staff persisted local refunds", () =
     const headers = familyHeader(scope, `${fixtureIndex}`)
     const memberIds: string[] = []
     for (let index = 0; index < 2; index += 1) {
-      const member = await createMember({ app, scope, headers, catalog, displayName: `Refund Child ${index + 1}`, codeSuffix: `${index + 1}` })
+      const member = await createMember({ app, scope, headers, catalog, displayName: `Refund Child ${String.fromCharCode(65 + index)}`, codeSuffix: `${index + 1}` })
       memberIds.push(member.id)
     }
     const enrollment = await request(app.getHttpServer()).post("/enrollments").set(headers).send(enrollmentBody({

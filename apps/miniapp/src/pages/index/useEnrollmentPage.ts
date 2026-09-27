@@ -1,4 +1,4 @@
-import { computed, onMounted, reactive, ref, watch } from "vue"
+import { computed, nextTick, onMounted, reactive, ref, watch } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
 import {
   ApiError, createMiniappApi, type Grade,
@@ -37,6 +37,8 @@ export function scrollToEnrollmentAnchor(anchor: string): void {
 export function useEnrollmentPage() {
   let api = createMiniappApi()
   const authenticated = ref(import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || getWechatSessionToken() !== undefined)
+  const loginRequested = ref(false)
+  let reviewAfterLogin = false
   const validationShown = ref(false)
   const loadState = ref<LoadState>("loading")
   const pageMode = ref<PageMode>("editing")
@@ -80,7 +82,7 @@ export function useEnrollmentPage() {
     return readEnrollmentReadiness(draft)
   })
   const canReview = computed(() => loadState.value === "ready" && pageMode.value === "editing")
-  const canSubmit = computed(() => pageMode.value === "review" && readiness.value.ready)
+  const canSubmit = computed(() => authenticated.value && pageMode.value === "review" && readiness.value.ready)
   const wechatPaymentAvailable = computed(() => canUseWechatPayment({ capabilities: paymentCapabilities.value, buildWechatPaymentEnabled }))
   const canRetryPayment = computed(() => wechatPaymentAvailable.value && canStartPayment(order.value) && pageMode.value === "paymentPending")
   const loadStateLabel = computed(() => stateLabel(loadState.value, pageMode.value))
@@ -225,6 +227,7 @@ export function useEnrollmentPage() {
 
   async function completeLogin(): Promise<void> {
     authenticated.value = true
+    loginRequested.value = false
     api = createMiniappApi()
     try {
       savedMembers.value = await api.listEnrollmentMembers()
@@ -234,6 +237,17 @@ export function useEnrollmentPage() {
         draft.familyMembers.push({ id: member.id, code: member.code, displayName: member.displayName, participantKind: member.participantKind ?? "student", identityNumber: member.identityNumberMasked ?? "", phone: member.phoneMasked ?? "", remoteMemberId: member.id, fromCommonList: true, selected: false })
       }
     } catch (error) { errorMessage.value = readableError(error, "常用参加人加载失败，请稍后重试") }
+    if (reviewAfterLogin) { reviewAfterLogin = false; enterReview() }
+  }
+
+  function requestLogin(): void {
+    loginRequested.value = true
+    void nextTick(() => scrollToEnrollmentAnchor("enrollment-login-field"))
+  }
+
+  function cancelLogin(): void {
+    loginRequested.value = false
+    reviewAfterLogin = false
   }
 
   watch(draft, () => { errorMessage.value = "" })
@@ -270,6 +284,11 @@ export function useEnrollmentPage() {
       return
     }
     errorMessage.value = ""
+    if (!authenticated.value) {
+      reviewAfterLogin = true
+      requestLogin()
+      return
+    }
     pageMode.value = "review"
   }
 
@@ -300,7 +319,12 @@ export function useEnrollmentPage() {
       }
     } catch (error) {
       pageMode.value = "review"
-      if (error instanceof ApiError && error.statusCode === 401) { authenticated.value = false; pageMode.value = "editing" }
+      if (error instanceof ApiError && error.statusCode === 401) {
+        authenticated.value = false
+        pageMode.value = "editing"
+        reviewAfterLogin = true
+        requestLogin()
+      }
       errorMessage.value = readableError(error, "提交失败，请稍后重试")
     }
   }
@@ -368,7 +392,7 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
   }
 
   return {
-    authenticated, completeLogin, removeMember, validationShown,
+    authenticated, completeLogin, loginRequested, requestLogin, cancelLogin, removeMember, validationShown,
     addMember,
     availableSessions,
     backToEdit,

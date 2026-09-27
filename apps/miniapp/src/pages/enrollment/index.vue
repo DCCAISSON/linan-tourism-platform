@@ -8,7 +8,7 @@ import { useEnrollmentPage } from "../index/useEnrollmentPage"
 
 const page = useEnrollmentPage()
 const {
-  authenticated, completeLogin, validationShown, selectedSession,
+  authenticated, completeLogin, loginRequested, requestLogin, cancelLogin, validationShown, selectedSession,
   backToEdit,
   canSubmit,
   enterReview,
@@ -58,11 +58,17 @@ const {
     </view>
 
     <EnrollmentStatePanel v-if="loadState === 'loading'" kind="loading" />
-    <WechatConsent v-else-if="!authenticated" @authenticated="completeLogin" />
     <EnrollmentStatePanel v-else-if="loadState === 'empty'" kind="empty" @retry="loadCatalog" />
     <EnrollmentStatePanel v-else-if="loadState === 'error'" kind="error" :message="errorMessage" @retry="loadCatalog" />
 
     <view v-else class="content">
+      <view v-if="!authenticated && pageMode === 'editing'" id="enrollment-login-field">
+        <view v-if="loginRequested">
+          <WechatConsent title="确认身份，保存本次报名" login-label="同意并继续" @authenticated="completeLogin" />
+          <button class="secondary-button" @tap="cancelLogin">返回继续填写</button>
+        </view>
+        <button v-else class="secondary-button" @tap="requestLogin">使用已保存的参加人</button>
+      </view>
       <view v-if="errorMessage.length > 0 && pageMode !== 'paymentPending' && pageMode !== 'paid'" class="inline-error" aria-live="polite">
         <text>{{ errorMessage }}</text>
       </view>
@@ -71,7 +77,7 @@ const {
       <EnrollmentReview v-if="pageMode === 'review' || pageMode === 'submitting'" :page="page" />
       <OrderStatusPanel v-if="pageMode === 'paymentPending' || pageMode === 'paid'" :page="page" />
 
-      <view v-if="pageMode === 'editing' || pageMode === 'review' || pageMode === 'submitting'" class="bottom-actions">
+      <view v-if="!loginRequested && (pageMode === 'editing' || pageMode === 'review' || pageMode === 'submitting')" class="bottom-actions">
         <button v-if="pageMode === 'review'" class="secondary-button" @tap="backToEdit">返回修改</button>
         <button v-if="pageMode === 'editing'" class="primary-button" @tap="enterReview">
           核对信息

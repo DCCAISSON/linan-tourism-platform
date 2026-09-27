@@ -20,7 +20,7 @@ export function parseFamilyMember(body: unknown): NewFamilyMember {
   }
   return {
     code: readString(record, "code", 64),
-    displayName: readString(record, "displayName", 120),
+    displayName: readPersonName(record, "displayName"),
     participantKind,
     schoolId: participantKind === "student" ? requireOptionalString(schoolId, "schoolId", 64) : undefined,
     gradeId: participantKind === "student" ? requireOptionalString(gradeId, "gradeId", 64) : undefined,
@@ -34,7 +34,7 @@ export function parseFamilyMember(body: unknown): NewFamilyMember {
 export function parseFamilyMemberPatch(body: unknown): UpdateFamilyMember {
   const record = parseBody(body)
   return {
-    displayName: readOptionalString(record, "displayName", 120),
+    displayName: "displayName" in record ? readPersonName(record, "displayName") : undefined,
     gradeId: readOptionalString(record, "gradeId", 64),
     classId: readOptionalString(record, "classId", 64),
   }
@@ -60,9 +60,9 @@ export function parseEnrollmentSubmission(body: unknown): NewEnrollmentSubmissio
   return {
     tourSessionId: readString(record, "tourSessionId", 64),
     memberIds,
-    contactName: readString(record, "contactName", 120),
+    contactName: readPersonName(record, "contactName"),
     ...("contactPhone" in record ? { contactPhone: readContactPhone(record) } : {}),
-    emergencyContactName: readString(record, "emergencyContactName", 120),
+    emergencyContactName: readPersonName(record, "emergencyContactName"),
     emergencyContactPhone: readString(record, "emergencyContactPhone", 32),
     agreementVersion,
     schemaVersion,
@@ -81,6 +81,14 @@ function readContactPhone(body: UnknownRecord): string {
   const phone = readString(body, "contactPhone", 32)
   if (!/^1[3-9]\d{9}$/.test(phone)) throw malformedEnrollmentInput("contactPhone must be a valid mainland China mobile number")
   return phone
+}
+
+function readPersonName(body: UnknownRecord, field: string): string {
+  const name = readString(body, field, 120)
+  if (!/^[\p{Script=Han}A-Za-z](?:[\p{Script=Han}A-Za-z ·•・\-'’]*[\p{Script=Han}A-Za-z])?$/u.test(name)) {
+    throw malformedEnrollmentInput(`${field} 姓名只能填写中文汉字或英文字母，可在姓名中使用空格、中点、连字符或英文撇号`)
+  }
+  return name
 }
 
 function parseBody(body: unknown): UnknownRecord {
