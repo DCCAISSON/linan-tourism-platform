@@ -5,21 +5,26 @@
         <p class="business-heading__eyebrow">基础业务</p>
         <h2 id="business-title">旅游、疗休养与民宿内容</h2>
       </div>
-      <p>维护已获授权的公开资料和咨询跟进；不在此记录支付、库存、实时房态或 PMS/OTA 状态。</p>
+      <p>维护业务资料，查看咨询需求并安排工作人员跟进。</p>
     </header>
-
+    <p v-if="accessLoading" role="status">正在读取业务权限…</p>
+    <el-alert v-if="accessError" :title="accessError" type="error" show-icon />
+    <el-button v-if="accessError" @click="initialize">重新读取</el-button>
     <div class="business-grid">
-      <section v-if="businessContentEditorEnabled" class="business-card">
+      <section v-if="canWrite" class="business-card">
         <div class="business-card__head">
-          <h3>内容维护</h3>
-          <el-button type="primary" :loading="productBusy" @click="saveProduct">保存内容</el-button>
+          <h3>{{ selectedProduct ? '编辑内容' : '新增内容' }}</h3>
+          <el-button :disabled="productBusy" @click="newProduct">新增内容</el-button>
         </div>
         <el-alert v-if="productMessage" :title="productMessage" type="success" show-icon />
         <el-alert v-if="productError" :title="productError" type="error" show-icon />
         <el-form label-position="top" class="business-form">
-          <el-form-item label="所属机构 ID">
-            <el-input v-model="form.organizationId" placeholder="请选择所属机构" />
+          <el-form-item label="所属机构">
+            <el-select v-model="form.organizationId" placeholder="请选择所属机构" :disabled="selectedProduct !== undefined">
+              <el-option v-for="organization in organizations" :key="organization.id" :label="organization.name" :value="organization.id" />
+            </el-select>
           </el-form-item>
+          <p v-if="!accessLoading && organizations.length === 0">暂无可维护的机构，请联系管理员核对权限。</p>
           <el-form-item label="分类">
             <el-segmented v-model="form.category" :options="categoryOptions" />
           </el-form-item>
@@ -38,7 +43,7 @@
           <el-form-item label="客服电话">
             <el-input v-model="form.customerServicePhone" maxlength="32" />
           </el-form-item>
-          <el-form-item label="已授权预订入口 HTTPS">
+          <el-form-item label="预订入口链接">
             <el-input v-model="form.bookingUrl" placeholder="未确认授权则留空" />
           </el-form-item>
           <el-checkbox v-model="form.bookingAuthorized">该入口已由业务方确认可公开</el-checkbox>
@@ -53,10 +58,11 @@
               <el-option label="已归档" value="archived" />
             </el-select>
           </el-form-item>
+          <el-button type="primary" :loading="productBusy" :disabled="!form.organizationId" @click="saveProduct">保存内容</el-button>
         </el-form>
       </section>
 
-      <section class="business-card">
+      <section v-if="canRead" class="business-card" :class="{ 'business-card--wide': !canWrite }">
         <div class="business-card__head">
           <h3>内容列表</h3>
           <el-button :loading="productsLoading" @click="loadProducts">刷新</el-button>
@@ -73,10 +79,13 @@
           <el-table-column label="参考价" width="110">
             <template #default="{ row }">{{ row.referencePriceFen === null ? "待确认" : formatFen(row.referencePriceFen) }}</template>
           </el-table-column>
+          <el-table-column v-if="canWrite" label="操作" width="80">
+            <template #default="{ row }"><el-button link type="primary" @click.stop="selectProduct(row)">编辑</el-button></template>
+          </el-table-column>
         </el-table>
       </section>
 
-      <section class="business-card business-card--wide">
+      <section v-if="canFollowup" class="business-card business-card--wide">
         <div class="business-card__head">
           <h3>咨询跟进</h3>
           <el-button :loading="inquiriesLoading" @click="loadInquiries">刷新</el-button>
@@ -91,9 +100,29 @@
           <el-table-column label="状态" width="100">
             <template #default="{ row }">{{ inquiryStatusText(row.status) }}</template>
           </el-table-column>
+          <el-table-column label="操作" width="80">
+            <template #default="{ row }"><el-button link type="primary" :disabled="followupBusy" @click.stop="selectInquiry(row)">详情</el-button></template>
+          </el-table-column>
         </el-table>
+        <p v-if="detailLoading" role="status">正在读取咨询详情…</p>
         <el-form v-if="selectedInquiry" class="business-form business-followup" label-position="top">
-          <h4>跟进：{{ selectedInquiry.contactName }}</h4>
+          <h4>咨询详情：{{ selectedInquiry.contactName }}</h4>
+          <dl class="business-detail-fields">
+            <div><dt>咨询产品</dt><dd>{{ selectedInquiry.productTitle }}</dd></div>
+            <div><dt>咨询对象</dt><dd>{{ selectedInquiry.customerType === 'organization' ? selectedInquiry.organizationName : '个人' }}</dd></div>
+            <div><dt>联系电话</dt><dd>{{ selectedInquiry.phone }}</dd></div>
+            <div><dt>当前负责人</dt><dd>{{ selectedInquiry.ownerDisplayName }}</dd></div>
+            <div><dt>咨询需求</dt><dd>{{ selectedInquiry.request }}</dd></div>
+          </dl>
+          <h4>跟进历史</h4>
+          <p v-if="selectedInquiry.history.length === 0">尚无跟进记录。</p>
+          <ol v-else class="business-history">
+            <li v-for="item in selectedInquiry.history" :key="item.id">
+              <p>{{ item.createdAt.replace('T', ' ').slice(0, 16) }} · {{ item.ownerDisplayName }} · {{ inquiryStatusText(item.status) }}</p>
+              <p>{{ item.note }}</p>
+            </li>
+          </ol>
+          <h4>新增跟进</h4>
           <el-form-item label="状态">
             <el-select v-model="followup.status">
               <el-option label="咨询" value="inquiry" />
@@ -101,13 +130,16 @@
               <el-option label="已结束" value="closed" />
             </el-select>
           </el-form-item>
-          <el-form-item label="负责人账号 ID">
-            <el-input v-model="followup.ownerStaffAccountId" />
+          <el-form-item label="跟进负责人">
+            <el-select v-model="followup.ownerStaffAccountId" placeholder="请选择负责人" filterable :disabled="followupBusy">
+              <el-option v-for="owner in owners" :key="owner.id" :label="owner.displayName" :value="owner.id" />
+            </el-select>
           </el-form-item>
+          <p v-if="owners.length === 0">当前没有可分派的业务人员，请联系管理员配置。</p>
           <el-form-item label="跟进记录">
             <el-input v-model="followup.note" type="textarea" :rows="3" maxlength="2000" />
           </el-form-item>
-          <el-button type="primary" :loading="followupBusy" @click="saveFollowup">保存跟进</el-button>
+          <el-button type="primary" :loading="followupBusy" :disabled="!followup.ownerStaffAccountId || !followup.note.trim()" @click="saveFollowup">保存跟进</el-button>
         </el-form>
       </section>
     </div>
@@ -118,6 +150,5 @@
 import "@/styles/business.css"
 import { categoryOptions, categoryText, formatFen, inquiryStatusText, statusText, useBusinessView } from "@/views/business/useBusinessView"
 
-const { products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup } = useBusinessView()
-const businessContentEditorEnabled = false
+const { canRead, canWrite, canFollowup, accessLoading, accessError, initialize, organizations, owners, selectedProduct, detailLoading, products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup, newProduct } = useBusinessView()
 </script>

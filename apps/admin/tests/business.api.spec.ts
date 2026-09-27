@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { createBusinessProduct, followupBusinessInquiry, listBusinessInquiries, listBusinessProducts } from "@/api/business"
+import { createBusinessProduct, followupBusinessInquiry, listBusinessInquiries, listBusinessProducts, listBusinessOwners, listBusinessOrganizations } from "@/api/business"
 
 const product = {
   id: "business-1",
@@ -23,6 +23,27 @@ const product = {
 
 describe("business admin API client", () => {
   afterEach(() => vi.unstubAllGlobals())
+
+  it("requests owner names for the selected inquiry without using account administration", async () => {
+    const fetchMock = vi.fn(async () => Response.json([{ id: "staff-1", displayName: "负责人甲" }]))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(listBusinessOwners("inquiry-1")).resolves.toEqual([{ id: "staff-1", displayName: "负责人甲" }])
+
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:3000/business/staff/inquiries/inquiry-1/owners", { method: "GET", credentials: "include" })
+  })
+
+  it("rejects owner options that do not have display names", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json([{ id: "staff-1" }])))
+
+    await expect(listBusinessOwners("inquiry-1")).rejects.toThrow("业务内容响应格式不正确")
+  })
+
+  it("loads scoped organization names for product maintenance", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json([{ id: "org-1", name: "本机构" }])))
+
+    await expect(listBusinessOrganizations()).resolves.toEqual([{ id: "org-1", name: "本机构" }])
+  })
 
   it("reads maintained products without treating draft content as paid bookings", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json([product])))

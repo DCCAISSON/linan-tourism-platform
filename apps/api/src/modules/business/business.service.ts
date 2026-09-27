@@ -33,6 +33,13 @@ export class BusinessService {
     const db = await this.database.getDataSource()
     return db.getRepository(BusinessProductEntity).find({ where: ids === null ? {} : { organizationId: In([...ids]) }, order: { updatedAt: "DESC" }, take: 200 })
   }
+  async organizations(access: StaffAccess) {
+    const ids = businessOrganizationIds(access, "business.write")
+    if (ids?.length === 0) return []
+    const db = await this.database.getDataSource()
+    const organizations = await db.getRepository(OrganizationEntity).find({ where: ids === null ? {} : { id: In([...ids]) }, select: { id: true, name: true }, order: { name: "ASC" } })
+    return organizations.map(({ id, name }) => ({ id, name }))
+  }
   async create(access: StaffAccess, input: ProductInput) {
     assertBusinessAccess(access, "business.write", input.organizationId)
     const db = await this.database.getDataSource()

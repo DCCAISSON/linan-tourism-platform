@@ -1,66 +1,8 @@
 import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
-export type BusinessCategory = "tourism" | "wellness" | "homestay"
-export type BusinessStatus = "draft" | "published" | "archived"
-export type InquiryStatus = "inquiry" | "processing" | "closed"
-export type CustomerType = "individual" | "organization"
-
-export type BusinessMedia = {
-  readonly kind: "image" | "video"
-  readonly url: string
-}
-
-export type BusinessProductInput = {
-  readonly organizationId: string
-  readonly category: BusinessCategory
-  readonly title: string
-  readonly offering: string
-  readonly content: string
-  readonly referencePriceFen: number | null
-  readonly customerServicePhone: string
-  readonly bookingUrl: string
-  readonly bookingAuthorized: boolean
-  readonly media: readonly BusinessMedia[]
-  readonly mediaAuthorized: boolean
-  readonly status: BusinessStatus
-}
-
-export type BusinessProduct = BusinessProductInput & {
-  readonly id: string
-  readonly version: number
-  readonly createdAt: string
-  readonly updatedAt: string
-}
-
-export type BusinessInquiry = {
-  readonly id: string
-  readonly productId: string
-  readonly organizationId: string
-  readonly customerType: CustomerType
-  readonly organizationName: string
-  readonly contactName: string
-  readonly phone: string
-  readonly request: string
-  readonly status: InquiryStatus
-  readonly ownerStaffAccountId: string | null
-  readonly version: number
-  readonly createdAt: string
-  readonly updatedAt: string
-}
-
-export type BusinessFollowupInput = {
-  readonly idempotencyKey: string
-  readonly expectedVersion: number
-  readonly status: InquiryStatus
-  readonly ownerStaffAccountId: string
-  readonly note: string
-}
-
-export type BusinessFollowupReceipt = {
-  readonly id: string
-  readonly version: number
-}
+import type { BusinessCategory, BusinessStatus, InquiryStatus, CustomerType, BusinessMedia, BusinessProductInput, BusinessProduct, BusinessInquiry, BusinessFollowupInput, BusinessFollowupReceipt, BusinessInquiryDetail, BusinessOwner, BusinessOrganization } from "./business.types"
+export type * from "./business.types"
 
 const apiBaseUrl = resolveAdminApiBaseUrl()
 
@@ -78,6 +20,28 @@ export async function updateBusinessProduct(id: string, input: BusinessProductIn
 
 export async function listBusinessInquiries(): Promise<readonly BusinessInquiry[]> {
   return readArray(await request("/business/staff/inquiries"), parseInquiry)
+}
+
+export async function getBusinessInquiry(id: string): Promise<BusinessInquiryDetail> {
+  const record = readRecord(await request(`/business/staff/inquiries/${encodeURIComponent(id)}`))
+  return { ...parseInquiry(record), productTitle: readText(record, "productTitle"), ownerDisplayName: readText(record, "ownerDisplayName"), history: readArray(record["history"], value => {
+    const row = readRecord(value)
+    return { id: readText(row, "id"), status: readInquiryStatus(row["status"]), note: readText(row, "note"), ownerDisplayName: readText(row, "ownerDisplayName"), createdAt: readText(row, "createdAt") }
+  }) }
+}
+
+export async function listBusinessOwners(id: string): Promise<readonly BusinessOwner[]> {
+  return readArray(await request(`/business/staff/inquiries/${encodeURIComponent(id)}/owners`), value => {
+    const row = readRecord(value)
+    return { id: readText(row, "id"), displayName: readText(row, "displayName") }
+  })
+}
+
+export async function listBusinessOrganizations(): Promise<readonly BusinessOrganization[]> {
+  return readArray(await request("/business/staff/organizations"), value => {
+    const row = readRecord(value)
+    return { id: readText(row, "id"), name: readText(row, "name") }
+  })
 }
 
 export async function followupBusinessInquiry(id: string, input: BusinessFollowupInput): Promise<BusinessFollowupReceipt> {

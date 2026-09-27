@@ -3,6 +3,7 @@ import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundExce
 import { In } from "typeorm"
 import { BusinessInquiryEntity } from "../../domain/entities/business-inquiry.entity.js"
 import { BusinessFollowupEntity } from "../../domain/entities/business-followup.entity.js"
+import { BusinessProductEntity } from "../../domain/entities/business-product.entity.js"
 import { StaffAccountEntity } from "../../domain/entities/staff-account.entity.js"
 import { StaffAccountScopeEntity } from "../../domain/entities/staff-account-scope.entity.js"
 import { StaffAccountPermissionEntity } from "../../domain/entities/staff-account-permission.entity.js"
@@ -10,7 +11,7 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import { makeId } from "../configuration/configuration.persistence.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
-import { assertBusinessAccess, businessOrganizationIds } from "./business.policy.js"
+import { assertBusinessAccess, businessOrganizationIds, isBusinessOwnerEligible } from "./business.policy.js"
 import type { FollowupInput } from "./business.types.js"
 
 @Injectable()
@@ -34,9 +35,28 @@ export class BusinessInquiryService {
       assertBusinessAccess(access, "business.followup", inquiry.organizationId)
       await this.audit.record(manager, { actorId: access.actorId, organizationId: inquiry.organizationId, action: "business.contact.read", targetType: "business_inquiry", targetId: id })
       const history = await manager.find(BusinessFollowupEntity, { where: { inquiryId: id }, order: { createdAt: "ASC" } })
+      const ownerIds = [...new Set([inquiry.ownerStaffAccountId, ...history.map(row => row.ownerStaffAccountId)].filter(value => value !== null))]
+      const owners = ownerIds.length === 0 ? [] : await manager.findBy(StaffAccountEntity, { id: In(ownerIds) })
+      const ownerName = (ownerId: string | null) => owners.find(owner => owner.id === ownerId)?.displayName ?? (ownerId === null ? "未分派" : "账号不可用")
+      const product = await manager.findOneBy(BusinessProductEntity, { id: inquiry.productId, organizationId: inquiry.organizationId })
       const { requestHash: _requestHash, idempotencyKey: _key, ...record } = inquiry
-      return { ...record, history: history.map(({ requestHash: _hash, idempotencyKey: _replay, ...row }) => row) }
+      return { ...record, productTitle: product?.title ?? "业务咨询", ownerDisplayName: ownerName(inquiry.ownerStaffAccountId), history: history.map(({ requestHash: _hash, idempotencyKey: _replay, ...row }) => ({ ...row, ownerDisplayName: ownerName(row.ownerStaffAccountId) })) }
     })
+  }
+  async owners(access: StaffAccess, id: string) {
+    const manager = (await this.database.getDataSource()).manager
+    const inquiry = await manager.findOneBy(BusinessInquiryEntity, { id })
+    if (!inquiry) throw new NotFoundException("咨询记录不存在")
+    assertBusinessAccess(access, "business.followup", inquiry.organizationId)
+    const accounts = await manager.find(StaffAccountEntity, { where: { status: "active" }, order: { displayName: "ASC" } })
+    if (accounts.length === 0) return []
+    const ids = accounts.map(account => account.id)
+    const [permissions, scopes] = await Promise.all([
+      manager.findBy(StaffAccountPermissionEntity, { staffAccountId: In(ids), permissionKey: "business.followup" }),
+      manager.findBy(StaffAccountScopeEntity, { staffAccountId: In(ids) }),
+    ])
+    return accounts.filter(account => isBusinessOwnerEligible(account, permissions.filter(row => row.staffAccountId === account.id), scopes.filter(row => row.staffAccountId === account.id), inquiry.organizationId))
+      .map(({ id: ownerId, displayName }) => ({ id: ownerId, displayName }))
   }
   async followup(access: StaffAccess, id: string, input: FollowupInput) {
     const db = await this.database.getDataSource()
@@ -54,9 +74,7 @@ export class BusinessInquiryService {
       const owner = await manager.findOneBy(StaffAccountEntity, { id: input.ownerStaffAccountId, status: "active" })
       const permissions = await manager.findBy(StaffAccountPermissionEntity, { staffAccountId: input.ownerStaffAccountId })
       const scopes = await manager.findBy(StaffAccountScopeEntity, { staffAccountId: input.ownerStaffAccountId })
-      if (!owner || (owner.expiresAt && owner.expiresAt.getTime() <= Date.now()) ||
-        !permissions.some(row => row.permissionKey === "business.followup") ||
-        !scopes.some(row => row.scopeKind === "all" || ((row.scopeKind === "organization" || row.scopeKind === "school") && row.scopeId === inquiry.organizationId))) {
+      if (!isBusinessOwnerEligible(owner, permissions, scopes, inquiry.organizationId)) {
         throw new ForbiddenException({ code: "business_owner_forbidden", message: "负责人须为本机构有业务跟进权限的有效员工" })
       }
       const followup = await manager.save(BusinessFollowupEntity, { ...input, id: makeId("followup"), inquiryId: id, requestHash: hash, actorId: access.actorId })

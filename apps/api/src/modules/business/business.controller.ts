@@ -20,6 +20,8 @@ export class BusinessController {
   submit(@Param("id") id: string, @Body() body: unknown) { return this.business.submitInquiry(id, parseInquiry(body)) }
   @Get("staff/products")
   async staffList(@Headers() headers: StaffAccessRequestHeaders) { return this.business.listStaff(await this.access.resolve(headers)) }
+  @Get("staff/organizations")
+  async organizations(@Headers() headers: StaffAccessRequestHeaders) { return this.business.organizations(await this.access.resolve(headers)) }
   @Post("staff/products")
   async create(@Headers() headers: StaffAccessRequestHeaders, @Body() body: unknown) {
     this.access.assertUnsafeOrigin(headers)
@@ -35,6 +37,8 @@ export class BusinessController {
   async staffInquiries(@Headers() headers: StaffAccessRequestHeaders) { return this.inquiries.list(await this.access.resolve(headers)) }
   @Get("staff/inquiries/:id")
   async staffInquiry(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string) { return this.inquiries.detail(await this.access.resolve(headers), id) }
+  @Get("staff/inquiries/:id/owners")
+  async owners(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string) { return this.inquiries.owners(await this.access.resolve(headers), id) }
   @Post("staff/inquiries/:id/followups")
   async followup(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string, @Body() body: unknown) {
     this.access.assertUnsafeOrigin(headers)

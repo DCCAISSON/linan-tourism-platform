@@ -1,13 +1,21 @@
 import { computed, onMounted, reactive, ref } from "vue"
+import { getCurrentStaff } from "@/api/auth"
+import { RosterApiError } from "@/api/roster.errors"
 import {
   createBusinessProduct,
   followupBusinessInquiry,
+  getBusinessInquiry,
+  listBusinessOwners,
+  listBusinessOrganizations,
   listBusinessInquiries,
   listBusinessProducts,
   readableBusinessError,
   updateBusinessProduct,
   type BusinessCategory,
   type BusinessInquiry,
+  type BusinessInquiryDetail,
+  type BusinessOwner,
+  type BusinessOrganization,
   type BusinessMedia,
   type BusinessProduct,
   type BusinessProductInput,
@@ -25,10 +33,19 @@ export const categoryOptions = [
 ] as const
 
 export function useBusinessView() {
+  const canRead = ref(false)
+  const canWrite = ref(false)
+  const canFollowup = ref(false)
+  const accessLoading = ref(true)
+  const accessError = ref("")
+  const organizations = ref<readonly BusinessOrganization[]>([])
+  const owners = ref<readonly BusinessOwner[]>([])
   const products = ref<readonly BusinessProduct[]>([])
   const inquiries = ref<readonly BusinessInquiry[]>([])
   const selectedProduct = ref<BusinessProduct>()
-  const selectedInquiry = ref<BusinessInquiry>()
+  const selectedInquiry = ref<BusinessInquiryDetail>()
+  const detailLoading = ref(false)
+  let selectedInquiryId = ""
   const productsLoading = ref(false)
   const inquiriesLoading = ref(false)
   const productBusy = ref(false)
@@ -53,13 +70,14 @@ export function useBusinessView() {
     mediaAuthorized: false,
     status: "draft",
   })
-  const followup = reactive({ status: "processing" as InquiryStatus, ownerStaffAccountId: "", note: "" })
+  const followup = reactive<{ status: InquiryStatus; ownerStaffAccountId: string; note: string }>({ status: "processing", ownerStaffAccountId: "", note: "" })
   const parsedMedia = computed<readonly BusinessMedia[]>(() => mediaText.value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
     const [kind, url] = line.split(/\s+/, 2)
     return { kind: kind === "video" ? "video" : "image", url: url ?? "" }
   }))
 
   async function loadProducts(): Promise<void> {
+    if (!canRead.value) return
     productsLoading.value = true
     productError.value = ""
     try { products.value = await listBusinessProducts() }
@@ -68,14 +86,19 @@ export function useBusinessView() {
   }
 
   async function loadInquiries(): Promise<void> {
+    if (!canFollowup.value) return
     inquiriesLoading.value = true
     followupError.value = ""
-    try { inquiries.value = await listBusinessInquiries() }
+    try {
+      inquiries.value = await listBusinessInquiries()
+      if (selectedInquiry.value !== undefined && !followupBusy.value) await selectInquiry(selectedInquiry.value)
+    }
     catch (error) { followupError.value = readableBusinessError(error) }
     finally { inquiriesLoading.value = false }
   }
 
   async function saveProduct(): Promise<void> {
+    if (!canWrite.value || productBusy.value) return
     productBusy.value = true
     productError.value = ""
     productMessage.value = ""
@@ -94,6 +117,7 @@ export function useBusinessView() {
   }
 
   function selectProduct(product: BusinessProduct): void {
+    if (!canWrite.value || productBusy.value) return
     selectedProduct.value = product
     form.organizationId = product.organizationId
     form.category = product.category
@@ -111,15 +135,41 @@ export function useBusinessView() {
     mediaText.value = product.media.map((item) => `${item.kind} ${item.url}`).join("\n")
   }
 
-  function selectInquiry(inquiry: BusinessInquiry): void {
-    selectedInquiry.value = inquiry
-    followup.status = inquiry.status === "closed" ? "closed" : "processing"
-    followup.ownerStaffAccountId = inquiry.ownerStaffAccountId ?? ""
+  function newProduct(): void {
+    if (productBusy.value) return
+    selectedProduct.value = undefined
+    Object.assign(form, { organizationId: organizations.value.length === 1 ? organizations.value[0]?.id ?? "" : "", category: "tourism", title: "", offering: "", content: "", referencePriceFen: null, customerServicePhone: "", bookingUrl: "", bookingAuthorized: false, media: [], mediaAuthorized: false, status: "draft" })
+    mediaText.value = ""
+    priceYuan.value = ""
+    productMessage.value = ""
+    productError.value = ""
+  }
+
+  async function selectInquiry(inquiry: Pick<BusinessInquiry, "id">): Promise<void> {
+    if (!canFollowup.value || followupBusy.value) return
+    selectedInquiryId = inquiry.id
+    selectedInquiry.value = undefined
+    owners.value = []
+    detailLoading.value = true
+    followupError.value = ""
     followup.note = ""
+    try {
+      const [detail, candidates] = await Promise.all([getBusinessInquiry(inquiry.id), listBusinessOwners(inquiry.id)])
+      if (selectedInquiryId !== inquiry.id) return
+      selectedInquiry.value = detail
+      owners.value = candidates
+      followup.status = detail.status === "closed" ? "closed" : "processing"
+      followup.ownerStaffAccountId = candidates.some(owner => owner.id === detail.ownerStaffAccountId) ? detail.ownerStaffAccountId ?? "" : ""
+    } catch (error) {
+      if (selectedInquiryId === inquiry.id) followupError.value = readableBusinessError(error)
+    } finally {
+      if (selectedInquiryId === inquiry.id) detailLoading.value = false
+    }
   }
 
   async function saveFollowup(): Promise<void> {
-    if (selectedInquiry.value === undefined) return
+    if (selectedInquiry.value === undefined || followupBusy.value) return
+    const inquiryId = selectedInquiry.value.id
     followupBusy.value = true
     followupError.value = ""
     followupMessage.value = ""
@@ -132,8 +182,9 @@ export function useBusinessView() {
         note: followup.note,
       })
       followupMessage.value = "跟进记录已保存。"
-      selectedInquiry.value = undefined
       await loadInquiries()
+      followupBusy.value = false
+      await selectInquiry({ id: inquiryId })
     } catch (error) {
       followupError.value = readableBusinessError(error)
     } finally {
@@ -141,12 +192,34 @@ export function useBusinessView() {
     }
   }
 
-  onMounted(() => { void Promise.all([loadProducts(), loadInquiries()]) })
-  return { products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup }
+  async function initialize(): Promise<void> {
+    accessLoading.value = true
+    accessError.value = ""
+    try {
+      const staff = await getCurrentStaff()
+      canRead.value = staff.permissionKeys.includes("business.read")
+      canWrite.value = staff.permissionKeys.includes("business.write")
+      canFollowup.value = staff.permissionKeys.includes("business.followup")
+      await Promise.all([loadProducts(), loadInquiries(), canWrite.value ? loadOrganizations() : Promise.resolve()])
+    } catch (error) { accessError.value = readableBusinessError(error) }
+    finally { accessLoading.value = false }
+  }
+
+  async function loadOrganizations(): Promise<void> {
+    try {
+      organizations.value = await listBusinessOrganizations()
+      if (!form.organizationId && organizations.value.length === 1) form.organizationId = organizations.value[0]?.id ?? ""
+    } catch (error) { productError.value = readableBusinessError(error) }
+  }
+
+  onMounted(() => { void initialize() })
+  return { canRead, canWrite, canFollowup, accessLoading, accessError, initialize, organizations, owners, selectedProduct, detailLoading, products, inquiries, selectedInquiry, productsLoading, inquiriesLoading, productBusy, followupBusy, productError, productMessage, followupError, followupMessage, mediaText, priceYuan, form, followup, loadProducts, loadInquiries, saveProduct, selectProduct, selectInquiry, saveFollowup, newProduct }
 }
 
 function toProductInput(form: BusinessProductForm, priceYuan: string, media: readonly BusinessMedia[]): BusinessProductInput {
   const trimmedPrice = priceYuan.trim()
+  const validPrice = trimmedPrice === "" || (/^\d+(?:\.\d{1,2})?$/.test(trimmedPrice) && Number(trimmedPrice) <= 1000000)
+  if (!validPrice) throw new RosterApiError(0, "参考价格须为不超过100万元的非负金额，最多两位小数；不填写请留空。")
   return { ...form, referencePriceFen: trimmedPrice === "" ? null : Math.round(Number(trimmedPrice) * 100), media }
 }
 
