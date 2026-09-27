@@ -4,6 +4,24 @@ import { firstAuthorizedRouteName, hasRoutePermission } from "@/router/authorize
 import { routeNames, routes } from "@/router/routes"
 
 describe("admin routes", () => {
+  it("requires both execution read and management for the management entry", () => {
+    const management = routes[2]?.children?.find(route => route.name === routeNames.executionManagement)
+    expect(management).toBeDefined()
+    expect(hasRoutePermission(["execution.read"], management?.meta ?? {})).toBe(false)
+    expect(hasRoutePermission(["execution.manage"], management?.meta ?? {})).toBe(false)
+    expect(hasRoutePermission(["execution.read", "execution.manage"], management?.meta ?? {})).toBe(true)
+    expect(firstAuthorizedRouteName(["execution.read", "execution.manage"])).toBe(routeNames.executionManagement)
+    expect(firstAuthorizedRouteName(["execution.manage"])).toBeNull()
+  })
+  it("admits each business capability without requiring unrelated grants", () => {
+    const business = routes[2]?.children?.find(route => route.name === routeNames.business)
+    expect(business).toBeDefined()
+    for (const permission of ["business.read", "business.write", "business.followup"] as const) {
+      expect(hasRoutePermission([permission], business?.meta ?? {})).toBe(true)
+      expect(firstAuthorizedRouteName([permission])).toBe(routeNames.business)
+    }
+    expect(hasRoutePermission([], business?.meta ?? {})).toBe(false)
+  })
   it("allows either explicitly accepted permission for a shared workflow route", () => {
     const meta = { requiredAnyPermission: ["refunds.review", "refunds.execute"], permissionCapabilities: [{ permissionKey: "refunds.execute", capabilityKey: "wechatRefundEnabled" }] }
     expect(hasRoutePermission(["refunds.review"], meta)).toBe(true)
@@ -36,6 +54,7 @@ describe("admin routes", () => {
       evaluationStandards: "evaluation-standards",
       execution: "execution",
       executionSession: "execution-session",
+      executionManagement: "execution-management",
       feedback: "feedback",
       forcePasswordChange: "force-password-change",
       healthAccess: "health-access",
@@ -67,6 +86,7 @@ describe("admin routes", () => {
       "school-confirmation",
       "notifications",
       "execution",
+      "execution/management",
       "execution/sessions/:sessionId",
       "health-access",
       "evaluations",
@@ -92,6 +112,7 @@ describe("admin routes", () => {
       "notifications.read",
       "execution.read",
       "execution.read",
+      "execution.read",
       "health.read",
       undefined,
       undefined,
@@ -99,7 +120,7 @@ describe("admin routes", () => {
       "insurance.read",
       "media.read",
       "crm.read",
-      "business.read",
+      undefined,
       "staff_accounts.manage",
     ])
     expect(routes[2]?.children?.find(route => route.name === routeNames.refundApplications)?.meta?.["requiredAnyPermission"]).toEqual([

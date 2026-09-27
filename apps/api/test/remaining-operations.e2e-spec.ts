@@ -149,8 +149,12 @@ describe.skipIf(databaseUrl === undefined)("Remaining operations DB e2e", () => 
       const vehicleId = await saveVehiclePlan(catalog, 1)
       const plan = await readPeoplePlan(catalog.tourSessionId)
       await savePersonAssignments(catalog.tourSessionId, plan.body.planVersion, plan.body.rosterVersion, [{ personRef: paidRef, vehicleId }], 200)
+      const assignedPlan = await readPeoplePlan(catalog.tourSessionId)
+      await confirmTransport(catalog.tourSessionId, assignedPlan.body.planVersion, assignedPlan.body.rosterVersion)
       const guideId = `guide-${scope}`
       await ensureStaffAccount(guideId, `guide-${scope}`)
+      await dataSource.query("insert into staff_account_permissions(id,staff_account_id,permission_key) values(?,?,?)", [`permission-${scope}`, guideId, "execution.read"])
+      await dataSource.query("insert into staff_account_scopes(id,staff_account_id,scope_kind,scope_id) values(?,?,?,?)", [`scope-${scope}`, guideId, "tour_session", catalog.tourSessionId])
       const adminId = `admin-${scope}`
       await ensureStaffAccount(adminId, `admin-${scope}`)
       const execution = currentApp().get(ExecutionService)

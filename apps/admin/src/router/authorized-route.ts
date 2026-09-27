@@ -38,11 +38,14 @@ const authorizedRouteOrder: readonly { readonly permissionKey: StaffPermissionKe
   { permissionKey: "media.read", routeName: routeNames.media },
   { permissionKey: "crm.read", routeName: routeNames.crm },
   { permissionKey: "business.read", routeName: routeNames.business },
+  { permissionKey: "business.write", routeName: routeNames.business },
+  { permissionKey: "business.followup", routeName: routeNames.business },
   { permissionKey: "staff_accounts.manage", routeName: routeNames.staffAccounts },
 ]
 
 export function firstAuthorizedRouteName(permissionKeys: readonly StaffPermissionKey[], capabilities: PlatformCapabilities = enabledPlatformCapabilities): string | null {
-  return authorizedRouteOrder.find((route) => permissionKeys.includes(route.permissionKey) && (route.capabilityKey === undefined || capabilities[route.capabilityKey]))?.routeName ?? null
+  const routeName = authorizedRouteOrder.find((route) => permissionKeys.includes(route.permissionKey) && (route.capabilityKey === undefined || capabilities[route.capabilityKey]))?.routeName ?? null
+  return routeName === routeNames.execution && permissionKeys.includes("execution.manage") ? routeNames.executionManagement : routeName
 }
 
 export function hasRoutePermission(permissionKeys: readonly StaffPermissionKey[], meta: PermissionMeta, capabilities: PlatformCapabilities = enabledPlatformCapabilities): boolean {

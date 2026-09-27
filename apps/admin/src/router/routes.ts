@@ -6,6 +6,7 @@ import ConfigurationView from "@/views/ConfigurationView.vue"
 import CrmView from "@/views/CrmView.vue"
 import EvaluationStandardsView from "@/views/EvaluationStandardsView.vue"
 import EvaluationsView from "@/views/EvaluationsView.vue"
+import ExecutionManagementView from "@/views/ExecutionManagementView.vue"
 import FeedbackView from "@/views/FeedbackView.vue"
 import ForcePasswordChangeView from "@/views/ForcePasswordChangeView.vue"
 import GuideSessionView from "@/views/GuideSessionView.vue"
@@ -35,6 +36,7 @@ export const routeNames = {
   feedback: "feedback",
   execution: "execution",
   executionSession: "execution-session",
+  executionManagement: "execution-management",
   healthAccess: "health-access",
   home: "home",
   insurance: "insurance",
@@ -161,6 +163,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: "导游执行", requiredPermission: "execution.read" },
       },
       {
+        path: "execution/management",
+        name: routeNames.executionManagement,
+        component: ExecutionManagementView,
+        meta: { title: "执行管理", requiredPermission: "execution.read", requiredAnyPermission: ["execution.manage"] },
+      },
+      {
         path: "execution/sessions/:sessionId",
         name: routeNames.executionSession,
         component: GuideSessionView,
@@ -212,7 +220,7 @@ export const routes: RouteRecordRaw[] = [
         path: "business",
         name: routeNames.business,
         component: BusinessView,
-        meta: { title: "商旅业务", requiredPermission: "business.read" },
+        meta: { title: "商旅业务", requiredAnyPermission: ["business.read", "business.write", "business.followup"] },
       },
       {
         path: "staff-accounts",

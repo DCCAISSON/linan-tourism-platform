@@ -22,6 +22,7 @@
         <router-link v-if="hasPermission('pretrip.school_confirm')" class="admin-nav__item" to="/school-confirmation">学校行前签认</router-link>
         <router-link v-if="hasPermission('notifications.read') && hasPermission('notifications.write') && hasPermission('notifications.send')" class="admin-nav__item" to="/notifications">通知管理</router-link>
         <router-link v-if="hasPermission('execution.read')" class="admin-nav__item" to="/execution">导游执行</router-link>
+        <router-link v-if="hasPermission('execution.read') && hasPermission('execution.manage')" class="admin-nav__item" to="/execution/management">执行管理</router-link>
         <router-link v-if="hasPermission('health.read')" class="admin-nav__item" to="/health-access">健康授权</router-link>
         <router-link v-if="hasPermission('evaluations.read') || hasPermission('evaluations.school_report')" class="admin-nav__item" to="/evaluations">学生评价</router-link>
         <router-link v-if="hasPermission('evaluations.standard.write') || hasPermission('evaluations.standard.confirm')" class="admin-nav__item" to="/evaluation-standards">评价标准</router-link>
@@ -29,7 +30,7 @@
         <router-link v-if="hasPermission('insurance.read')" class="admin-nav__item" to="/insurance">保险工作台</router-link>
         <router-link v-if="hasPermission('media.read')" class="admin-nav__item" to="/media">影像管理</router-link>
         <router-link v-if="hasPermission('crm.read')" class="admin-nav__item" to="/crm">客户管理</router-link>
-        <router-link v-if="hasPermission('business.read')" class="admin-nav__item" to="/business">商旅业务</router-link>
+        <router-link v-if="hasPermission('business.read') || hasPermission('business.write') || hasPermission('business.followup')" class="admin-nav__item" to="/business">商旅业务</router-link>
         <router-link v-if="hasPermission('staff_accounts.manage')" class="admin-nav__item" to="/staff-accounts">账号权限</router-link>
       </nav>
     </aside>
