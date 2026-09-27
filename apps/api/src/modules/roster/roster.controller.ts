@@ -76,6 +76,20 @@ export class RosterController {
     })
   }
 
+  @Get("templates/:template.xlsx")
+  async downloadTemplate(
+    @Headers() headers: RequestHeaders,
+    @Param("template") template: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const access = await this.staffAccess.resolve(headers)
+    const workbook = await this.rosterImport.downloadTemplate(access, readTemplate(template))
+    response.status(200)
+      .setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      .setHeader("Content-Disposition", `attachment; filename="roster-template-${template}.xlsx"`)
+      .send(workbook)
+  }
+
   @Get("imports/:batchId/errors.csv")
   async importErrors(
     @Headers() headers: RequestHeaders,

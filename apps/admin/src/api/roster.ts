@@ -1,12 +1,32 @@
 import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError, readableRosterError } from "./roster.errors"
 import { parseRosterImportResult, parseRosterSummary } from "./roster.parsers"
-import type { RosterImportPayload, RosterImportResult, RosterQuery, RosterSummary } from "./roster.types"
+import type { RosterImportPayload, RosterImportResult, RosterImportTemplate, RosterQuery, RosterSummary } from "./roster.types"
 
 export { RosterApiError, readableRosterError }
 export type { RosterFilters, RosterImportPayload, RosterImportResult, RosterImportTemplate, RosterQuery, RosterRow, RosterSummary } from "./roster.types"
 
 const apiBaseUrl = resolveAdminApiBaseUrl()
+
+export async function downloadRosterTemplate(template: RosterImportTemplate): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/roster/templates/${template}.xlsx`, {
+    method: "GET",
+    credentials: "include",
+  })
+  if (!response.ok) {
+    const value = await readJson(response)
+    throw new RosterApiError(response.status, readErrorMessage(value) ?? `下载失败（${response.status}）`)
+  }
+  const names = { parent_child: "1-2年级亲子模板", grade_3_6: "3-6年级学生模板", teacher: "教师名单模板" } as const
+  const objectUrl = URL.createObjectURL(await response.blob())
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = `${names[template]}.xlsx`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
+}
 
 export async function getRosterSummary(query: RosterQuery): Promise<RosterSummary> {
   const value = await requestJson(`/roster/summary?${buildQueryString(query)}`)

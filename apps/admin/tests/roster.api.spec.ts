@@ -1,9 +1,18 @@
 ﻿import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { downloadRosterExport, getRosterSummary, importRoster, readableRosterError, RosterApiError } from "@/api/roster"
+import { downloadRosterExport, downloadRosterTemplate, getRosterSummary, importRoster, readableRosterError, RosterApiError } from "@/api/roster"
 import { parseRosterImportResult } from "@/api/roster.parsers"
 
 describe("roster API", () => {
+  it("requests the selected blank template with staff credentials and surfaces forbidden errors", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: "没有导入权限" }), { status: 403 }))
+    vi.stubGlobal("fetch", fetchMock)
+    await expect(downloadRosterTemplate("teacher")).rejects.toThrow("没有导入权限")
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:3000/roster/templates/teacher.xlsx", {
+      method: "GET", credentials: "include",
+    })
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()

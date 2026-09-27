@@ -62,6 +62,14 @@
           <p>导入仅生成名单核对记录，不生成订单，也不计入已付款人数和金额。</p>
         </div>
       </div>
+      <div class="roster-actions" aria-label="下载名单模板">
+        <button v-for="template in rosterTemplates" :key="template.value" type="button" class="roster-button--secondary"
+          :disabled="downloadingTemplate !== null" @click="downloadTemplate(template.value)">
+          {{ downloadingTemplate === template.value ? "下载中..." : `下载${template.label}` }}
+        </button>
+      </div>
+      <p class="roster-state">请按模板底色和星号填写必填项，保留表头及工作表名称；生日、年龄自动生成。</p>
+      <p v-if="templateDownloadError" class="roster-state roster-state--error" role="alert">{{ templateDownloadError }}</p>
       <form class="roster-import-form" @submit.prevent="submitImport">
         <div class="field">
           <label for="roster-import-template">模板类型</label>
@@ -161,7 +169,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
 
-import { downloadRosterExport, downloadRosterImportErrors, getRosterSummary, importRoster, readableRosterError } from "@/api/roster"
+import { downloadRosterExport, downloadRosterImportErrors, downloadRosterTemplate, getRosterSummary, importRoster, readableRosterError } from "@/api/roster"
 import type { RosterImportResult, RosterImportTemplate, RosterQuery, RosterRow, RosterSummary } from "@/api/roster"
 import { getCurrentStaff } from "@/api/auth"
 import "@/styles/roster.css"
@@ -177,6 +185,13 @@ const error = ref("")
 const exportError = ref("")
 const formError = ref("")
 const canImportRoster = ref(false)
+const rosterTemplates = [
+  { value: "parent_child", label: "1-2年级亲子模板" },
+  { value: "grade_3_6", label: "3-6年级学生模板" },
+  { value: "teacher", label: "教师名单模板" },
+] as const
+const downloadingTemplate = ref<RosterImportTemplate | null>(null)
+const templateDownloadError = ref("")
 const importTemplate = ref<RosterImportTemplate>("parent_child")
 const importFile = ref<File | null>(null)
 const importFileInput = ref<HTMLInputElement>()
@@ -240,6 +255,18 @@ async function downloadImportErrors(): Promise<void> {
     await downloadRosterImportErrors(importResult.value.id)
   } catch (caught) {
     importFormError.value = readableRosterError(caught)
+  }
+}
+
+async function downloadTemplate(template: RosterImportTemplate): Promise<void> {
+  downloadingTemplate.value = template
+  templateDownloadError.value = ""
+  try {
+    await downloadRosterTemplate(template)
+  } catch (caught) {
+    templateDownloadError.value = readableRosterError(caught)
+  } finally {
+    downloadingTemplate.value = null
   }
 }
 

@@ -1,5 +1,6 @@
 ﻿import { randomUUID } from "node:crypto"
-import { BadRequestException, Inject, Injectable } from "@nestjs/common"
+import { readFile } from "node:fs/promises"
+import { BadRequestException, ForbiddenException, Inject, Injectable } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
 import {  OrganizationEntity,
   RosterImportBatchEntity,
@@ -24,6 +25,7 @@ import type {
   RosterImportRequest,
   RosterImportRole,
   RosterImportScopeInput,
+  RosterImportTemplate,
 } from "./roster-import.types.js"
 
 @Injectable()
@@ -33,6 +35,13 @@ export class RosterImportService {
     @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
     @Inject(AuditLogService) private readonly audit: AuditLogService,
   ) {}
+
+  async downloadTemplate(access: StaffAccess, template: RosterImportTemplate): Promise<Buffer> {
+    if (!access.permissionKeys.has("roster.import")) {
+      throw new ForbiddenException({ code: "scope_forbidden", message: "staff identity cannot import this roster" })
+    }
+    return readFile(new URL(`./templates/${template}.xlsx`, import.meta.url))
+  }
 
   async importWorkbook(access: StaffAccess, input: RosterImportRequest): Promise<RosterImportBatchResponse> {
     const rows = await parseRosterImportWorkbook(input.buffer, input.template)

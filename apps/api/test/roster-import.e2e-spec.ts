@@ -12,7 +12,8 @@ import {
   initializeCatalogTripDatabase,
 } from "./catalog-trip-fixture.js"
 import { createCatalog, restoreNodeEnv, virtualPhone, virtualResidentId } from "./enrollment-consent-fixture.js"
-import { payEnrollment } from "./roster-export-fixture.js"
+import { collectBinary, payEnrollment } from "./roster-export-fixture.js"
+import { Readable } from "node:stream"
 
 const PERSON_DATA_KEY = Buffer.alloc(32, 12).toString("base64")
 const ROSTER_IMPORT_MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -80,6 +81,33 @@ describe.skipIf(databaseUrl === undefined)("Roster import API", () => {
       { role: "student", display_name: "学生二", source_class_name: "三（2）班" },
       { role: "teacher", display_name: "教师一", source_class_name: "带队教师" },
     ])
+  })
+
+  it.each(["parent_child", "grade_3_6", "teacher"] as const)("imports synthetic people entered into the downloaded %s original", async template => {
+    const catalog = await createCatalog(app, scope)
+    const response = await request(app.getHttpServer()).get(`/roster/templates/${template}.xlsx`)
+      .set(DEV_ADMIN_HEADERS).buffer(true).parse(collectBinary).expect(200)
+    const binary: unknown = response.body
+    if (!Buffer.isBuffer(binary)) throw new Error("Expected workbook download")
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.read(Readable.from(binary))
+    const sheet = workbook.getWorksheet("数据导入项")
+    if (sheet === undefined) throw new Error("Missing import worksheet")
+    sheet.getCell("B3").value = "一班"
+    sheet.getCell("C3").value = "模板校验人员"
+    sheet.getCell("D3").value = virtualResidentId("20160101", "631")
+    sheet.getCell(template === "parent_child" ? "K3" : "G3").value = virtualPhone("9631")
+    if (template === "parent_child") {
+      sheet.getCell("G3").value = "模板校验家长"
+      sheet.getCell("H3").value = virtualResidentId("19860101", "632")
+    }
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+    const imported = await importWorkbook(app, catalog, template, buffer)
+    expect(imported.body).toMatchObject({ totalRows: 1, importedCount: template === "parent_child" ? 2 : 1, errorCount: 0 })
+    sheet.getCell("D3").value = "invalid-identity"
+    const rejected = await importWorkbook(app, catalog, template, Buffer.from(await workbook.xlsx.writeBuffer()))
+    expect(rejected.body).toMatchObject({ importedCount: 0, errorCount: 1 })
+    expect(rejected.body.errors).toEqual(expect.arrayContaining([expect.objectContaining({ field: "identityNumber" })]))
   })
 
   it("rejects every participant in a blank-class row while accepting the next valid row", async () => {
