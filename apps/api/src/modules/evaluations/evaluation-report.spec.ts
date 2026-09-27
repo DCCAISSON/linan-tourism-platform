@@ -15,7 +15,7 @@ describe("school evaluation reports", () => {
   it("excludes ungraded students and internal negative observations from generated reports", async () => {
     const first = rows[0]
     if (first === undefined) throw new Error("report fixture missing")
-    const internal = { ...first, id: "eval-a", version: 1, standardId: "std-a", organizationId: "school-a", internalComment: "内部负面记录不可外发", excellent: false, attention: true, confirmedAt: "2026-09-27T00:00:00.000Z" }
+    const internal = { ...first, id: "eval-a", version: 1, standardId: "std-a", organizationId: "school-a", internalComment: "内部负面记录不可外发", dimensionObservations: [{ code: "participation", observation: "内部逐项观察不可外发" }], excellent: false, attention: true, confirmedAt: "2026-09-27T00:00:00.000Z" }
     const output = filterSchoolConfirmedGrades([internal, { ...internal, id: "eval-b", personRef: "paid:line-c", displayName: "未评价学生", gradeCode: null, gradeLabel: null, confirmedAt: null }], "school-a")
     const buffer = await createSchoolEvaluationWorkbook(output)
     const workbook = new ExcelJS.Workbook()
@@ -27,6 +27,8 @@ describe("school evaluation reports", () => {
     for (const content of [workbookText, wordText]) {
       expect(content).toContain("学生甲")
       expect(content).not.toContain("内部负面记录不可外发")
+      expect(content).not.toContain("内部逐项观察不可外发")
+      expect(content).not.toContain("dimensionObservations")
       expect(content).not.toContain("未评价学生")
       expect(content).not.toContain("attention")
     }

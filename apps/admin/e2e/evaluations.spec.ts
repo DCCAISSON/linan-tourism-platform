@@ -7,6 +7,70 @@ const standard = { id: "std-a", tourSessionId: "session-a", title: "学校提供
 const student = { personRef: "paid:line-a", displayName: "学生甲", gradeName: "五年级", className: "一班" }
 const row = { ...student, id: "eval-a", version: 1, standardId: "std-a", organizationId: "school-a", gradeCode: "A", gradeLabel: "学校A标签", internalComment: "内部观察", excellent: false, attention: false, confirmedAt: null }
 
+test("creates a dimension standard and records optional facts without automatic grading", async ({ page }, testInfo) => {
+  await installStaffAuthMock(page, permissions)
+  const dimensions = [{ code: "participation", label: "参与态度", description: "记录具体学习表现" }]
+  const configured = { ...standard, dimensions }
+  let created = false
+  let confirmed = false
+  let observation = ""
+  let version = 0
+  await page.route(api + "/evaluations/staff/sessions/session-a/standards", route => route.fulfill({ json: created ? [{ ...configured, confirmedAt: confirmed ? standard.confirmedAt : null }] : [] }))
+  await page.route(api + "/evaluations/staff/standards", async route => {
+    expect(route.request().postDataJSON()).toMatchObject({ dimensions: [{ code: expect.stringMatching(/^d_/), label: "参与态度", description: "记录具体学习表现" }] })
+    created = true
+    await route.fulfill({ json: { ...configured, confirmedAt: null } })
+  })
+  await page.route(api + "/evaluations/staff/standards/std-a/confirm", async route => { confirmed = true; await route.fulfill({ json: configured }) })
+  await page.route(api + "/evaluations/staff/sessions/session-a", route => route.fulfill({ json: { organizationId: "school-a", standards: [configured], students: [student], evaluations: version === 0 ? [] : [{ ...row, version, gradeCode: null, gradeLabel: null, dimensionObservations: [{ code: "participation", observation }] }] } }))
+  await page.route(api + "/evaluations/staff/batch", async route => {
+    expect(route.request().postDataJSON()).toMatchObject({ standardId: "std-a", observations: [{ gradeCode: null, dimensionObservations: [{ code: "participation", observation: "主动完成小组记录任务" }] }] })
+    version = 1
+    observation = "主动完成小组记录任务"
+    await route.fulfill({ json: [] })
+  })
+  await page.route(api + "/evaluations/staff/eval-a", async route => {
+    expect(route.request().postDataJSON()).toMatchObject({ expectedVersion: 1, gradeCode: null, dimensionObservations: [{ code: "participation", observation: "补充：帮助同伴整理材料" }] })
+    version = 2
+    observation = "补充：帮助同伴整理材料"
+    await route.fulfill({ json: {} })
+  })
+  page.on("dialog", dialog => dialog.accept())
+  await page.goto("/evaluation-standards")
+  await page.getByLabel("团期 ID").fill("session-a")
+  await page.getByRole("button", { name: "加载标准" }).click()
+  await page.getByLabel("标题", { exact: true }).fill("学校提供标准")
+  await page.getByLabel("A 等级说明").fill("学校A标签")
+  await page.getByLabel("A 判定规则").fill("学校A规则")
+  await page.getByLabel("B 等级说明").fill("学校B标签")
+  await page.getByLabel("B 判定规则").fill("学校B规则")
+  await page.getByRole("button", { name: "添加观察项目" }).click()
+  await page.getByLabel("项目 1 名称").fill("参与态度")
+  await page.getByLabel("项目 1 观察说明").fill("记录具体学习表现")
+  await page.getByRole("button", { name: "保存标准草稿" }).click()
+  await page.getByRole("button", { name: "确认此标准" }).click()
+  await expect(page.getByText("标准已确认，可用于本团期评级。")).toBeVisible()
+  await page.getByRole("link", { name: "学生评价", exact: true }).click()
+  await page.getByLabel("团期 ID").fill("session-a")
+  await page.getByRole("button", { name: "加载评价" }).click()
+  await page.getByRole("combobox", { name: "评价标准", exact: true }).selectOption("std-a")
+  await page.getByLabel("参与态度（观察事实，可选）", { exact: false }).fill("主动完成小组记录任务")
+  await page.getByLabel("选择学生甲", { exact: true }).check()
+  await page.getByRole("button", { name: "保存所选学生评价" }).click()
+  await expect(page.locator("tbody tr")).toContainText("未评级")
+  await page.getByRole("button", { name: "修改", exact: true }).click()
+  await expect(page.getByLabel("参与态度（观察事实，可选）", { exact: false })).toHaveValue("主动完成小组记录任务")
+  await page.getByLabel("参与态度（观察事实，可选）", { exact: false }).fill("补充：帮助同伴整理材料")
+  await page.getByRole("button", { name: "保存个别修改" }).click()
+  await expect(page.locator("tbody tr")).toContainText("补充：帮助同伴整理材料")
+  await expect(page.locator("tbody tr")).toContainText("未评级")
+  for (const width of [375, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    await page.screenshot({ fullPage: true, path: testInfo.outputPath(`dimension-observations-${width}.png`) })
+  }
+})
+
 test("batches selected students, revises one record and confirms grades", async ({ page }, testInfo) => {
   await installStaffAuthMock(page, permissions)
   let stage = 0

@@ -1,6 +1,8 @@
 import type { PersonRef } from "../travelers/travelers.types.js"
 
 export type EvaluationGradeCode = "A" | "B"
+export type EvaluationDimension = { readonly code: string; readonly label: string; readonly description: string }
+export type DimensionObservation = { readonly code: string; readonly observation: string }
 export type StandardItemInput = {
   readonly code: EvaluationGradeCode
   readonly label: string
@@ -11,12 +13,14 @@ export type EvaluationStandardInput = {
   readonly title: string
   readonly items: readonly StandardItemInput[]
   readonly publicFormatNote: string
+  readonly dimensions?: readonly EvaluationDimension[]
 }
 export type StandardConfirmationInput = {
   readonly expectedVersion: number
   readonly confirmed: true
 }
 export type EvaluationObservationInput = {
+  readonly dimensionObservations?: readonly DimensionObservation[]
   readonly personRef: PersonRef
   readonly internalComment: string
   readonly excellent: boolean
@@ -30,6 +34,7 @@ export type BatchEvaluationInput = {
   readonly idempotencyKey: string
 }
 export type EvaluationRevisionInput = {
+  readonly dimensionObservations?: readonly DimensionObservation[]
   readonly expectedVersion: number
   readonly internalComment: string
   readonly excellent: boolean
@@ -37,6 +42,7 @@ export type EvaluationRevisionInput = {
   readonly gradeCode: EvaluationGradeCode | null
 }
 export type EvaluationSummaryRow = {
+  readonly dimensionObservations: readonly DimensionObservation[]
   readonly id: string
   readonly version: number
   readonly standardId: string | null
@@ -61,6 +67,7 @@ export type SchoolEvaluationRow = {
   readonly gradeLabel: string
 }
 export type EvaluationStandardSummary = {
+  readonly dimensions: readonly EvaluationDimension[]
   readonly id: string
   readonly tourSessionId: string
   readonly title: string

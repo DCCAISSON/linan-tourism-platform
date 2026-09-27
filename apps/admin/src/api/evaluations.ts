@@ -2,8 +2,11 @@ import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
 const apiBaseUrl = resolveAdminApiBaseUrl()
+export type EvaluationDimension = { readonly code: string; readonly label: string; readonly description: string }
+export type DimensionObservation = { readonly code: string; readonly observation: string }
 
 export type EvaluationStandardSummary = {
+  readonly dimensions: readonly EvaluationDimension[]
   readonly id: string
   readonly tourSessionId: string
   readonly title: string
@@ -12,6 +15,7 @@ export type EvaluationStandardSummary = {
   readonly items: readonly { readonly code: "A" | "B"; readonly label: string; readonly description: string }[]
 }
 export type EvaluationRow = {
+  readonly dimensionObservations: readonly DimensionObservation[]
   readonly id: string
   readonly version: number
   readonly standardId: string | null
@@ -40,6 +44,7 @@ export type SchoolReportResult = {
 }
 
 export type StandardDraftInput = {
+  readonly dimensions?: readonly EvaluationDimension[]
   readonly tourSessionId: string
   readonly title: string
   readonly items: readonly { readonly code: "A" | "B"; readonly label: string; readonly description: string }[]
@@ -70,7 +75,7 @@ export async function confirmEvaluationSession(sessionId: string): Promise<reado
   return value.map(parseEvaluationRow)
 }
 
-export type EvaluationObservation = Pick<EvaluationRow, "personRef" | "internalComment" | "excellent" | "attention" | "gradeCode">
+export type EvaluationObservation = Pick<EvaluationRow, "personRef" | "internalComment" | "excellent" | "attention" | "gradeCode"> & { readonly dimensionObservations?: readonly DimensionObservation[] }
 export type SchoolEvaluationRow = Pick<EvaluationRow, "personRef" | "displayName" | "gradeName" | "className"> & { readonly gradeCode: "A" | "B"; readonly gradeLabel: string }
 
 export async function loadSchoolEvaluations(sessionId: string, organizationId: string): Promise<readonly SchoolEvaluationRow[]> {
@@ -142,8 +147,13 @@ async function readJson(response: Response): Promise<unknown> {
 function parseStandard(value: unknown): EvaluationStandardSummary {
   const record = readRecord(value)
   const items = record["items"]
-  if (!Array.isArray(items)) throw invalidResponse()
+  const dimensions = record["dimensions"] ?? []
+  if (!Array.isArray(items) || !Array.isArray(dimensions)) throw invalidResponse()
   return {
+    dimensions: dimensions.map((value) => {
+      const dimension = readRecord(value)
+      return { code: readText(dimension, "code"), label: readText(dimension, "label"), description: readText(dimension, "description") }
+    }),
     id: readText(record, "id"),
     tourSessionId: readText(record, "tourSessionId"),
     title: readText(record, "title"),
@@ -160,7 +170,13 @@ function parseStandard(value: unknown): EvaluationStandardSummary {
 
 function parseEvaluationRow(value: unknown): EvaluationRow {
   const record = readRecord(value)
+  const dimensionObservations = record["dimensionObservations"] ?? []
+  if (!Array.isArray(dimensionObservations)) throw invalidResponse()
   return {
+    dimensionObservations: dimensionObservations.map((value) => {
+      const observation = readRecord(value)
+      return { code: readText(observation, "code"), observation: readText(observation, "observation") }
+    }),
     id: readText(record, "id"),
     version: readCount(record, "version"),
     standardId: readNullableText(record, "standardId"),

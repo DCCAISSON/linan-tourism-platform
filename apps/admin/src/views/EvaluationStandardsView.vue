@@ -18,6 +18,16 @@
         <label class="evaluation-field">A 判定规则<input v-model="aDescription" required maxlength="300" /></label>
         <label class="evaluation-field">B 等级说明<input v-model="bLabel" required maxlength="80" /></label>
         <label class="evaluation-field">B 判定规则<input v-model="bDescription" required maxlength="300" /></label>
+        <fieldset class="evaluation-card evaluation-form">
+          <legend>观察项目（可选）</legend>
+          <p class="evaluation-state">项目用于记录具体表现，等级仍由导游按已确认规则判断。可不设置观察项目。</p>
+          <div v-for="(dimension, index) in dimensions" :key="dimension.code" class="evaluation-form">
+            <label class="evaluation-field">项目 {{ index + 1 }} 名称<input v-model="dimension.label" required maxlength="80" :disabled="saving" /></label>
+            <label class="evaluation-field">项目 {{ index + 1 }} 观察说明<input v-model="dimension.description" maxlength="300" :disabled="saving" /></label>
+            <button type="button" class="evaluation-button" :disabled="saving" @click="dimensions.splice(index, 1)">移除项目 {{ index + 1 }}</button>
+          </div>
+          <button type="button" class="evaluation-button" :disabled="saving || dimensions.length >= 32" @click="addDimension">添加观察项目</button>
+        </fieldset>
         <button type="submit" class="evaluation-button" :disabled="saving">{{ saving ? "保存中..." : "保存标准草稿" }}</button>
       </form>
       <p v-if="message" class="evaluation-state">{{ message }}</p>
@@ -27,6 +37,7 @@
         <article v-for="standard in standards" :key="standard.id" class="evaluation-card">
           <h3>{{ standard.title }}（版本 {{ standard.version }}）</h3>
           <p v-for="item in standard.items" :key="item.code">{{ item.code }} · {{ item.label }}：{{ item.description }}</p>
+          <p v-for="dimension in standard.dimensions" :key="dimension.code">观察项目：{{ dimension.label }}{{ dimension.description ? ` · ${dimension.description}` : '' }}</p>
           <p>{{ standard.confirmedAt ? '已确认' : '草稿，不能用于评级' }}</p>
           <button v-if="canConfirm && !standard.confirmedAt" class="evaluation-button" :disabled="saving" @click="confirm(standard)">确认此标准</button>
         </article>
@@ -47,6 +58,7 @@ const aLabel = ref("")
 const bLabel = ref("")
 const aDescription = ref("")
 const bDescription = ref("")
+const dimensions = ref<{ code: string; label: string; description: string }[]>([])
 const standards = ref<readonly EvaluationStandardSummary[]>([])
 const loadedSession = ref("")
 const canWrite = ref(false)
@@ -54,6 +66,10 @@ const canConfirm = ref(false)
 const saving = ref(false)
 const message = ref("")
 const error = ref("")
+
+function addDimension(): void {
+  dimensions.value.push({ code: `d_${crypto.randomUUID()}`, label: "", description: "" })
+}
 
 async function load(): Promise<void> {
   saving.value = true
@@ -71,7 +87,7 @@ async function load(): Promise<void> {
 }
 
 async function confirm(standard: EvaluationStandardSummary): Promise<void> {
-  if (!window.confirm("请确认上述 A/B 说明和判定规则已经学校确认。确认后可用于本团期评级，是否继续？")) return
+  if (!window.confirm("请确认上述 A/B 规则及观察项目已经学校确认。确认后可用于本团期评价，是否继续？")) return
   saving.value = true
   error.value = ""
   try {
@@ -91,6 +107,7 @@ async function save(): Promise<void> {
       tourSessionId: form.tourSessionId.trim(),
       title: form.title.trim(),
       publicFormatNote: "基础格式，未获得正式模板",
+      dimensions: dimensions.value.map((dimension) => ({ code: dimension.code, label: dimension.label.trim(), description: dimension.description.trim() })),
       items: [
         { code: "A", label: aLabel.value.trim(), description: aDescription.value.trim() },
         { code: "B", label: bLabel.value.trim(), description: bDescription.value.trim() },

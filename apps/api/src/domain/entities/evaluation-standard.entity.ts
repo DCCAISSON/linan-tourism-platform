@@ -18,6 +18,9 @@ export class EvaluationStandardEntity {
   @Column({ type: "json" })
   items: readonly { readonly code: "A" | "B"; readonly label: string; readonly description: string }[] = []
 
+  @Column({ type: "json", nullable: true })
+  dimensions: readonly { readonly code: string; readonly label: string; readonly description: string }[] | null = null
+
   @Column({ name: "public_format_note", type: "varchar", length: 160 })
   publicFormatNote = ""
 

@@ -65,6 +65,7 @@
 }
 .evaluation-button:hover:not(:disabled) { background: var(--accent-hover); }
 .evaluation-button:focus-visible,
+.evaluation-table-wrap:focus-visible,
 .evaluation-field input:focus-visible,
 .evaluation-field select:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
 .evaluation-page { min-width: 0; }
@@ -90,6 +91,24 @@
 .evaluation-table small {
   display: block;
   color: var(--text-secondary);
+}
+.evaluation-table th,
+.evaluation-cell-short,
+.evaluation-table .evaluation-button {
+  white-space: nowrap;
+}
+.evaluation-cell-short {
+  min-width: 4ch;
+}
+.evaluation-cell-short small {
+  max-width: 12ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.evaluation-cell-observations {
+  min-width: 20ch;
+  max-width: 40ch;
+  overflow-wrap: anywhere;
 }
 .feedback-list {
   display: grid;

@@ -8,10 +8,12 @@ import type {
   EvaluationStandardInput,
   StandardConfirmationInput,
   StandardItemInput,
+  EvaluationDimension,
+  DimensionObservation,
 } from "./evaluations.types.js"
 
 export function parseEvaluationStandard(body: unknown): EvaluationStandardInput {
-  const record = inputRecord(body, ["tourSessionId", "title", "items", "publicFormatNote"])
+  const record = inputRecord(body, ["tourSessionId", "title", "items", "publicFormatNote", "dimensions"])
   const items = readItems(record["items"])
   const codes = new Set(items.map((item) => item.code))
   if (!codes.has("A") || !codes.has("B")) throw invalid("confirmed standard requires explicit A/B labels")
@@ -20,6 +22,7 @@ export function parseEvaluationStandard(body: unknown): EvaluationStandardInput 
     title: readText(record, "title", 120),
     items,
     publicFormatNote: readText(record, "publicFormatNote", 160),
+    dimensions: readDimensions(record["dimensions"]),
   }
 }
 
@@ -45,13 +48,14 @@ export function parseBatchEvaluation(body: unknown): BatchEvaluationInput {
 }
 
 export function parseEvaluationRevision(body: unknown): EvaluationRevisionInput {
-  const record = inputRecord(body, ["expectedVersion", "internalComment", "excellent", "attention", "gradeCode"])
+  const record = inputRecord(body, ["expectedVersion", "internalComment", "excellent", "attention", "gradeCode", "dimensionObservations"])
   return {
     expectedVersion: readVersion(record),
     internalComment: readText(record, "internalComment", 500, true),
     excellent: readBoolean(record, "excellent"),
     attention: readBoolean(record, "attention"),
     gradeCode: readGrade(record["gradeCode"], true),
+    ...optionalDimensionObservations(record),
   }
 }
 
@@ -71,7 +75,7 @@ function readObservations(value: unknown): readonly EvaluationObservationInput[]
   if (!Array.isArray(value) || value.length === 0 || value.length > 200) throw invalid("evaluation observations are required")
   const refs = new Set<PersonRef>()
   return value.map((item) => {
-    const record = inputRecord(item, ["personRef", "internalComment", "excellent", "attention", "gradeCode"])
+    const record = inputRecord(item, ["personRef", "internalComment", "excellent", "attention", "gradeCode", "dimensionObservations"])
     const personRef = readPersonRef(record["personRef"])
     if (refs.has(personRef)) throw invalid("duplicate personRef in evaluation batch")
     refs.add(personRef)
@@ -81,8 +85,43 @@ function readObservations(value: unknown): readonly EvaluationObservationInput[]
       excellent: readBoolean(record, "excellent"),
       attention: readBoolean(record, "attention"),
       gradeCode: readGrade(record["gradeCode"], true),
+      ...optionalDimensionObservations(record),
     }
   })
+}
+
+function readDimensions(value: unknown): readonly EvaluationDimension[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > 32) throw invalid("dimensions must contain at most 32 items")
+  const codes = new Set<string>()
+  return value.map((value) => {
+    const item = inputRecord(value, ["code", "label", "description"])
+    const code = readDimensionCode(item)
+    if (codes.has(code)) throw invalid("duplicate dimension code")
+    codes.add(code)
+    return { code, label: readText(item, "label", 80), description: readText(item, "description", 300, true) }
+  })
+}
+
+function optionalDimensionObservations(record: Record<string, unknown>): { readonly dimensionObservations?: readonly DimensionObservation[] } {
+  const value = record["dimensionObservations"]
+  if (value === undefined) return {}
+  if (!Array.isArray(value) || value.length > 32) throw invalid("dimensionObservations must contain at most 32 items")
+  const codes = new Set<string>()
+  const dimensionObservations = value.map((value) => {
+    const item = inputRecord(value, ["code", "observation"])
+    const code = readDimensionCode(item)
+    if (codes.has(code)) throw invalid("duplicate dimension observation")
+    codes.add(code)
+    return { code, observation: readText(item, "observation", 500, true) }
+  })
+  return { dimensionObservations }
+}
+
+function readDimensionCode(record: Record<string, unknown>): string {
+  const code = record["code"]
+  if (typeof code === "string" && /^[a-zA-Z][a-zA-Z0-9_-]{0,39}$/.test(code)) return code
+  throw invalid("dimension code is invalid")
 }
 
 function inputRecord(value: unknown, allowed: readonly string[]): Record<string, unknown> {

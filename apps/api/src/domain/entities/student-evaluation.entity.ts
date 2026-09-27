@@ -45,6 +45,9 @@ export class StudentEvaluationEntity {
   @Column({ name: "internal_comment", type: "varchar", length: 500 })
   internalComment = ""
 
+  @Column({ name: "dimension_observations", type: "json", nullable: true })
+  dimensionObservations: readonly { readonly code: string; readonly observation: string }[] | null = null
+
   @Column({ type: "boolean", default: false })
   excellent = false
 

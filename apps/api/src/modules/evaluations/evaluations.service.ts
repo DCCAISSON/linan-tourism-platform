@@ -11,6 +11,7 @@ import { assertTravelerActionable, readTravelers, resolveTraveler } from "../tra
 import type { PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
 import { createSchoolEvaluationWorkbook, createSchoolEvaluationWordXml } from "./evaluation-report.js"
 import { assertEvaluationPermission, canReadSchoolEvaluations, filterSchoolConfirmedGrades } from "./evaluations.policy.js"
+import { resolveDimensionObservations } from "./evaluations.dimensions.js"
 import type {
   BatchEvaluationInput,
   EvaluationDashboard,
@@ -22,6 +23,7 @@ import type {
   SchoolEvaluationRow,
   StandardConfirmationInput,
   StandardItemInput,
+  DimensionObservation,
 } from "./evaluations.types.js"
 
 @Injectable()
@@ -64,6 +66,7 @@ export class EvaluationsService {
       tourSessionId: input.tourSessionId,
       title: input.title,
       items: [...input.items],
+      dimensions: [...(input.dimensions ?? [])],
       publicFormatNote: input.publicFormatNote,
       createdByStaffId: staff.actorId,
     })
@@ -105,6 +108,7 @@ export class EvaluationsService {
           excellent: observation.excellent,
           attention: observation.attention,
           gradeCode: observation.gradeCode,
+          dimensionObservations: observation.dimensionObservations,
         }))
       }
       return rows.map(toSummaryRow)
@@ -121,7 +125,9 @@ export class EvaluationsService {
       await assertStaffSession(manager, staff, row.tourSessionId)
       if (row.version !== input.expectedVersion) throw stale()
       const standard = row.standardId === null ? null : await confirmedStandard(manager, row.standardId, row.tourSessionId)
+      const dimensionObservations = resolveDimensionObservations(row, standard, input.dimensionObservations)
       applyGrade(row, standard, input.gradeCode)
+      row.dimensionObservations = dimensionObservations
       row.internalComment = input.internalComment
       row.excellent = input.excellent
       row.attention = input.attention
@@ -190,6 +196,7 @@ async function upsertEvaluation(manager: EntityManager, staff: StaffAccess, trav
   readonly excellent: boolean
   readonly attention: boolean
   readonly gradeCode: EvaluationGradeCode | null
+  readonly dimensionObservations: readonly DimensionObservation[] | undefined
 }): Promise<StudentEvaluationEntity> {
   const existing = await manager.findOne(StudentEvaluationEntity, { where: { tourSessionId: traveler.tourSessionId, personRef: traveler.personRef }, lock: { mode: "pessimistic_write" } })
   const row = existing ?? manager.create(StudentEvaluationEntity, {
@@ -201,9 +208,11 @@ async function upsertEvaluation(manager: EntityManager, staff: StaffAccess, trav
     gradeName: traveler.gradeName,
     className: traveler.className,
   })
+  const dimensionObservations = resolveDimensionObservations(existing, input.standard, input.dimensionObservations)
   row.standardId = input.standard?.id ?? null
   row.standardVersion = input.standard?.version ?? null
   applyGrade(row, input.standard, input.gradeCode)
+  row.dimensionObservations = dimensionObservations
   row.internalComment = input.internalComment
   row.excellent = input.excellent
   row.attention = input.attention
@@ -234,7 +243,7 @@ function assertStandardHasAB(items: readonly StandardItemInput[]): void {
 }
 
 function toStandardSummary(row: EvaluationStandardEntity): EvaluationStandardSummary {
-  return { id: row.id, tourSessionId: row.tourSessionId, title: row.title, confirmedAt: row.confirmedAt?.toISOString() ?? null, version: row.version, items: row.items }
+  return { id: row.id, tourSessionId: row.tourSessionId, title: row.title, confirmedAt: row.confirmedAt?.toISOString() ?? null, version: row.version, items: row.items, dimensions: row.dimensions ?? [] }
 }
 
 function toSummaryRow(row: StudentEvaluationEntity): EvaluationSummaryRow {
@@ -250,6 +259,7 @@ function toSummaryRow(row: StudentEvaluationEntity): EvaluationSummaryRow {
     gradeCode: row.gradeCode,
     gradeLabel: row.gradeLabel,
     internalComment: row.internalComment,
+    dimensionObservations: row.dimensionObservations ?? [],
     excellent: row.excellent,
     attention: row.attention,
     confirmedAt: row.confirmedAt?.toISOString() ?? null,
