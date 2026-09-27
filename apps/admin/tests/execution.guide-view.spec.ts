@@ -11,6 +11,7 @@ async function mountGuide(confirmationStatus = "current") {
     const url = String(input)
     if (url.endsWith("/staff/auth/me")) return Response.json({ actorId: "guide-1", kind: "staff", forcePasswordChange: false, permissionKeys: ["execution.read", "execution.write"], scopes: [] })
     if (url.endsWith("/person-daily-reports")) return Response.json([])
+    if (url.endsWith("/nodes")) return Response.json({ nodes: [], records: [], counts: null })
     return Response.json({ ...guideSession, confirmationStatus })
   })
   vi.stubGlobal("fetch", request)

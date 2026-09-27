@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto"
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
+import { In } from "typeorm"
 import { ExecutionPersonDailyReportEntity } from "../../domain/entities/execution-person-daily-report.entity.js"
+import { ExecutionPersonDailyRevisionEntity } from "../../domain/entities/execution-person-daily-revision.entity.js"
 import { ExecutionHealthAuthorizationEntity } from "../../domain/entities/execution-health-authorization.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
+import { StaffAccountEntity } from "../../domain/entities/staff-account.entity.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { decryptPersonValue, encryptValue, PERSON_DATA_KEY_VERSION } from "../enrollment/person-data.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
@@ -66,9 +69,16 @@ export class PersonDailyService {
       await manager.findOneOrFail(TourSessionEntity, { where: { id: session.id }, lock: { mode: "pessimistic_write" } })
       const previous = await manager.findOne(ExecutionPersonDailyReportEntity, { where: key, lock: { mode: "pessimistic_write" } })
       if ((previous?.version ?? 0) !== input.expectedVersion) throw versionConflict()
-      const row = previous ?? manager.create(ExecutionPersonDailyReportEntity, { id: `pday-${randomUUID()}`, ...key })
-      row.lodgingCheck = input.lodgingCheck
-      row.mealStatus = input.mealStatus
+      if (previous !== null) {
+        if (!input.correctionReason) throw new BadRequestException("请填写更正原因")
+        await this.preserveRevision(manager, previous, "历史记录")
+      }
+      const recordedAt = new Date()
+      const row = previous ?? manager.create(ExecutionPersonDailyReportEntity, { id: `pday-${randomUUID()}`, ...key, createdAt: recordedAt, updatedAt: recordedAt })
+      if (input.lodgingCheck !== undefined) row.lodgingCheck = input.lodgingCheck
+      if (input.mealStatus !== undefined) row.mealStatus = input.mealStatus
+      for (const meal of ["breakfast", "lunch", "dinner"] as const) if (input[meal] !== undefined) row[meal] = input[meal]
+      for (const note of ["breakfastNote", "lunchNote", "dinnerNote"] as const) if (input[note] !== undefined) row[note] = input[note]
       if (readable || previous === null) {
         row.encryptedBodyStatus = input.bodyStatus.length === 0 ? "" : encryptValue(input.bodyStatus)
         row.encryptedNote = input.note.length === 0 ? "" : encryptValue(input.note)
@@ -79,11 +89,33 @@ export class PersonDailyService {
       row.publicApprovedBy = null
       row.publicApprovedAt = null
       row.updatedBy = access.actorId
+      row.updatedAt = recordedAt
       row.version = input.expectedVersion + 1
       const saved = await manager.save(row)
+      await this.preserveRevision(manager, saved, input.correctionReason ?? "首次记录")
       await this.audit.record(manager, { organizationId: session.organizationId, actorId: access.actorId, action: "execution.person_daily.write", targetType: "execution_person_daily_report", targetId: saved.id })
       return this.response(saved, readable)
     })
+  }
+
+  async history(access: StaffAccess, target: { readonly sessionId: string; readonly reportId: string }) {
+    if (!access.permissionKeys.has("execution.read")) throw new ForbiddenException("无权查看执行信息")
+    const manager = (await this.database.getDataSource()).manager
+    await this.access.session(manager, access, target.sessionId)
+    const report = await manager.findOneBy(ExecutionPersonDailyReportEntity, { id: target.reportId, tourSessionId: target.sessionId })
+    if (report === null) throw new NotFoundException("日报不存在")
+    if (access.permissionKeys.has("execution.manage")) await this.access.requireActiveAccount(manager, access.actorId)
+    else await this.personAccess(manager, access, { sessionId: target.sessionId, personRef: report.personRef })
+    const rows = await manager.find(ExecutionPersonDailyRevisionEntity, { where: { reportId: report.id }, order: { version: "ASC" } })
+    const versions = rows.length > 0 ? rows : [{ id: report.id, reportId: report.id, tourSessionId: report.tourSessionId, personRef: report.personRef, reportDate: report.reportDate,
+      version: report.version, recordedBy: report.updatedBy, createdAt: report.updatedAt, correctionReason: "历史记录", snapshot: report }]
+    const staff = await manager.find(StaffAccountEntity, { where: { id: In([...new Set(versions.map(row => row.recordedBy))]) }, select: { id: true, displayName: true } })
+    const names = new Map(staff.map(account => [account.id, account.displayName]))
+    return versions.map(row => ({ id: row.id, reportId: row.reportId, tourSessionId: row.tourSessionId, personRef: row.personRef, reportDate: row.reportDate,
+      version: row.version, recordedBy: row.recordedBy, recordedByName: names.get(row.recordedBy)?.trim() || "工作人员", createdAt: row.createdAt.toISOString(), correctionReason: row.correctionReason,
+      lodgingCheck: row.snapshot.lodgingCheck, mealStatus: row.snapshot.mealStatus, breakfast: row.snapshot.breakfast, lunch: row.snapshot.lunch, dinner: row.snapshot.dinner,
+      breakfastNote: row.snapshot.breakfastNote, lunchNote: row.snapshot.lunchNote, dinnerNote: row.snapshot.dinnerNote,
+      publicSummary: row.snapshot.publicSummary, publicApproved: row.snapshot.publicApproved }))
   }
 
   async approve(access: StaffAccess, target: { readonly sessionId: string; readonly reportId: string }, input: DailyApproval) {
@@ -94,13 +126,16 @@ export class PersonDailyService {
       const row = await manager.findOne(ExecutionPersonDailyReportEntity, { where: { id: target.reportId, tourSessionId: session.id }, lock: { mode: "pessimistic_write" } })
       if (row === null) throw new NotFoundException({ code: "execution_daily_report_not_found", message: "日报不存在" })
       if (row.version !== input.expectedVersion) throw versionConflict()
+      await this.preserveRevision(manager, row, "历史记录")
       row.publicSummary = input.publicSummary
       row.publicApproved = true
       row.publicApprovedBy = access.actorId
       row.publicApprovedAt = new Date()
       row.updatedBy = access.actorId
+      row.updatedAt = row.publicApprovedAt
       row.version += 1
       await manager.save(row)
+      await this.preserveRevision(manager, row, "公开摘要批准")
       await this.audit.record(manager, { organizationId: session.organizationId, actorId: access.actorId, action: "execution.person_daily.publish", targetType: "execution_person_daily_report", targetId: row.id })
       return this.response(row, false)
     })
@@ -108,6 +143,19 @@ export class PersonDailyService {
 
   private isManager(access: StaffAccess): boolean {
     return access.kind === "administrator" && access.permissionKeys.has("execution.manage")
+  }
+
+  private async preserveRevision(manager: EntityManager, row: ExecutionPersonDailyReportEntity, correctionReason: string): Promise<void> {
+    if (await manager.existsBy(ExecutionPersonDailyRevisionEntity, { reportId: row.id, version: row.version })) return
+    await manager.insert(ExecutionPersonDailyRevisionEntity, {
+      id: `pdrev-${randomUUID()}`, reportId: row.id, tourSessionId: row.tourSessionId, personRef: row.personRef, reportDate: row.reportDate,
+      version: row.version, recordedBy: row.updatedBy, correctionReason, createdAt: row.updatedAt,
+      snapshot: { lodgingCheck: row.lodgingCheck, mealStatus: row.mealStatus, breakfast: row.breakfast, lunch: row.lunch, dinner: row.dinner,
+        breakfastNote: row.breakfastNote, lunchNote: row.lunchNote, dinnerNote: row.dinnerNote,
+        encryptedBodyStatus: row.encryptedBodyStatus, encryptedNote: row.encryptedNote, keyVersion: row.keyVersion,
+        publicSummary: row.publicSummary, publicApproved: row.publicApproved, publicApprovedBy: row.publicApprovedBy, publicApprovedAt: row.publicApprovedAt?.toISOString() ?? null,
+        createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() },
+    })
   }
 
   private async personAccess(manager: EntityManager, access: StaffAccess, target: DailyTarget) {
@@ -134,6 +182,7 @@ export class PersonDailyService {
 
   private response(row: ExecutionPersonDailyReportEntity, healthReadable: boolean) {
     return { id: row.id, tourSessionId: row.tourSessionId, personRef: row.personRef, reportDate: row.reportDate, lodgingCheck: row.lodgingCheck, mealStatus: row.mealStatus,
+      breakfast: row.breakfast, lunch: row.lunch, dinner: row.dinner, breakfastNote: row.breakfastNote, lunchNote: row.lunchNote, dinnerNote: row.dinnerNote,
       bodyStatus: healthReadable && row.encryptedBodyStatus !== "" ? decryptPersonValue(row.encryptedBodyStatus, row.keyVersion) : "",
       note: healthReadable && row.encryptedNote !== "" ? decryptPersonValue(row.encryptedNote, row.keyVersion) : "", healthReadable,
       publicSummary: row.publicSummary, publicApproved: row.publicApproved, version: row.version, updatedAt: row.updatedAt.toISOString() }

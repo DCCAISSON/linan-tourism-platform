@@ -12,6 +12,8 @@ async function mountManagement(permissions = ["execution.read", "execution.manag
   const request = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input)
     if (url.endsWith("/staff/auth/me")) return Response.json({ actorId: "operator", kind: "staff", forcePasswordChange: false, permissionKeys: permissions, scopes: [] })
+    if (url.endsWith("/nodes")) return Response.json({ nodes: [], records: [], counts: null })
+    if (url.endsWith("/daily-1/history")) return Response.json([{ ...managementSession.personDailyReports[0], id: "revision-1", reportId: "daily-1", tourSessionId: "session-1", recordedBy: "guide-1", createdAt: "2026-10-01T09:00:00Z", correctionReason: "补充午餐事实", breakfast: "recorded", breakfastNote: "早餐已完成", lunch: "recorded", lunchNote: "午餐正常", dinner: "not_applicable", dinnerNote: "当晚返程", bodyStatus: "私密身体正文", note: "私密备注" }])
     if (url.endsWith("/assignment-candidates")) return Response.json([{ staffAccountId: "guide-1", displayName: "导游甲" }])
     if (url.endsWith("/assignments") && init?.method === "POST") { assignments = [guideAssignment]; return Response.json(guideAssignment) }
     if (url.endsWith("/assignments")) return Response.json(assignments)
@@ -62,7 +64,7 @@ describe("execution management workflow", () => {
     expect(document.body.textContent).toContain("当前点名")
     expect(document.body.textContent).not.toContain("私密身体正文")
     expect(document.body.textContent).not.toContain("私密备注")
-    expect(request.mock.calls.some(([url]) => String(url).includes("/staff/execution/sessions/"))).toBe(false)
+    expect(request.mock.calls.some(([url]) => String(url).endsWith("/staff/execution/sessions/session-1"))).toBe(false)
   })
 
   it("assigns by eligible display name and selected vehicle", async () => {
@@ -103,5 +105,15 @@ describe("execution management workflow", () => {
     const request = await mountManagement(["execution.read"])
     await vi.waitFor(() => expect(document.body.textContent).toContain("无权查看执行管理"))
     expect(request.mock.calls.some(([url]) => String(url).includes("/management/"))).toBe(false)
+  })
+  it("shows meal revision facts and reasons without private health detail", async () => {
+    await mountManagement()
+    await selectSession()
+    button("查看 学生甲 的日报历史").click()
+    await vi.waitFor(() => expect(document.body.textContent).toContain("补充午餐事实"))
+    expect(document.body.textContent).toContain("早餐已完成")
+    expect(document.body.textContent).toContain("当晚返程")
+    expect(document.body.textContent).not.toContain("私密身体正文")
+    expect(document.body.textContent).not.toContain("私密备注")
   })
 })

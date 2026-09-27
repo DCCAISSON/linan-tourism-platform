@@ -55,7 +55,21 @@ export function parsePersonDailyInput(value: unknown) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== reportDate) throw malformedExecutionInput("日报日期不正确")
   const expectedVersion = record["expectedVersion"]
   if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) throw malformedExecutionInput("请提供当前日报版本，新建时为0")
-  return { reportDate, expectedVersion, lodgingCheck: readText(record, "lodgingCheck", 4000), mealStatus: readText(record, "mealStatus", 4000), bodyStatus: readOptionalText(record, "bodyStatus", 4000), note: readOptionalText(record, "note", 4000) }
+  const correctionReason = expectedVersion > 0 ? readText(record, "correctionReason", 1000) : undefined
+  return { reportDate, expectedVersion, correctionReason,
+    lodgingCheck: record["lodgingCheck"] === undefined ? undefined : readOptionalText(record, "lodgingCheck", 4000),
+    mealStatus: record["mealStatus"] === undefined ? undefined : readOptionalText(record, "mealStatus", 4000),
+    breakfast: readMeal(record, "breakfast"), lunch: readMeal(record, "lunch"), dinner: readMeal(record, "dinner"),
+    breakfastNote: record["breakfastNote"] === undefined ? undefined : readOptionalText(record, "breakfastNote", 4000),
+    lunchNote: record["lunchNote"] === undefined ? undefined : readOptionalText(record, "lunchNote", 4000),
+    dinnerNote: record["dinnerNote"] === undefined ? undefined : readOptionalText(record, "dinnerNote", 4000),
+    bodyStatus: readOptionalText(record, "bodyStatus", 4000), note: readOptionalText(record, "note", 4000) }
+}
+
+function readMeal(record: Record<string, unknown>, key: string): "recorded" | "not_applicable" | null | undefined {
+  const value = record[key]
+  if (value === undefined || value === null || value === "recorded" || value === "not_applicable") return value
+  throw malformedExecutionInput(`${key}格式不正确`)
 }
 
 export function parsePersonDailyApproval(value: unknown) {
@@ -122,3 +136,4 @@ export function parseGuideAssignment(value: unknown, tourSessionId: string) {
   return { staffAccountId: readText(record, "staffAccountId", 64), tourSessionId, ...(vehicleId.length === 0 ? {} : { vehicleId }), reason: readText(record, "reason", 500) }
 }
 export function parseAssignmentReason(value: unknown): string { return readText(readRecord(value, "撤销指派"), "reason", 500) }
+export { parseExecutionNodeInput, parseOccurrenceInput } from "./execution-nodes.parser.js"

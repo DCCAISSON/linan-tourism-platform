@@ -57,7 +57,7 @@ describe.skipIf(databaseUrl === undefined)("per-person daily real API", () => {
     if (dataSource.isInitialized) {
       await dataSource.query("update transport_plans set current_confirmation_id = null where tour_session_id = ?", [sessionId])
       await dataSource.query("delete from transport_confirmations where tour_session_id = ?", [sessionId])
-      for (const table of ["execution_person_daily_reports", "execution_health_authorizations", "execution_daily_reports", "execution_events", "execution_guide_assignments", "transport_person_allocations", "transport_class_allocations", "transport_session_vehicles", "transport_plans"]) {
+      for (const table of ["execution_person_daily_revisions", "execution_person_daily_reports", "execution_health_authorizations", "execution_daily_reports", "execution_events", "execution_guide_assignments", "transport_person_allocations", "transport_class_allocations", "transport_session_vehicles", "transport_plans"]) {
         if (table === "transport_class_allocations") await dataSource.query("delete from transport_class_allocations where vehicle_id in (select id from transport_session_vehicles where tour_session_id = ?)", [sessionId])
         else await dataSource.query(`delete from ${table} where tour_session_id = ?`, [sessionId])
       }
@@ -77,7 +77,7 @@ describe.skipIf(databaseUrl === undefined)("per-person daily real API", () => {
     expect(created.body).toMatchObject({ personRef: person, version: 1, bodyStatus: "需关注体温" })
     const adminRedacted = await request(app.getHttpServer()).get(`/staff/execution/sessions/${sessionId}/person-daily-reports`).set(admin).expect(200)
     expect(adminRedacted.body[0]).toMatchObject({ healthReadable: false, bodyStatus: "", note: "" })
-    await request(app.getHttpServer()).post(endpoint).set(admin).send({ ...plain, expectedVersion: 1, note: "管理员未指派也不得修改健康记录" }).expect(403)
+    await request(app.getHttpServer()).post(endpoint).set(admin).send({ ...plain, expectedVersion: 1, correctionReason: "核对", note: "管理员未指派也不得修改健康记录" }).expect(403)
     const stored: readonly { readonly encrypted_body_status: string; readonly encrypted_note: string }[] = await dataSource.query("select encrypted_body_status,encrypted_note from execution_person_daily_reports where id = ?", [created.body.id])
     expect(stored[0]?.encrypted_note).not.toContain("私密备注")
     const publish = `/staff/execution/sessions/${sessionId}/person-daily-reports/${String(created.body.id)}/public-summary`
@@ -88,15 +88,15 @@ describe.skipIf(databaseUrl === undefined)("per-person daily real API", () => {
     expect(JSON.stringify(own.body)).not.toContain("私密备注")
     expect((await request(app.getHttpServer()).get(`/orders/${secondOrder}/execution/public-summary`).set(otherFamily).expect(200)).body.personDailyReports).toEqual([])
     await request(app.getHttpServer()).get(`/orders/${firstOrder}/execution/public-summary`).set(otherFamily).expect(404)
-    await request(app.getHttpServer()).post(endpoint).set({ Cookie: noHealthCookie, Origin: origin }).send({ ...plain, expectedVersion: 2, mealStatus: "已加餐" }).expect(201)
+    await request(app.getHttpServer()).post(endpoint).set({ Cookie: noHealthCookie, Origin: origin }).send({ ...plain, expectedVersion: 2, correctionReason: "补充加餐记录", mealStatus: "已加餐" }).expect(201)
     const readable = await request(app.getHttpServer()).get(`/staff/execution/sessions/${sessionId}/person-daily-reports`).set({ Cookie: guideCookie }).expect(200)
     expect(readable.body).toEqual(expect.arrayContaining([expect.objectContaining({ note: "私密备注", bodyStatus: "需关注体温", version: 3 })]))
     const redacted = await request(app.getHttpServer()).get(`/staff/execution/sessions/${sessionId}/person-daily-reports`).set({ Cookie: noHealthCookie }).expect(200)
     expect(redacted.body).toEqual(expect.arrayContaining([expect.objectContaining({ note: "", bodyStatus: "", healthReadable: false })]))
     expect((await request(app.getHttpServer()).get(`/orders/${firstOrder}/execution/public-summary`).set(family).expect(200)).body.personDailyReports).toEqual([])
     await request(app.getHttpServer()).post(`/orders/${firstOrder}/execution/health-authorizations/${encodeURIComponent(person)}/revoke`).set(family).expect(201)
-    await request(app.getHttpServer()).post(endpoint).set({ Cookie: guideCookie, Origin: origin }).send({ ...plain, expectedVersion: 3, bodyStatus: "越权修改" }).expect(403)
-    await request(app.getHttpServer()).post(endpoint).set({ Cookie: guideCookie, Origin: origin }).send({ ...plain, expectedVersion: 3 }).expect(201)
+    await request(app.getHttpServer()).post(endpoint).set({ Cookie: guideCookie, Origin: origin }).send({ ...plain, expectedVersion: 3, correctionReason: "核对", bodyStatus: "越权修改" }).expect(403)
+    await request(app.getHttpServer()).post(endpoint).set({ Cookie: guideCookie, Origin: origin }).send({ ...plain, expectedVersion: 3, correctionReason: "核对" }).expect(201)
     const preserved: readonly { readonly encrypted_note: string }[] = await dataSource.query("select encrypted_note from execution_person_daily_reports where id = ?", [created.body.id])
     expect(preserved[0]?.encrypted_note).toBe(stored[0]?.encrypted_note)
   })

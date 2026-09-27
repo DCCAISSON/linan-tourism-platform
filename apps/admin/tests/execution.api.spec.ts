@@ -41,4 +41,23 @@ describe("execution API", () => {
     expect(result).toEqual([{ staffAccountId: "guide-1", displayName: "导游甲" }])
     expect(request).toHaveBeenCalledWith(expect.stringContaining("/management/sessions/session-1/assignment-candidates"), expect.any(Object))
   })
+
+  it("keeps legacy meal summaries separate when individual meal facts are absent", async () => {
+    const legacy = { ...managementSession.personDailyReports[0], tourSessionId: "session-1", personRef: "paid:line-1", bodyStatus: "", note: "", healthReadable: false }
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json([legacy])))
+    const rows = await execution.listPersonDailyReports("session-1")
+    expect(rows[0]).toMatchObject({ breakfast: null, lunch: null, dinner: null, breakfastNote: "", mealStatus: "正常用餐" })
+  })
+
+  it("parses safe meal history and drops private extra fields", async () => {
+    const revision = { ...managementSession.personDailyReports[0], reportId: "daily-1", tourSessionId: "session-1", personRef: "paid:line-1", recordedBy: "guide-1", correctionReason: "补录午餐", createdAt: "2026-10-01T09:00:00Z", breakfast: "recorded", lunch: "not_applicable", dinner: null, breakfastNote: "已用餐", lunchNote: "提前离团", dinnerNote: "", bodyStatus: "private-body", note: "private-note", encryptedNote: "secret" }
+    const request = vi.fn(async () => Response.json([revision]))
+    vi.stubGlobal("fetch", request)
+    const rows = await execution.listPersonDailyHistory("session/1", "daily/1")
+    expect(rows[0]).toMatchObject({ breakfast: "recorded", lunch: "not_applicable", dinner: null, correctionReason: "补录午餐", recordedByName: "工作人员" })
+    expect(rows[0]).not.toHaveProperty("bodyStatus")
+    expect(rows[0]).not.toHaveProperty("note")
+    expect(rows[0]).not.toHaveProperty("encryptedNote")
+    expect(request).toHaveBeenCalledWith(expect.stringContaining("/sessions/session%2F1/person-daily-reports/daily%2F1/history"), expect.objectContaining({ method: "GET" }))
+  })
 })

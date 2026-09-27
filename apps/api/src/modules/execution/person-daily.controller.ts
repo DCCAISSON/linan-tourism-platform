@@ -23,6 +23,11 @@ export class PersonDailyController {
     return this.daily.save(await this.staff.resolve(headers), { sessionId, personRef: parsePersonRef(personRef) }, parsePersonDailyInput(body))
   }
 
+  @Get("person-daily-reports/:reportId/history")
+  async history(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("reportId") reportId: string) {
+    return this.daily.history(await this.staff.resolve(headers), { sessionId, reportId })
+  }
+
   @Post("person-daily-reports/:reportId/public-summary")
   async approve(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("reportId") reportId: string, @Body() body: unknown) {
     this.staff.assertUnsafeOrigin(headers)

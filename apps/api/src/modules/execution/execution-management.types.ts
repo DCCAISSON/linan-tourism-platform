@@ -1,4 +1,4 @@
-import type { PersonRef } from "../travelers/travelers.types.js"
+﻿import type { PersonRef } from "../travelers/travelers.types.js"
 
 export type ExecutionGroupPerson = {
   readonly personRef: PersonRef
@@ -14,6 +14,8 @@ export type ExecutionVehicle = { readonly id: string; readonly sequence: number;
 export type SafeAttendance = { readonly status: "present" | "absent" | "revoked"; readonly infoChecked: boolean; readonly groupJoined: boolean; readonly updatedAt: string }
 export type ManagementPersonDaily = {
   readonly id: string; readonly personRef: PersonRef; readonly displayName: string; readonly reportDate: string
+  readonly breakfast?: string | null; readonly lunch?: string | null; readonly dinner?: string | null
+  readonly breakfastNote?: string; readonly lunchNote?: string; readonly dinnerNote?: string
   readonly lodgingCheck: string; readonly mealStatus: string; readonly publicApproved: boolean; readonly publicSummary: string
   readonly version: number; readonly updatedAt: string
 }

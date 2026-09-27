@@ -1,3 +1,5 @@
+﻿import { ExecutionNodesController } from "./execution-nodes.controller.js"
+import { ExecutionNodesService } from "./execution-nodes.service.js"
 import { ExecutionManagementController } from "./execution-management.controller.js"
 import { ExecutionManagementService } from "./execution-management.service.js"
 import { Module } from "@nestjs/common"
@@ -13,7 +15,7 @@ import { PersonDailyController } from "./person-daily.controller.js"
 import { PersonDailyService } from "./person-daily.service.js"
 
 @Module({
-  controllers: [ExecutionManagementController, StaffExecutionController, FamilyExecutionController, PersonDailyController],
-  providers: [ExecutionManagementService, ConfigurationDatabaseService, DevStaffAccessService, EnrollmentIdentityService, AuditLogService, ExecutionAccessService, ExecutionGuideAssignmentService, ExecutionService, PersonDailyService],
+  controllers: [ExecutionNodesController, ExecutionManagementController, StaffExecutionController, FamilyExecutionController, PersonDailyController],
+  providers: [ExecutionNodesService, ExecutionManagementService, ConfigurationDatabaseService, DevStaffAccessService, EnrollmentIdentityService, AuditLogService, ExecutionAccessService, ExecutionGuideAssignmentService, ExecutionService, PersonDailyService],
 })
 export class ExecutionModule {}

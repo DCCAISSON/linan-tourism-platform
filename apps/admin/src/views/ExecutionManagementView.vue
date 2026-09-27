@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue"
 import { getCurrentStaff } from "../api/auth"
-import { approvePersonDailySummary, downloadExecutionRecords, getExecutionManagementSession, listExecutionManagementSessions, readableExecutionError, type ExecutionManagementSession, type GuideSessionSummary, type ManagementPersonDaily } from "../api/execution"
+import { approvePersonDailySummary, downloadExecutionRecords, getExecutionManagementSession, listExecutionManagementSessions, listPersonDailyHistory, readableExecutionError, type DailyMealStatus, type ExecutionManagementSession, type GuideSessionSummary, type ManagementPersonDaily, type PersonDailyRevision } from "../api/execution"
 import GuideAssignmentPanel from "./GuideAssignmentPanel.vue"
+import ExecutionNodesPanel from "./ExecutionNodesPanel.vue"
 
 const sessions = ref<readonly GuideSessionSummary[]>([])
 const sessionId = ref("")
@@ -14,6 +15,9 @@ const canPublish = ref(false)
 const error = ref("")
 const notice = ref("")
 const summaries = ref<Record<string, string>>({})
+const dailyHistory = ref<Record<string, readonly PersonDailyRevision[]>>({})
+const meals = [{ key: "breakfast", note: "breakfastNote", label: "早餐" }, { key: "lunch", note: "lunchNote", label: "午餐" }, { key: "dinner", note: "dinnerNote", label: "晚餐" }] as const
+function mealLabel(value: DailyMealStatus): string { return value === "recorded" ? "已记录" : value === "not_applicable" ? "不适用" : "未记录" }
 const attendanceLabels = { present: "已到", absent: "未到", revoked: "已撤销" } as const
 const categoryLabels = { objective: "客观事项", health: "健康事项", safety: "安全事项", other: "其他事项" } as const
 
@@ -57,7 +61,13 @@ async function download(): Promise<void> {
   catch (cause) { error.value = readableExecutionError(cause) }
   finally { downloading.value = false }
 }
-watch(sessionId, () => { session.value = null; summaries.value = {}; notice.value = ""; error.value = "" })
+async function loadHistory(reportId: string): Promise<void> {
+  busy.value = true; error.value = ""
+  try { dailyHistory.value[reportId] = await listPersonDailyHistory(sessionId.value, reportId) }
+  catch (cause) { error.value = readableExecutionError(cause) }
+  finally { busy.value = false }
+}
+watch(sessionId, () => { session.value = null; summaries.value = {}; dailyHistory.value = {}; notice.value = ""; error.value = "" })
 onMounted(() => { void initialize() })
 </script>
 
@@ -70,7 +80,7 @@ onMounted(() => { void initialize() })
       <label>执行团期<select v-model="sessionId" :disabled="busy" required><option value="">请选择团期</option><option v-for="item in sessions" :key="item.id" :value="item.id">{{ item.code }}</option></select></label>
       <button type="submit" :disabled="busy || !sessionId">{{ busy ? '读取中…' : '读取执行记录' }}</button>
       <button type="button" class="secondary" :disabled="!session || downloading || busy" @click="download">{{ downloading ? '导出中…' : '导出执行记录' }}</button>
-      <p class="full">导出包含当前点名、个人每日记录、团队摘要、事件摘要和计数五张表。</p>
+      <p class="full">导出包含当前点名、个人每日记录、节点计划、发生与更正历史、团队摘要、事件摘要及计数。</p>
     </form>
     <p v-if="!busy && canManage && sessions.length === 0">管理范围内暂无团期。</p>
     <template v-if="session">
@@ -80,8 +90,10 @@ onMounted(() => { void initialize() })
         <p v-else class="warning">安排待确认：{{ session.confirmationStatus === 'stale' ? '人车安排已调整，请重新确认。' : '尚未确认人车安排。' }} 下方可查看已保存的执行记录。</p>
       </section>
       <GuideAssignmentPanel :key="session.id" :session-id="session.id" :vehicles="session.vehicles" />
+      <ExecutionNodesPanel :key="session.id" :session-id="session.id" :people="session.people" :starts-at="session.startsAt" :ends-at="session.endsAt" :manageable="canManage" :editable="false" />
       <section v-if="session.confirmationStatus === 'current'" class="panel" aria-labelledby="attendance-title">
         <h2 id="attendance-title">当前点名</h2>
+        <p>旧版综合点名；逐节点状态见执行节点。</p>
         <p>已到 {{ session.counts.present }} 人 · 未到 {{ session.counts.absent }} 人 · 已撤销 {{ session.counts.revoked }} 人 · 未点名 {{ session.counts.unrecorded }} 人</p>
         <ul class="records">
           <li v-for="person in session.people" :key="person.personRef">
@@ -97,7 +109,18 @@ onMounted(() => { void initialize() })
         <ul class="records">
           <li v-for="report in session.personDailyReports" :key="report.id">
             <h3>{{ report.displayName }} · {{ report.reportDate }}</h3>
-            <p>住宿查房：{{ report.lodgingCheck }}</p><p>餐饮情况：{{ report.mealStatus }}</p>
+            <p v-if="report.lodgingCheck">历史住宿综合记录：{{ report.lodgingCheck }}</p><p v-if="report.mealStatus">历史餐饮综合记录：{{ report.mealStatus }}</p>
+            <p v-for="meal in meals" :key="meal.key">{{ meal.label }}：{{ mealLabel(report[meal.key]) }}{{ report[meal.note] ? ` · ${report[meal.note]}` : '' }}</p>
+            <button type="button" :disabled="busy" @click="loadHistory(report.id)">查看 {{ report.displayName }} 的日报历史</button>
+            <div v-if="dailyHistory[report.id]" class="daily-history">
+              <p v-if="dailyHistory[report.id]?.length === 0">历史版本尚未生成。</p>
+              <article v-for="revision in dailyHistory[report.id]" :key="revision.id">
+                <h3>版本 {{ revision.version }} · {{ revision.correctionReason }}</h3>
+                <p>{{ new Date(revision.createdAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }} · 记录人：{{ revision.recordedByName || '工作人员' }}</p>
+                <p v-for="meal in meals" :key="meal.key">{{ meal.label }}：{{ mealLabel(revision[meal.key]) }}{{ revision[meal.note] ? ` · ${revision[meal.note]}` : '' }}</p>
+                <p v-if="revision.lodgingCheck">历史住宿综合记录：{{ revision.lodgingCheck }}</p><p v-if="revision.mealStatus">历史餐饮综合记录：{{ revision.mealStatus }}</p>
+              </article>
+            </div>
             <p>{{ report.publicApproved ? '摘要已批准' : '摘要待审核' }}</p>
             <form v-if="canPublish" @submit.prevent="approve(report)">
               <label>公开摘要（{{ report.displayName }} {{ report.reportDate }}）<textarea v-model="summaries[report.id]" :disabled="busy" maxlength="1000" rows="3" required /></label>
@@ -134,5 +157,6 @@ select, textarea { width: 100%; color: var(--text-primary); background: var(--su
 button { cursor: pointer; color: var(--on-accent); background: var(--accent-primary); } button.secondary { background: var(--surface-elevated); color: var(--accent-primary); } button:disabled { cursor: not-allowed; opacity: .6; }
 .records { display: grid; gap: var(--space-3); list-style: none; padding: 0; margin: 0; }
 .records li { display: grid; gap: var(--space-2); min-width: 0; padding: var(--space-4); background: var(--surface-secondary); border-radius: var(--radius-control); }
+.daily-history { display: grid; gap: var(--space-3); } .daily-history article { display: grid; gap: var(--space-2); padding: var(--space-3); background: var(--surface-elevated); border-radius: var(--radius-control); }
 @media (max-width: 768px) { .selection { grid-template-columns: 1fr; } }
 </style>

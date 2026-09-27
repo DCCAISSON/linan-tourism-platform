@@ -3,6 +3,8 @@ import type { PersonRef } from "../../modules/travelers/travelers.types.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
 import { StaffAccountEntity } from "./staff-account.entity.js"
 
+export type DailyMealStatus = "recorded" | "not_applicable" | null
+
 @Entity({ name: "execution_person_daily_reports" })
 @Index("uq_execution_person_daily_day", ["tourSessionId", "personRef", "reportDate"], { unique: true })
 export class ExecutionPersonDailyReportEntity {
@@ -19,6 +21,18 @@ export class ExecutionPersonDailyReportEntity {
   lodgingCheck = ""
   @Column({ name: "meal_status", type: "text" })
   mealStatus = ""
+  @Column({ type: "varchar", length: 20, nullable: true })
+  breakfast: DailyMealStatus = null
+  @Column({ type: "varchar", length: 20, nullable: true })
+  lunch: DailyMealStatus = null
+  @Column({ type: "varchar", length: 20, nullable: true })
+  dinner: DailyMealStatus = null
+  @Column({ name: "breakfast_note", type: "varchar", length: 4000, default: "" })
+  breakfastNote = ""
+  @Column({ name: "lunch_note", type: "varchar", length: 4000, default: "" })
+  lunchNote = ""
+  @Column({ name: "dinner_note", type: "varchar", length: 4000, default: "" })
+  dinnerNote = ""
   @Column({ name: "encrypted_body_status", type: "text" })
   encryptedBodyStatus = ""
   @Column({ name: "encrypted_note", type: "text" })

@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable } from "@nestjs/common"
+﻿import { ForbiddenException, Inject, Injectable } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
 import { ExecutionAttendanceEntity } from "../../domain/entities/execution-attendance.entity.js"
@@ -55,7 +55,7 @@ export class ExecutionManagementService {
     })
     return {
       id: session.id, code: session.code, startsAt: session.startsAt.toISOString(), endsAt: session.endsAt.toISOString(), vehicleIds: vehicles.map(vehicle => vehicle.id), confirmationStatus: confirmation.status, vehicles, people,
-      personDailyReports: personal.map(row => ({ id: row.id, personRef: row.personRef, displayName: snapshot.sources.find(person => person.personRef === row.personRef)?.displayName ?? "", reportDate: row.reportDate, lodgingCheck: row.lodgingCheck, mealStatus: row.mealStatus, publicApproved: row.publicApproved, publicSummary: row.publicApproved ? row.publicSummary : "", version: row.version, updatedAt: row.updatedAt.toISOString() })),
+      personDailyReports: personal.map(row => ({ id: row.id, personRef: row.personRef, displayName: snapshot.sources.find(person => person.personRef === row.personRef)?.displayName ?? "", breakfast: row.breakfast, lunch: row.lunch, dinner: row.dinner, breakfastNote: row.breakfastNote, lunchNote: row.lunchNote, dinnerNote: row.dinnerNote, reportDate: row.reportDate, lodgingCheck: row.lodgingCheck, mealStatus: row.mealStatus, publicApproved: row.publicApproved, publicSummary: row.publicApproved ? row.publicSummary : "", version: row.version, updatedAt: row.updatedAt.toISOString() })),
       dailyReports: daily.map(row => ({ id: row.id, reportDate: row.reportDate, lodgingCheck: row.lodgingCheck, mealStatus: row.mealStatus, publicApproved: row.publicApproved, publicSummary: row.publicApproved ? row.publicSummary : "", updatedAt: row.updatedAt.toISOString() })),
       events: events.map(row => ({ id: row.id, personRef: row.personRef === null ? null : parsePersonRef(row.personRef), occurredAt: row.occurredAt.toISOString(), category: row.category, publicApproved: row.publicApproved, publicSummary: row.publicApproved ? row.publicSummary : "" })),
       counts: { present: people.filter(person => person.attendance?.status === "present").length, absent: people.filter(person => person.attendance?.status === "absent").length, revoked: people.filter(person => person.attendance?.status === "revoked").length, unrecorded: people.filter(person => person.attendance === null).length, personDailyReports: personal.length, approvedPersonDailyReports: personal.filter(row => row.publicApproved).length, events: events.length },

@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from "vue"
 import { useRoute } from "vue-router"
 import PersonDailyPanel from "./PersonDailyPanel.vue"
+import ExecutionNodesPanel from "./ExecutionNodesPanel.vue"
 import { getCurrentStaff } from "../api/auth"
 import { createExecutionEvent, getGuideSession, readableExecutionError, saveAttendance, saveDailyReport, type ExecutionEvent, type GuidePerson, type GuideSession, type PersonRef } from "../api/execution"
 
@@ -94,6 +95,7 @@ watch(sessionId, () => { eventForm.personRef = ""; void load() }, { immediate: t
     </section>
     <section v-if="confirmed && viewScope === 'own'" class="panel">
       <h2>逐人点名</h2>
+      <p>旧版综合点名；逐节点状态见执行节点。</p>
       <div class="people-list">
         <article v-for="person in session?.people ?? []" :key="person.personRef" class="person-row" :class="{ inactive: !person.active }">
           <div>
@@ -111,6 +113,7 @@ watch(sessionId, () => { eventForm.personRef = ""; void load() }, { immediate: t
       </div>
       <p v-if="!session?.people.length">未指派本车人员，可切换全团名单查看。</p>
     </section>
+    <ExecutionNodesPanel v-if="session && viewScope === 'own'" :key="sessionId" :session-id="sessionId" :people="session.people.filter(person => person.active)" :starts-at="session.startsAt" :ends-at="session.endsAt" :manageable="false" :editable="canEdit" />
     <PersonDailyPanel v-if="session && confirmed && viewScope === 'own' && session.people.length" :key="sessionId" :session-id="sessionId" :people="session.people" :starts-at="session.startsAt" :ends-at="session.endsAt" :editable="canEdit" />
     <section v-if="session && viewScope === 'own'" class="panel form-grid">
       <div>

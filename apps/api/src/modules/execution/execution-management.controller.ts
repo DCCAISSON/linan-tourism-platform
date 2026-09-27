@@ -1,3 +1,5 @@
+﻿import { ExecutionNodesService } from "./execution-nodes.service.js"
+import { PersonDailyService } from "./person-daily.service.js"
 import { Body, Controller, Get, Headers, Inject, Param, Post, Res } from "@nestjs/common"
 import type { Response } from "express"
 import { StaffAccountEntity } from "../../domain/entities/staff-account.entity.js"
@@ -13,6 +15,8 @@ type RequestHeaders = Record<string, string | readonly string[] | undefined>
 @Controller("staff/execution/management")
 export class ExecutionManagementController {
   constructor(
+    @Inject(ExecutionNodesService) private readonly nodes: ExecutionNodesService,
+    @Inject(PersonDailyService) private readonly daily: PersonDailyService,
     @Inject(DevStaffAccessService) private readonly staff: DevStaffAccessService,
     @Inject(ExecutionManagementService) private readonly management: ExecutionManagementService,
     @Inject(ExecutionGuideAssignmentService) private readonly assignments: ExecutionGuideAssignmentService,
@@ -59,10 +63,13 @@ export class ExecutionManagementController {
 
   @Get("sessions/:sessionId/export.xlsx")
   async export(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Res() response: Response): Promise<void> {
-    const detail = await this.management.exportDetail(await this.staff.resolve(headers), sessionId)
+    const access = await this.staff.resolve(headers)
+    const detail = await this.management.exportDetail(access, sessionId)
+    const execution = await this.nodes.list(access, sessionId)
+    const history = (await Promise.all(detail.personDailyReports.map(row => this.daily.history(access, { sessionId, reportId: row.id })))).flat()
     response.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     response.setHeader("Content-Disposition", 'attachment; filename="execution-records.xlsx"')
-    response.send(await createExecutionWorkbook(detail))
+    response.send(await createExecutionWorkbook(detail, execution, history))
   }
 }
 
