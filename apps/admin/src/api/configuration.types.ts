@@ -64,6 +64,8 @@ export type TourSession = {
   readonly status: string
   readonly priceFen: number
   readonly capacity: number
+  readonly minimumParticipants?: number | null
+  readonly occupiedCapacity?: number | null
   readonly activeNoticeId: string | null
   readonly activeNotice: NoticeVersion | null
   readonly policyVersion: string
@@ -109,6 +111,7 @@ export type TourSessionPayload = {
   readonly status: string
   readonly priceFen: number
   readonly capacity: number
+  readonly minimumParticipants?: number | null
 }
 
 export type TourSessionUpdatePayload = Partial<TourSessionPayload>

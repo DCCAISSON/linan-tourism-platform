@@ -74,6 +74,19 @@ function readOptionalInteger(body: UnknownRecord, field: string): number | undef
   return readInteger(body, field)
 }
 
+function readMinimumParticipants(body: UnknownRecord): number | null | undefined {
+  const value = body["minimumParticipants"]
+  if (value === undefined || value === null) return value
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw malformedInput("minimumParticipants must be a positive integer or null")
+  }
+  const capacity = body["capacity"]
+  if (typeof capacity === "number" && value > capacity) {
+    throw malformedInput("minimumParticipants must not exceed capacity")
+  }
+  return value
+}
+
 function readTourSessionStatus(body: UnknownRecord): TourSessionStatus {
   const value = readString(body, "status")
   if (
@@ -194,6 +207,7 @@ export function parseTourSession(body: unknown): NewTourSession {
     status: readTourSessionStatus(record),
     priceFen,
     capacity: readInteger(record, "capacity"),
+    minimumParticipants: readMinimumParticipants(record) ?? null,
     startsAt,
     endsAt,
     enrollmentOpensAt,
@@ -262,6 +276,7 @@ export function parseTourSessionPatch(body: unknown): UpdateTourSession {
     status: readOptionalTourSessionStatus(record),
     priceFen,
     capacity: readOptionalInteger(record, "capacity"),
+    minimumParticipants: readMinimumParticipants(record),
     startsAt: readOptionalDate(record, "startsAt"),
     endsAt: readOptionalDate(record, "endsAt"),
     enrollmentOpensAt: readOptionalDate(record, "enrollmentOpensAt"),

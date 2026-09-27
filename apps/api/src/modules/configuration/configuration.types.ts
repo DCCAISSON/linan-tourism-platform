@@ -59,6 +59,8 @@ export type TourSessionResponse = {
   readonly status: TourSessionStatus
   readonly priceFen: number
   readonly capacity: number
+  readonly minimumParticipants: number | null
+  readonly occupiedCapacity: number | null
   readonly startsAt: Date
   readonly endsAt: Date
   readonly enrollmentOpensAt: Date
@@ -116,6 +118,7 @@ export type NewTourSession = {
   readonly status: TourSessionStatus
   readonly priceFen: number
   readonly capacity: number
+  readonly minimumParticipants?: number | null
   readonly startsAt: Date
   readonly endsAt: Date
   readonly enrollmentOpensAt: Date
@@ -151,6 +154,7 @@ export type UpdateTourSession = {
   readonly status: TourSessionStatus | undefined
   readonly priceFen: number | undefined
   readonly capacity: number | undefined
+  readonly minimumParticipants?: number | null | undefined
   readonly startsAt: Date | undefined
   readonly endsAt: Date | undefined
   readonly enrollmentOpensAt: Date | undefined

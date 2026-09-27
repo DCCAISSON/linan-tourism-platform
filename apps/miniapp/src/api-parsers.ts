@@ -63,6 +63,8 @@ export function parseTourSession(value: unknown): TourSession {
     status: readTourSessionStatus(record),
     priceFen: readNumber(record, "priceFen"),
     capacity: readNumber(record, "capacity"),
+    minimumParticipants: readOptionalCount(record, "minimumParticipants"),
+    occupiedCapacity: readOptionalCount(record, "occupiedCapacity"),
     startsAt: readIsoString(record, "startsAt"),
     endsAt: readIsoString(record, "endsAt"),
     enrollmentOpensAt: readIsoString(record, "enrollmentOpensAt"),
@@ -71,6 +73,17 @@ export function parseTourSession(value: unknown): TourSession {
     activeNotice: parseNullableNoticeVersion(record["activeNotice"]),
     policyVersion: readString(record, "policyVersion"),
   }
+}
+
+function readOptionalCount(record: UnknownRecord, key: "minimumParticipants" | "occupiedCapacity"): number | null {
+  const value = record[key]
+  if (value === undefined || value === null) return null
+  const minimum = key === "minimumParticipants" ? 1 : 0
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum
+    || (key === "minimumParticipants" && value > readNumber(record, "capacity"))) {
+    throw new ApiError(0, "团期人数响应格式不正确")
+  }
+  return value
 }
 
 function parseNullableNoticeVersion(value: unknown): NoticeVersion | null {

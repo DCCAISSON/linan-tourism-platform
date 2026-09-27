@@ -2,7 +2,7 @@ import { BadRequestException } from "@nestjs/common"
 import type { CatalogItemEntity, NoticeVersionEntity, TourSessionEntity } from "../../domain/entities/index.js"
 import type { NoticeVersionResponse, TourSessionResponse } from "./configuration.types.js"
 
-export function requireEnrollmentWindow(session: TourSessionEntity, activeNotice: NoticeVersionEntity | null = null): TourSessionResponse {
+export function requireEnrollmentWindow(session: TourSessionEntity, activeNotice: NoticeVersionEntity | null = null, occupiedCapacity: number | null = null): TourSessionResponse {
   if (session.enrollmentOpensAt === null || session.enrollmentClosesAt === null) {
     throw new BadRequestException({
       code: "stale_state",
@@ -18,6 +18,8 @@ export function requireEnrollmentWindow(session: TourSessionEntity, activeNotice
     status: session.status,
     priceFen: session.priceFen,
     capacity: session.capacity,
+    minimumParticipants: session.minimumParticipants,
+    occupiedCapacity,
     startsAt: session.startsAt,
     endsAt: session.endsAt,
     enrollmentOpensAt: session.enrollmentOpensAt,
@@ -29,6 +31,9 @@ export function requireEnrollmentWindow(session: TourSessionEntity, activeNotice
 }
 
 export function ensureTourSessionDates(session: TourSessionEntity): void {
+  if (session.minimumParticipants !== null && session.minimumParticipants > session.capacity) {
+    throw new BadRequestException({ code: "malformed_input", message: "minimumParticipants must not exceed capacity" })
+  }
   if (session.endsAt.getTime() < session.startsAt.getTime()) {
     throw new BadRequestException({
       code: "malformed_input",

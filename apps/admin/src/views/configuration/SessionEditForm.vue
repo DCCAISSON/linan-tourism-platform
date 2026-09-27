@@ -15,6 +15,11 @@
         <input id="session-edit-price" v-model.trim="editPriceYuan" inputmode="decimal" />
       </div>
       <div class="field">
+        <label for="session-edit-minimum">修改最低人数参考（可选）</label>
+        <input id="session-edit-minimum" v-model.trim="editMinimumParticipants" inputmode="numeric" aria-describedby="session-edit-minimum-help" />
+        <small id="session-edit-minimum-help" class="state-text">留空关闭参考；有效人数包含已付款且未取消的所有参加人。</small>
+      </div>
+      <div class="field">
         <label for="session-edit-start">修改出发日期</label>
         <input id="session-edit-start" v-model="editStartsAt" type="date" />
       </div>
@@ -56,6 +61,7 @@ const editEndsAt = ref("")
 const editEnrollmentClosesAt = ref("")
 const editEnrollmentOpensAt = ref("")
 const editPriceYuan = ref("")
+const editMinimumParticipants = ref("")
 const editStartsAt = ref("")
 const localError = ref("")
 const selectedSessionId = ref("")
@@ -93,10 +99,18 @@ function submit(): void {
     return
   }
 
+  const minimumCount = editMinimumParticipants.value === "" ? null : Number(editMinimumParticipants.value)
+  const session = props.tourSessions.find(item => item.id === selectedSessionId.value)
+  if (minimumCount !== null && (!Number.isSafeInteger(minimumCount) || minimumCount <= 0 || session === undefined || minimumCount > session.capacity)) {
+    localError.value = "最低人数须为不超过容量的正整数，留空可关闭"
+    return
+  }
+
   emit("update", {
     id: selectedSessionId.value,
     payload: {
       priceFen,
+      minimumParticipants: minimumCount,
       startsAt: toIsoDate(editStartsAt.value),
       endsAt: toIsoDate(editEndsAt.value),
       enrollmentOpensAt: toIsoDate(editEnrollmentOpensAt.value),
@@ -108,6 +122,7 @@ function submit(): void {
 function fillEditFields(session: TourSession | undefined): void {
   selectedSessionId.value = session?.id ?? ""
   editPriceYuan.value = session === undefined ? "" : String(session.priceFen / 100)
+  editMinimumParticipants.value = session?.minimumParticipants == null ? "" : String(session.minimumParticipants)
   editStartsAt.value = session === undefined ? "" : formatDate(session.startsAt)
   editEndsAt.value = session === undefined ? "" : formatDate(session.endsAt)
   editEnrollmentOpensAt.value = session === undefined ? "" : formatDate(session.enrollmentOpensAt)

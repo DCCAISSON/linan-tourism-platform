@@ -80,6 +80,10 @@
         <strong>{{ catalogTitleById(session.catalogItemId) }}</strong>
         <span>{{ formatFen(session.priceFen) }}</span>
         <span>{{ session.capacity }} 人</span>
+        <span v-if="session.minimumParticipants != null" class="notice-summary notice-summary--wide">
+          最低人数参考：已付款有效人数 {{ session.occupiedCapacity ?? '暂未提供' }} / 最低人数 {{ session.minimumParticipants }}
+          <template v-if="session.occupiedCapacity != null"> · {{ session.occupiedCapacity >= session.minimumParticipants ? '已达参考人数' : '未达参考人数' }}</template>
+        </span>
         <span>{{ formatRange(session.startsAt, session.endsAt) }}</span>
         <span>{{ formatRange(session.enrollmentOpensAt, session.enrollmentClosesAt) }}</span>
         <span>{{ statusText(session.status) }}</span>

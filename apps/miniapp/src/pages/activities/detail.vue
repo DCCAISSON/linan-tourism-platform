@@ -33,6 +33,13 @@ function enroll(): void {
       </view>
       <view class="info-card"><text class="card-title">课程介绍</text><text class="detail-line introduction">{{ trip.activity.description || '课程介绍暂未提供。' }}</text></view>
 
+      <view v-if="trip.minimumParticipantsLabel" class="info-card">
+        <text class="card-title">最低人数参考</text>
+        <text class="detail-line">{{ trip.minimumParticipantsLabel }}</text>
+        <text v-if="trip.session.occupiedCapacity != null && trip.session.minimumParticipants != null" class="detail-line">{{ trip.session.occupiedCapacity >= trip.session.minimumParticipants ? '已达参考人数' : '未达参考人数' }}</text>
+        <text class="detail-line">按已付款且未取消的所有参加人统计。出行安排以工作人员通知为准。</text>
+      </view>
+
       <view v-if="trip.session.activeNotice" class="info-card parent-notice-card">
         <text class="card-title">家长告知书：{{ trip.session.activeNotice.title }}</text>
         <text class="detail-line">版本：{{ trip.session.activeNotice.version }}</text>

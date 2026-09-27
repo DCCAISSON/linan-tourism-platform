@@ -217,10 +217,11 @@ export class ConfigurationService {
     try {
       const session = await dataSource.getRepository(TourSessionEntity).save({
         ...input,
+        minimumParticipants: input.minimumParticipants ?? null,
         id: makeId("session"),
         policyVersion: DOMAIN_POLICY_VERSION,
       })
-      return requireEnrollmentWindow(session)
+      return requireEnrollmentWindow(session, null, 0)
     } catch (error) {
       throwWriteConflict(error)
     }
@@ -236,7 +237,9 @@ export class ConfigurationService {
       .orderBy("tour_session.code", "ASC")
       .getMany()
     const activeNotices = await this.findActiveNoticeMap(sessions)
-    return sessions.map((session) => requireEnrollmentWindow(session, activeNotices.get(session.activeNoticeId ?? "") ?? null))
+    return Promise.all(sessions.map(async (session) => requireEnrollmentWindow(
+      session, activeNotices.get(session.activeNoticeId ?? "") ?? null, await this.countPaidParticipants(session.id),
+    )))
   }
 
   async createNoticeVersion(tourSessionId: string, input: NewNoticeVersion): Promise<NoticeVersionResponse> {
@@ -281,7 +284,7 @@ export class ConfigurationService {
         }
         session.activeNoticeId = notice.id
         await manager.save(TourSessionEntity, session)
-        return requireEnrollmentWindow(session, notice)
+        return requireEnrollmentWindow(session, notice, await this.countPaidParticipants(session.id))
       })
     } catch (error) {
       throwWriteConflict(error)
@@ -319,12 +322,7 @@ export class ConfigurationService {
       throw new BadRequestException({ code: "stale_state", message: "tour session is outside enrollment window" })
     }
 
-    const dataSource = await this.database.getDataSource()
-    const occupiedCapacity = await dataSource.getRepository(RosterEntryEntity).createQueryBuilder("roster")
-      .innerJoin(OrderEntity, "paid_order", "paid_order.enrollment_id = roster.enrollment_id and paid_order.status = :paid", { paid: ORDER_STATUS.paid })
-      .where("roster.tour_session_id = :id", { id })
-      .andWhere("roster.status != :cancelled", { cancelled: ROSTER_STATUS.cancelled })
-      .getCount()
+    const occupiedCapacity = await this.countPaidParticipants(id)
     const capacity = { capacity: session.capacity, occupiedCapacity, remainingCapacity: Math.max(0, session.capacity - occupiedCapacity) }
     if (capacity.remainingCapacity === 0) {
       throw new BadRequestException({ code: "stale_state", message: "tour session is full", ...capacity })
@@ -339,11 +337,21 @@ export class ConfigurationService {
 
   private async withActiveNotice(session: TourSessionEntity): Promise<TourSessionResponse> {
     const dataSource = await this.database.getDataSource()
+    const occupiedCapacity = await this.countPaidParticipants(session.id)
     if (session.activeNoticeId === null) {
-      return requireEnrollmentWindow(session)
+      return requireEnrollmentWindow(session, null, occupiedCapacity)
     }
     const notice = await dataSource.getRepository(NoticeVersionEntity).findOneBy({ id: session.activeNoticeId })
-    return requireEnrollmentWindow(session, notice)
+    return requireEnrollmentWindow(session, notice, occupiedCapacity)
+  }
+
+  private async countPaidParticipants(id: string): Promise<number> {
+    const dataSource = await this.database.getDataSource()
+    return dataSource.getRepository(RosterEntryEntity).createQueryBuilder("roster")
+      .innerJoin(OrderEntity, "paid_order", "paid_order.enrollment_id = roster.enrollment_id and paid_order.status = :paid", { paid: ORDER_STATUS.paid })
+      .where("roster.tour_session_id = :id", { id })
+      .andWhere("roster.status != :cancelled", { cancelled: ROSTER_STATUS.cancelled })
+      .getCount()
   }
 
   private async findActiveNoticeMap(sessions: readonly TourSessionEntity[]): Promise<ReadonlyMap<string, NoticeVersionEntity>> {

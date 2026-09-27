@@ -49,6 +49,8 @@ export type TourSession = {
   readonly status: TourSessionStatus
   readonly priceFen: number
   readonly capacity: number
+  readonly minimumParticipants?: number | null
+  readonly occupiedCapacity?: number | null
   readonly startsAt: string
   readonly endsAt: string
   readonly enrollmentOpensAt: string

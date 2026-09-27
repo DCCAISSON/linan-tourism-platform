@@ -32,6 +32,11 @@
         <input id="session-capacity" v-model.trim="capacity" inputmode="numeric" />
       </div>
       <div class="field">
+        <label for="session-minimum">最低人数参考（可选）</label>
+        <input id="session-minimum" v-model.trim="minimumParticipants" inputmode="numeric" aria-describedby="session-minimum-help" />
+        <small id="session-minimum-help" class="state-text">留空不启用，学校大团默认留空；仅供人数参考。</small>
+      </div>
+      <div class="field">
         <label for="session-start">出发日期</label>
         <input id="session-start" v-model="startsAt" type="date" />
       </div>
@@ -81,6 +86,7 @@ const emit = defineEmits<{
 }>()
 
 const capacity = ref("")
+const minimumParticipants = ref("")
 const catalogItemId = ref("")
 const code = ref("")
 const endsAt = ref("")
@@ -114,6 +120,7 @@ function submit(): void {
   localError.value = ""
   const priceFen = parsePriceFen(priceYuan.value)
   const capacityCount = Number(capacity.value)
+  const minimumCount = minimumParticipants.value === "" ? null : Number(minimumParticipants.value)
 
   if (priceFen < 0) {
     localError.value = "团期价格不能为负数"
@@ -122,6 +129,11 @@ function submit(): void {
 
   if (!Number.isInteger(capacityCount) || capacityCount <= 0) {
     localError.value = "容量必须为正整数"
+    return
+  }
+
+  if (minimumCount !== null && (!Number.isSafeInteger(minimumCount) || minimumCount <= 0 || minimumCount > capacityCount)) {
+    localError.value = "最低人数须为不超过容量的正整数，留空可关闭"
     return
   }
 
@@ -137,6 +149,7 @@ function submit(): void {
     status: status.value,
     priceFen,
     capacity: capacityCount,
+    minimumParticipants: minimumCount,
     startsAt: toIsoDate(startsAt.value),
     endsAt: toIsoDate(endsAt.value),
     enrollmentOpensAt: toIsoDate(enrollmentOpensAt.value),

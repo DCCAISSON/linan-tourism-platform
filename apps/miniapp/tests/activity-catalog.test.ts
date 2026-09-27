@@ -1,6 +1,7 @@
 import { DOMAIN_POLICY_VERSION } from "@linan/contracts"
 import { describe, expect, it } from "vitest"
-import { activeEnrollmentOptions } from "../src/activity-catalog"
+import { activeEnrollmentOptions, activityTrips } from "../src/activity-catalog"
+import { parseTourSession } from "../src/api-parsers"
 import type { CatalogItem, School, TourSession } from "../src/api"
 
 const activeActivity: CatalogItem = {
@@ -32,6 +33,27 @@ const publishedSession: TourSession = {
 }
 
 describe("activity catalog", () => {
+  it.each([
+    { minimumParticipants: null, occupiedCapacity: 5, label: null },
+    { minimumParticipants: 10, occupiedCapacity: 0, label: "已付款有效人数 0 / 最低人数 10" },
+    { minimumParticipants: 10, occupiedCapacity: 10, label: "已付款有效人数 10 / 最低人数 10" },
+    { minimumParticipants: 10, occupiedCapacity: 12, label: "已付款有效人数 12 / 最低人数 10" },
+    { minimumParticipants: 10, occupiedCapacity: null, label: "已付款有效人数暂未提供 / 最低人数 10" },
+  ])("displays the paid headcount reference for $occupiedCapacity / $minimumParticipants", ({ minimumParticipants, occupiedCapacity, label }) => {
+    const session = parseTourSession({ ...publishedSession, minimumParticipants, occupiedCapacity })
+    const trips = activityTrips([activeActivity], [session], [])
+    expect(trips[0]).toMatchObject({ minimumParticipantsLabel: label })
+  })
+
+  it("keeps old responses valid without inventing a zero paid count", () => {
+    const session = parseTourSession(publishedSession)
+    expect(session).toMatchObject({ minimumParticipants: null, occupiedCapacity: null })
+  })
+
+  it.each([0, -1, 1.5, "10", 41])("rejects malformed minimum %s in the read model", (minimumParticipants) => {
+    expect(() => parseTourSession({ ...publishedSession, minimumParticipants })).toThrow()
+  })
+
   it("keeps enrollment choices limited to active activities and their schools", () => {
     const schools: readonly School[] = [
       { id: "school-cn", code: "school-cn", name: "临安文旅体验学校" },
