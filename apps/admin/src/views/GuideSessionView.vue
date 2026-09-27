@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue"
 import { useRoute } from "vue-router"
+import PersonDailyPanel from "./PersonDailyPanel.vue"
 import { createExecutionEvent, getGuideSession, readableExecutionError, saveAttendance, saveDailyReport, type GuidePerson, type GuideSession } from "../api/execution"
 
 const route = useRoute()
@@ -78,9 +79,10 @@ onMounted(() => { void load() })
         </article>
       </div>
     </section>
+    <PersonDailyPanel v-if="session" :session-id="sessionId" :people="session.people" :starts-at="session.startsAt" :ends-at="session.endsAt" />
     <section class="panel form-grid">
       <div>
-        <h2>日报事实</h2>
+        <h2>团级日报事实</h2>
         <el-form label-position="top">
           <el-form-item label="日期"><el-input v-model="daily.reportDate" /></el-form-item>
           <el-form-item label="住宿查房"><el-input v-model="daily.lodgingCheck" type="textarea" /></el-form-item>

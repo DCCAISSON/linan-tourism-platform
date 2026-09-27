@@ -7,9 +7,11 @@ import { FamilyExecutionController, StaffExecutionController } from "./execution
 import { ExecutionAccessService } from "./execution-access.service.js"
 import { ExecutionGuideAssignmentService } from "./execution-guide-assignment.service.js"
 import { ExecutionService } from "./execution.service.js"
+import { PersonDailyController } from "./person-daily.controller.js"
+import { PersonDailyService } from "./person-daily.service.js"
 
 @Module({
-  controllers: [StaffExecutionController, FamilyExecutionController],
-  providers: [ConfigurationDatabaseService, DevStaffAccessService, EnrollmentIdentityService, AuditLogService, ExecutionAccessService, ExecutionGuideAssignmentService, ExecutionService],
+  controllers: [StaffExecutionController, FamilyExecutionController, PersonDailyController],
+  providers: [ConfigurationDatabaseService, DevStaffAccessService, EnrollmentIdentityService, AuditLogService, ExecutionAccessService, ExecutionGuideAssignmentService, ExecutionService, PersonDailyService],
 })
 export class ExecutionModule {}

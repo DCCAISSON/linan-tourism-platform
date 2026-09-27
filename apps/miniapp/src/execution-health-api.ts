@@ -6,6 +6,7 @@ import { getWechatSessionToken } from "./wechat-token"
 export type PersonRef = `paid:${string}` | `imported:${string}`
 export type FamilyPublicExecutionSummary = {
   readonly tourSessionId: string
+  readonly personDailyReports: readonly { readonly personRef: PersonRef; readonly displayName: string; readonly reportDate: string; readonly publicSummary: string }[]
   readonly dailyReports: readonly { readonly reportDate: string; readonly publicSummary: string }[]
   readonly events: readonly { readonly occurredAt: string; readonly category: string; readonly publicSummary: string }[]
 }
@@ -51,8 +52,9 @@ async function requestJson(request: RequestTransport, baseUrl: string, familyIde
 
 function parsePublicSummary(value: unknown): FamilyPublicExecutionSummary {
   const record = readRecord(value)
-  return { tourSessionId: readString(record, "tourSessionId"), dailyReports: readCollection(record["dailyReports"], parseDaily), events: readCollection(record["events"], parseEvent) }
+  return { tourSessionId: readString(record, "tourSessionId"), personDailyReports: readCollection(record["personDailyReports"] ?? [], parsePersonDaily), dailyReports: readCollection(record["dailyReports"], parseDaily), events: readCollection(record["events"], parseEvent) }
 }
+function parsePersonDaily(value: unknown): FamilyPublicExecutionSummary["personDailyReports"][number] { const record = readRecord(value); return { personRef: readPersonRef(record), displayName: readString(record, "displayName"), ...parseDaily(value) } }
 function parseDaily(value: unknown): FamilyPublicExecutionSummary["dailyReports"][number] { const record = readRecord(value); return { reportDate: readString(record, "reportDate"), publicSummary: readString(record, "publicSummary") } }
 function parseEvent(value: unknown): FamilyPublicExecutionSummary["events"][number] { const record = readRecord(value); return { occurredAt: readString(record, "occurredAt"), category: readString(record, "category"), publicSummary: readString(record, "publicSummary") } }
 function parseHealthAuthorization(value: unknown): HealthAuthorization {

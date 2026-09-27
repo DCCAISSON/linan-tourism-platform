@@ -4,6 +4,7 @@ import { In } from "typeorm"
 import type { EntityManager } from "typeorm"
 import { ExecutionAttendanceEntity } from "../../domain/entities/execution-attendance.entity.js"
 import { ExecutionDailyReportEntity } from "../../domain/entities/execution-daily-report.entity.js"
+import { ExecutionPersonDailyReportEntity } from "../../domain/entities/execution-person-daily-report.entity.js"
 import { ExecutionEventEntity } from "../../domain/entities/execution-event.entity.js"
 import { ExecutionHealthAuthorizationEntity } from "../../domain/entities/execution-health-authorization.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
@@ -19,6 +20,7 @@ import type { PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
 import { executionForbidden } from "./execution-access.policy.js"
 import { ExecutionAccessService } from "./execution-access.service.js"
 import { assertAttendanceTravelerWritable, assertHealthReadable } from "./execution-rules.js"
+import { parsePersonRef } from "./execution.parser.js"
 import type {
   AttendanceInput, AttendanceResponse, DailyReportInput, DailyReportResponse, EventInput, EventResponse,
   FamilyPublicSummary, GuidePersonResponse, GuideSessionResponse, GuideSessionSummary, HealthAuthorizationInput,
@@ -155,11 +157,14 @@ export class ExecutionService {
     const manager = (await this.database.getDataSource()).manager
     const scoped = await findScopedOrder(manager, identity, orderId)
     const tourSessionId = scoped.enrollment.tourSessionId
+    const ownPeople = (await readTravelers(manager, tourSessionId)).sources.filter((person) => person.orderId === scoped.order.id)
+    const ownRefs = new Set(ownPeople.map((person) => person.personRef))
     const [dailyReports, events] = await Promise.all([
       manager.find(ExecutionDailyReportEntity, { where: { tourSessionId, publicApproved: true }, order: { reportDate: "ASC" } }),
       manager.find(ExecutionEventEntity, { where: { tourSessionId, publicApproved: true }, order: { occurredAt: "ASC" } }),
     ])
-    return { tourSessionId, dailyReports: dailyReports.map((row) => ({ reportDate: row.reportDate, publicSummary: row.publicSummary })), events: events.map((row) => ({ occurredAt: row.occurredAt.toISOString(), category: row.category, publicSummary: row.publicSummary })) }
+    const personal = ownRefs.size === 0 ? [] : await manager.find(ExecutionPersonDailyReportEntity, { where: { tourSessionId, publicApproved: true, personRef: In([...ownRefs]) }, order: { reportDate: "ASC", personRef: "ASC" } })
+    return { tourSessionId, personDailyReports: personal.map((row) => ({ personRef: row.personRef, displayName: ownPeople.find((person) => person.personRef === row.personRef)?.displayName ?? "", reportDate: row.reportDate, publicSummary: row.publicSummary })), dailyReports: dailyReports.map((row) => ({ reportDate: row.reportDate, publicSummary: row.publicSummary })), events: events.filter((row) => row.personRef === null || ownRefs.has(parsePersonRef(row.personRef))).map((row) => ({ occurredAt: row.occurredAt.toISOString(), category: row.category, publicSummary: row.publicSummary })) }
   }
 
   async authorizeHealth(identity: EnrollmentIdentity, orderId: string, input: HealthAuthorizationInput): Promise<HealthAuthorizationResponse> {

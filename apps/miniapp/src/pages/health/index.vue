@@ -84,6 +84,9 @@ function participantLabel(person: OrderParticipant): string {
     </view>
 
     <view v-if="summary" class="card">
+      <text class="section-title">家人每日情况</text>
+      <text v-if="summary.personDailyReports.length === 0" class="line">暂未发布本订单人员的每日摘要。</text>
+      <text v-for="item in summary.personDailyReports" :key="`${item.personRef}:${item.reportDate}`" class="line">{{ item.displayName }} · {{ item.reportDate }}：{{ item.publicSummary }}</text>
       <text class="section-title">公开日报</text>
       <text v-for="item in summary.dailyReports" :key="item.reportDate" class="line">{{ item.reportDate }}：{{ item.publicSummary }}</text>
       <text class="section-title">公开事件</text>

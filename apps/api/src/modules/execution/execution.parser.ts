@@ -48,6 +48,23 @@ export function parseEventInput(value: unknown): EventInput {
   }
 }
 
+export function parsePersonDailyInput(value: unknown) {
+  const record = readRecord(value, "个人日报")
+  const reportDate = readText(record, "reportDate", 10)
+  const parsed = new Date(`${reportDate}T00:00:00.000Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== reportDate) throw malformedExecutionInput("日报日期不正确")
+  const expectedVersion = record["expectedVersion"]
+  if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) throw malformedExecutionInput("请提供当前日报版本，新建时为0")
+  return { reportDate, expectedVersion, lodgingCheck: readText(record, "lodgingCheck", 4000), mealStatus: readText(record, "mealStatus", 4000), bodyStatus: readOptionalText(record, "bodyStatus", 4000), note: readOptionalText(record, "note", 4000) }
+}
+
+export function parsePersonDailyApproval(value: unknown) {
+  const record = readRecord(value, "个人日报公开摘要")
+  const expectedVersion = record["expectedVersion"]
+  if (typeof expectedVersion !== "number" || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) throw malformedExecutionInput("请提供当前日报版本")
+  return { ...parsePublicApproval(value), expectedVersion }
+}
+
 export function parsePublicApproval(value: unknown): PublicApprovalInput {
   const record = readRecord(value, "公开摘要")
   return { publicSummary: readText(record, "publicSummary", 1000) }

@@ -65,6 +65,7 @@ export type EventResponse = Omit<EventInput, "occurredAt"> & {
 export type PublicApprovalInput = { readonly publicSummary: string }
 export type FamilyPublicSummary = {
   readonly tourSessionId: string
+  readonly personDailyReports: readonly { readonly personRef: PersonRef; readonly displayName: string; readonly reportDate: string; readonly publicSummary: string }[]
   readonly dailyReports: readonly Pick<DailyReportResponse, "reportDate" | "publicSummary">[]
   readonly events: readonly Pick<EventResponse, "occurredAt" | "category" | "publicSummary">[]
 }
