@@ -11,6 +11,7 @@ import { EnrollmentParticipantEntity } from "./enrollment-participant.entity.js"
 import { EvaluationStandardEntity } from "./evaluation-standard.entity.js"
 import { ExecutionAttendanceEntity } from "./execution-attendance.entity.js"
 import { ExecutionDailyReportEntity } from "./execution-daily-report.entity.js"
+import { ExecutionPersonDailyReportEntity } from "./execution-person-daily-report.entity.js"
 import { ExecutionEventEntity } from "./execution-event.entity.js"
 import { ExecutionGuideAssignmentEntity } from "./execution-guide-assignment.entity.js"
 import { ExecutionHealthAuthorizationEntity } from "./execution-health-authorization.entity.js"
@@ -75,6 +76,7 @@ export { EnrollmentParticipantEntity } from "./enrollment-participant.entity.js"
 export { EvaluationStandardEntity } from "./evaluation-standard.entity.js"
 export { ExecutionAttendanceEntity } from "./execution-attendance.entity.js"
 export { ExecutionDailyReportEntity } from "./execution-daily-report.entity.js"
+export { ExecutionPersonDailyReportEntity } from "./execution-person-daily-report.entity.js"
 export { ExecutionEventEntity } from "./execution-event.entity.js"
 export { ExecutionGuideAssignmentEntity } from "./execution-guide-assignment.entity.js"
 export { ExecutionHealthAuthorizationEntity } from "./execution-health-authorization.entity.js"
@@ -144,6 +146,7 @@ export const DOMAIN_ENTITIES = [
   ServiceFeedbackEntity,
   ExecutionAttendanceEntity,
   ExecutionDailyReportEntity,
+  ExecutionPersonDailyReportEntity,
   ExecutionEventEntity,
   ExecutionGuideAssignmentEntity,
   ExecutionHealthAuthorizationEntity,

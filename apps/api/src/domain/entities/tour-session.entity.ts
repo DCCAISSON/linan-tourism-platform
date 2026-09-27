@@ -50,6 +50,9 @@ export class TourSessionEntity {
   @Column({ type: "int", unsigned: true })
   capacity = 0
 
+  @Column({ name: "minimum_participants", type: "int", unsigned: true, nullable: true })
+  minimumParticipants: number | null = null
+
   @Column({ name: "starts_at", type: "datetime", precision: 6 })
   startsAt = new Date(0)
 

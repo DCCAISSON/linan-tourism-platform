@@ -28,6 +28,9 @@ import { AddWechatIdentities1765980000000 } from "../migrations/1765980000000-Ad
 import { AddEnrollmentContactAndCommonMembers1765983600000 } from "../migrations/1765983600000-AddEnrollmentContactAndCommonMembers.js"
 
 import { AddEnrollmentPlacementSnapshot1765987200000 } from "../migrations/1765987200000-AddEnrollmentPlacementSnapshot.js"
+import { AddTourSessionMinimumParticipants1765990800000 } from "../migrations/1765990800000-AddTourSessionMinimumParticipants.js"
+import { AddExecutionPersonDaily1765994400000 } from "../migrations/1765994400000-AddExecutionPersonDaily.js"
+import { AddTransportDocumentSnapshot1765998000000 } from "../migrations/1765998000000-AddTransportDocumentSnapshot.js"
 
 export const DOMAIN_DATA_SOURCE_OPTIONS = {
   type: "mysql",
@@ -64,6 +67,9 @@ export const DOMAIN_DATA_SOURCE_OPTIONS = {
     AddWechatIdentities1765980000000,
     AddEnrollmentContactAndCommonMembers1765983600000,
     AddEnrollmentPlacementSnapshot1765987200000,
+    AddTourSessionMinimumParticipants1765990800000,
+    AddExecutionPersonDaily1765994400000,
+    AddTransportDocumentSnapshot1765998000000,
   ],
 } satisfies DataSourceOptions
 
