@@ -1,4 +1,5 @@
-﻿import type { PersonRef, TravelerDto } from "../travelers/travelers.types.js"
+import type { ExecutionGroupPerson, ExecutionVehicle } from "./execution-management.types.js"
+import type { PersonRef, TravelerDto } from "../travelers/travelers.types.js"
 
 export type AttendanceStatus = "present" | "absent" | "revoked"
 export type AttendanceInput = {
@@ -28,6 +29,9 @@ export type GuidePersonResponse = TravelerDto & {
   readonly healthAuthorized: boolean
 }
 export type GuideSessionResponse = GuideSessionSummary & {
+  readonly confirmationStatus: "unconfirmed" | "stale" | "current"
+  readonly groupPeople: readonly ExecutionGroupPerson[]
+  readonly vehicles: readonly ExecutionVehicle[]
   readonly people: readonly GuidePersonResponse[]
   readonly dailyReports: readonly DailyReportResponse[]
   readonly events: readonly EventResponse[]

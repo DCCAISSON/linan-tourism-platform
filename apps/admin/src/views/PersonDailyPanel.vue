@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue"
 import { getCurrentStaff } from "../api/auth"
 import { approvePersonDailySummary, listPersonDailyReports, readableExecutionError, savePersonDailyReport, type GuidePerson, type PersonDailyReport, type PersonRef } from "../api/execution"
 
-const props = defineProps<{ sessionId: string; people: readonly GuidePerson[]; startsAt: string; endsAt: string }>()
+const props = withDefaults(defineProps<{ sessionId: string; people: readonly GuidePerson[]; startsAt: string; endsAt: string; editable?: boolean }>(), { editable: true })
 const reports = ref<readonly PersonDailyReport[]>([])
 const personRef = ref<PersonRef | "">("")
 const busy = ref(false)
@@ -39,7 +39,7 @@ async function load(): Promise<void> {
   try {
     const [rows, staff] = await Promise.all([listPersonDailyReports(props.sessionId), getCurrentStaff()])
     reports.value = rows
-    canWrite.value = staff.permissionKeys.includes("execution.write")
+    canWrite.value = props.editable && staff.permissionKeys.includes("execution.write")
     canPublish.value = staff.permissionKeys.includes("execution.publish")
     canReadHealth.value = staff.permissionKeys.includes("health.read")
     loaded.value = true
@@ -49,7 +49,7 @@ async function load(): Promise<void> {
 }
 
 async function save(): Promise<void> {
-  if (personRef.value === "") return
+  if (personRef.value === "" || !props.editable || !selectedPerson.value?.active) return
   busy.value = true
   error.value = ""
   notice.value = ""
@@ -106,4 +106,8 @@ onMounted(() => { void load() })
 .person-daily h2 { font-size: var(--font-h2); }
 .person-daily p { color: var(--text-secondary); line-height: 1.6; }
 .person-daily .el-form { margin-top: var(--space-4); }
+@media (max-width: 768px) {
+  .el-button { min-height: var(--size-touch-target); min-width: var(--size-touch-target); padding: var(--space-2) var(--space-3); }
+  :deep(.el-input__wrapper), :deep(.el-select__wrapper) { min-height: var(--size-touch-target); box-sizing: border-box; }
+}
 </style>

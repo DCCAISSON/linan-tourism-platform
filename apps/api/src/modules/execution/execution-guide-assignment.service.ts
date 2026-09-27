@@ -3,6 +3,8 @@ import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nest
 import type { EntityManager } from "typeorm"
 import { ExecutionGuideAssignmentEntity } from "../../domain/entities/execution-guide-assignment.entity.js"
 import { StaffAccountEntity } from "../../domain/entities/staff-account.entity.js"
+import { StaffAccountPermissionEntity } from "../../domain/entities/staff-account-permission.entity.js"
+import { StaffAccountScopeEntity } from "../../domain/entities/staff-account-scope.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
 import { TransportSessionVehicleEntity } from "../../domain/entities/transport-session-vehicle.entity.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
@@ -48,6 +50,19 @@ export class ExecutionGuideAssignmentService {
     return manager.find(ExecutionGuideAssignmentEntity, { where: { tourSessionId: session.id }, order: { updatedAt: "DESC" } })
   }
 
+  async candidates(access: StaffAccess, tourSessionId: string) {
+    this.assertManage(access)
+    const manager = (await this.database.getDataSource()).manager
+    const session = await this.session(manager, access, tourSessionId)
+    const accounts = await manager.find(StaffAccountEntity, { where: { status: "active" }, order: { displayName: "ASC" } })
+    const candidates = []
+    for (const account of accounts) {
+      if (account.expiresAt !== null && account.expiresAt.getTime() <= Date.now()) continue
+      if (await this.candidateEligible(manager, account.id, session)) candidates.push({ staffAccountId: account.id, displayName: account.displayName })
+    }
+    return candidates
+  }
+
   async assignIn(manager: EntityManager, access: StaffAccess, input: GuideAssignmentInput): Promise<ExecutionGuideAssignmentEntity> {
     this.assertManage(access)
     const session = await this.session(manager, access, input.tourSessionId)
@@ -55,6 +70,7 @@ export class ExecutionGuideAssignmentService {
     if (guide === null || guide.status !== "active" || (guide.expiresAt !== null && guide.expiresAt.getTime() <= Date.now())) {
       throw executionForbidden("必须分配真实有效的工作人员账号")
     }
+    if (!(await this.candidateEligible(manager, guide.id, session))) throw executionForbidden("工作人员须具有执行查看权限和当前团期范围")
     if (input.vehicleId !== undefined) {
       const vehicle = await manager.findOneBy(TransportSessionVehicleEntity, { id: input.vehicleId })
       if (vehicle === null || vehicle.tourSessionId !== session.id) {
@@ -79,6 +95,16 @@ export class ExecutionGuideAssignmentService {
     if (!access.permissionKeys.has("execution.manage")) {
       throw new ForbiddenException({ code: "execution_manage_forbidden", message: "无权维护导游分配" })
     }
+  }
+
+  private async candidateEligible(manager: EntityManager, accountId: string, session: TourSessionEntity): Promise<boolean> {
+    const [permissions, scopes] = await Promise.all([
+      manager.findBy(StaffAccountPermissionEntity, { staffAccountId: accountId }),
+      manager.findBy(StaffAccountScopeEntity, { staffAccountId: accountId }),
+    ])
+    return permissions.some(row => row.permissionKey === "execution.read") && scopes.some(scope => scope.scopeKind === "all" ||
+      (scope.scopeKind === "tour_session" && scope.scopeId === session.id) ||
+      ((scope.scopeKind === "school" || scope.scopeKind === "organization") && scope.scopeId === session.organizationId))
   }
 
   private async session(manager: EntityManager, access: StaffAccess, tourSessionId: string): Promise<TourSessionEntity> {

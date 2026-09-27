@@ -115,3 +115,10 @@ function readBoolean(record: Record<string, unknown>, key: string): boolean {
 export function malformedExecutionInput(message: string): BadRequestException {
   return new BadRequestException({ code: "execution_input_invalid", message })
 }
+
+export function parseGuideAssignment(value: unknown, tourSessionId: string) {
+  const record = readRecord(value, "导游指派")
+  const vehicleId = readOptionalText(record, "vehicleId", 64)
+  return { staffAccountId: readText(record, "staffAccountId", 64), tourSessionId, ...(vehicleId.length === 0 ? {} : { vehicleId }), reason: readText(record, "reason", 500) }
+}
+export function parseAssignmentReason(value: unknown): string { return readText(readRecord(value, "撤销指派"), "reason", 500) }

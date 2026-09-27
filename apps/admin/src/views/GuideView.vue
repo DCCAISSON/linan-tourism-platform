@@ -27,7 +27,7 @@ onMounted(() => { void load() })
       <div>
         <p class="eyebrow">导游执行</p>
         <h1>我的团期</h1>
-        <p class="hint">这里只显示已显式分配给当前工作人员的团期和车辆。</p>
+        <p class="hint">查看已指派的团期，按已确认的人车安排开展工作。</p>
       </div>
       <el-button :loading="loading" @click="load">刷新</el-button>
     </header>
@@ -36,8 +36,8 @@ onMounted(() => { void load() })
       <article v-for="session in sessions" :key="session.id" class="session-card">
         <h2>{{ session.code }}</h2>
         <p>{{ new Date(session.startsAt).toLocaleString() }} 至 {{ new Date(session.endsAt).toLocaleString() }}</p>
-        <p class="vehicles">车辆：{{ session.vehicleIds.length > 0 ? session.vehicleIds.join('、') : '未分配车辆' }}</p>
-        <el-link type="primary" :href="`#/execution/sessions/${encodeURIComponent(session.id)}`">进入执行台</el-link>
+        <p class="vehicles">{{ session.vehicleIds.length > 0 ? `已指派 ${session.vehicleIds.length} 辆车` : '全团查看' }}</p>
+        <RouterLink :to="`/execution/sessions/${encodeURIComponent(session.id)}`">进入执行台</RouterLink>
       </article>
       <el-empty v-if="!loading && sessions.length === 0" description="暂无执行分配" />
     </section>
@@ -45,14 +45,14 @@ onMounted(() => { void load() })
 </template>
 
 <style scoped>
-.execution-page { padding: 24px; color: #1f2937; }
-.page-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
-.eyebrow { margin: 0 0 6px; color: #2563eb; font-weight: 700; letter-spacing: .08em; }
-h1 { margin: 0; font-size: 28px; }
-.hint { margin: 8px 0 0; color: #64748b; }
-.session-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-.session-card { border: 1px solid #dbeafe; border-radius: 16px; padding: 18px; background: #fff; box-shadow: 0 12px 30px rgb(15 23 42 / 8%); }
-.session-card h2 { margin: 0 0 8px; }
-.vehicles { color: #475569; }
-@media (max-width: 640px) { .execution-page { padding: 14px; } .page-head { flex-direction: column; } }
+.execution-page { color: var(--text-primary); min-width: 0; }
+.page-head { display: flex; justify-content: space-between; gap: var(--space-4); align-items: flex-start; margin-bottom: var(--space-5); }
+.eyebrow { margin: 0 0 var(--space-2); color: var(--accent-primary); font-weight: 700; }
+h1 { margin: 0; font-size: var(--font-h1); }
+.hint { margin: var(--space-2) 0 0; color: var(--text-secondary); }
+.session-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: var(--space-4); }
+.session-card { min-width: 0; border-radius: var(--radius-card); padding: var(--space-5); background: var(--surface-elevated); }
+.session-card h2 { margin: 0 0 var(--space-2); overflow-wrap: anywhere; font-size: var(--font-h2); }
+.vehicles { color: var(--text-secondary); } a { color: var(--accent-primary); }
+@media (max-width: 640px) { .page-head { flex-direction: column; } }
 </style>

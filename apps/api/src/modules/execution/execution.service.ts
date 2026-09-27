@@ -1,5 +1,5 @@
 ﻿import { randomUUID } from "node:crypto"
-import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
+import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { In } from "typeorm"
 import type { EntityManager } from "typeorm"
 import { ExecutionAttendanceEntity } from "../../domain/entities/execution-attendance.entity.js"
@@ -8,7 +8,11 @@ import { ExecutionPersonDailyReportEntity } from "../../domain/entities/executio
 import { ExecutionEventEntity } from "../../domain/entities/execution-event.entity.js"
 import { ExecutionHealthAuthorizationEntity } from "../../domain/entities/execution-health-authorization.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
-import { TransportPersonAllocationEntity } from "../../domain/entities/transport-person-allocation.entity.js"
+import { ExecutionGuideAssignmentEntity } from "../../domain/entities/execution-guide-assignment.entity.js"
+import { readTransportConfirmation } from "../transport/transport-confirmation.read.js"
+import { lockTransportPlan } from "../transport/transport-plan-store.js"
+import { readConfirmedPerson } from "./execution-confirmed-person.js"
+import { groupPeople } from "./execution-management.types.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import { decryptPersonValue, encryptValue, PERSON_DATA_KEY_VERSION } from "../enrollment/person-data.js"
@@ -41,8 +45,10 @@ export class ExecutionService {
     const sessionIds = await this.accessService.assignedSessionIds(access)
     if (sessionIds.length === 0) return []
     const sessions = await manager.find(TourSessionEntity, { where: { id: In([...sessionIds]) }, order: { startsAt: "ASC" } })
-    const vehicles = await manager.findBy(TransportPersonAllocationEntity, { tourSessionId: In([...sessionIds]) })
-    return sessions.map((session) => toSessionSummary(session, vehicles.filter((row) => row.tourSessionId === session.id).map((row) => row.vehicleId)))
+    return Promise.all(sessions.map(async session => {
+      const confirmation = await readTransportConfirmation(manager, session.id)
+      return toSessionSummary(session, confirmation.status === "current" ? confirmation.snapshot.vehicles.map(vehicle => vehicle.id) : [])
+    }))
   }
 
   async guideSession(access: StaffAccess, sessionId: string): Promise<GuideSessionResponse> {
@@ -56,12 +62,13 @@ export class ExecutionService {
     requireExecutionWrite(access)
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
+      await lockTransportPlan(manager, sessionId)
       const { session, traveler, allocation } = await this.assertPersonAccess(manager, access, sessionId, personRef)
       assertAttendanceTravelerWritable(traveler, input.status)
       const previous = await manager.findOneBy(ExecutionAttendanceEntity, { tourSessionId: session.id, personRef })
       const row = previous ?? manager.create(ExecutionAttendanceEntity, { id: `att-${randomUUID()}` })
       row.tourSessionId = session.id
-      row.vehicleId = allocation.vehicleId
+      row.vehicleId = previous?.vehicleId ?? allocation.vehicleId
       row.personRef = personRef
       row.status = input.status
       row.infoChecked = input.infoChecked
@@ -101,6 +108,7 @@ export class ExecutionService {
     requireExecutionWrite(access)
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
+      if (input.personRef !== null) await lockTransportPlan(manager, sessionId)
       const session = await this.accessService.session(manager, access, sessionId)
       if (input.personRef === null) await this.accessService.assertAssignedIn(manager, access, { sessionId: session.id, vehicleId: undefined })
       else await this.assertPersonAccess(manager, access, session.id, input.personRef)
@@ -222,17 +230,13 @@ export class ExecutionService {
 
   private async readGuideSession(manager: EntityManager, access: StaffAccess, sessionId: string): Promise<GuideSessionResponse> {
     const session = await this.accessService.session(manager, access, sessionId)
-    const allocations = await manager.findBy(TransportPersonAllocationEntity, { tourSessionId: session.id })
-    const allowed: TransportPersonAllocationEntity[] = []
-    for (const allocation of allocations) {
-      try {
-        await this.accessService.assertAssignedIn(manager, access, { sessionId: session.id, vehicleId: allocation.vehicleId })
-        allowed.push(allocation)
-      } catch (error) {
-        if (!(error instanceof ForbiddenException)) throw error
-      }
-    }
-    const allowedRefs = new Set(allowed.map((row) => row.personRef))
+    const confirmation = await readTransportConfirmation(manager, session.id)
+    const assignments = await manager.findBy(ExecutionGuideAssignmentEntity, { staffAccountId: access.actorId, tourSessionId: session.id, active: true })
+    const allowedVehicles = new Set(assignments.filter(row => row.vehicleId !== null).map(row => row.vehicleId))
+    const vehicles = confirmation.status === "current" ? confirmation.snapshot.vehicles.map(row => ({ id: row.id, sequence: row.sequence, plateNumber: row.plateNumber })) : []
+    const confirmed = confirmation.status === "current" ? confirmation.snapshot.assignments : []
+    const allowed = confirmed.filter(row => allowedVehicles.has(row.vehicleId))
+    const allowedRefs = new Set(allowed.map(row => row.personRef))
     const snapshot = await readTravelers(manager, session.id)
     const [attendance, healthRows, dailyReports, events] = await Promise.all([
       manager.findBy(ExecutionAttendanceEntity, { tourSessionId: session.id }),
@@ -243,17 +247,22 @@ export class ExecutionService {
     return {
       ...toSessionSummary(session, allowed.map((row) => row.vehicleId)),
       people: snapshot.travelers.filter((row) => allowedRefs.has(row.personRef)).map((row) => toGuidePerson(row, allowed, attendance, healthRows)),
-      dailyReports: dailyReports.map(toDailyReport),
-      events: events.map(toEvent),
+      confirmationStatus: confirmation.status,
+      vehicles,
+      groupPeople: groupPeople(confirmed, vehicles),
+      dailyReports: dailyReports.map(row => ({ ...toDailyReport(row), bodyStatus: "", note: "" })),
+      events: events.filter(row => row.personRef === null || allowedRefs.has(parsePersonRef(row.personRef))).map(row => {
+        const healthAllowed = row.personRef !== null && access.permissionKeys.has("health.read") && healthRows.some(health => health.personRef === row.personRef && health.revokedAt === null)
+        return { ...toEvent(row), content: row.personRef === null || (row.category === "health" && !healthAllowed) ? "" : row.content, publicSummary: row.publicApproved ? row.publicSummary : "" }
+      }),
     }
   }
 
   private async assertPersonAccess(manager: EntityManager, access: StaffAccess, sessionId: string, personRef: PersonRef) {
     const session = await this.accessService.session(manager, access, sessionId)
+    const allocation = await readConfirmedPerson(manager, { sessionId, personRef })
     const snapshot = await readTravelers(manager, session.id)
     const traveler = resolveTraveler(snapshot, personRef)
-    const allocation = await manager.findOneBy(TransportPersonAllocationEntity, { tourSessionId: session.id, personRef })
-    if (allocation === null) throw new ConflictException({ code: "execution_vehicle_required", message: "人员尚未分配到当前车辆" })
     await this.accessService.assertAssignedIn(manager, access, { sessionId: session.id, vehicleId: allocation.vehicleId })
     return { session, traveler, allocation }
   }
@@ -274,7 +283,7 @@ function requireHealthRead(access: StaffAccess): void {
 function toSessionSummary(session: TourSessionEntity, vehicleIds: readonly string[]): GuideSessionSummary {
   return { id: session.id, code: session.code, startsAt: session.startsAt.toISOString(), endsAt: session.endsAt.toISOString(), vehicleIds: [...new Set(vehicleIds)].sort() }
 }
-function toGuidePerson(row: TravelerRecord, allocations: readonly TransportPersonAllocationEntity[], attendance: readonly ExecutionAttendanceEntity[], health: readonly ExecutionHealthAuthorizationEntity[]): GuidePersonResponse {
+function toGuidePerson(row: TravelerRecord, allocations: readonly { readonly personRef: PersonRef; readonly vehicleId: string }[], attendance: readonly ExecutionAttendanceEntity[], health: readonly ExecutionHealthAuthorizationEntity[]): GuidePersonResponse {
   const allocation = allocations.find((candidate) => candidate.personRef === row.personRef)
   if (allocation === undefined) throw new Error("execution allocation missing")
   const attendanceRow = attendance.find((candidate) => candidate.personRef === row.personRef) ?? null

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest"
 import type { EntityManager } from "typeorm"
 import { ExecutionGuideAssignmentEntity } from "../../domain/entities/execution-guide-assignment.entity.js"
 import { StaffAccountEntity } from "../../domain/entities/staff-account.entity.js"
+import { StaffAccountPermissionEntity } from "../../domain/entities/staff-account-permission.entity.js"
+import { StaffAccountScopeEntity } from "../../domain/entities/staff-account-scope.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
 import { TransportSessionVehicleEntity } from "../../domain/entities/transport-session-vehicle.entity.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
@@ -13,6 +15,7 @@ type FindOneKey = typeof StaffAccountEntity | typeof TourSessionEntity | typeof 
 
 const manager = (rows: ReadonlyMap<FindOneKey, unknown>): EntityManager => ({
   findOneBy: vi.fn((entity: FindOneKey) => Promise.resolve(rows.get(entity) ?? null)),
+  findBy: vi.fn((entity) => Promise.resolve(entity === StaffAccountPermissionEntity ? [Object.assign(new StaffAccountPermissionEntity(), { permissionKey: "execution.read" })] : [Object.assign(new StaffAccountScopeEntity(), { scopeKind: "tour_session", scopeId: "session" })])),
   create: vi.fn((_: typeof ExecutionGuideAssignmentEntity, value: Partial<ExecutionGuideAssignmentEntity>) => Object.assign(new ExecutionGuideAssignmentEntity(), value)),
   save: vi.fn((value: ExecutionGuideAssignmentEntity) => Promise.resolve(value)),
 }) as unknown as EntityManager
@@ -30,6 +33,23 @@ const managerAccess: StaffAccess = {
 }
 
 describe("execution guide assignments", () => {
+  it("rejects an active account when execution.read is missing", async () => {
+    const session = Object.assign(new TourSessionEntity(), { id: "session", organizationId: "school" })
+    const guide = Object.assign(new StaffAccountEntity(), { id: "guide", status: "active", expiresAt: null })
+    const fakeManager = manager(rowMap([TourSessionEntity, session], [StaffAccountEntity, guide]))
+    vi.spyOn(fakeManager, "findBy").mockResolvedValue([])
+    const service = new ExecutionGuideAssignmentService({} as never)
+    await expect(service.assignIn(fakeManager, managerAccess, { staffAccountId: "guide", tourSessionId: "session", reason: "带团" })).rejects.toThrow(ForbiddenException)
+  })
+
+  it("rejects an active account when its scope excludes the requested session", async () => {
+    const session = Object.assign(new TourSessionEntity(), { id: "session", organizationId: "school" })
+    const guide = Object.assign(new StaffAccountEntity(), { id: "guide", status: "active", expiresAt: null })
+    const fakeManager = manager(rowMap([TourSessionEntity, session], [StaffAccountEntity, guide]))
+    vi.spyOn(fakeManager, "findBy").mockImplementation(async (entity) => entity === StaffAccountPermissionEntity ? [Object.assign(new StaffAccountPermissionEntity(), { permissionKey: "execution.read" })] : [Object.assign(new StaffAccountScopeEntity(), { scopeKind: "tour_session", scopeId: "other" })])
+    const service = new ExecutionGuideAssignmentService({} as never)
+    await expect(service.assignIn(fakeManager, managerAccess, { staffAccountId: "guide", tourSessionId: "session", reason: "带团" })).rejects.toThrow(ForbiddenException)
+  })
   it("stores a real guide assignment for the requested vehicle", async () => {
     // Given a manager, an active staff account, a session and a vehicle in that session.
     const session = Object.assign(new TourSessionEntity(), { id: "session", organizationId: "school" })

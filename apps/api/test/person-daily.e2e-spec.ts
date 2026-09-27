@@ -44,7 +44,8 @@ describe.skipIf(databaseUrl === undefined)("per-person daily real API", () => {
     const plan = await request(app.getHttpServer()).put(`/transport/sessions/${sessionId}/plan`).set(admin).send({ vehicles: [1, 2].map((sequence) => ({ sequence, seatCapacity: 3, plateNumber: `浙A1234${sequence}`, contactSnapshot: { driverName: "", driverPhone: "", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" }, allocations: [{ classId: catalog.classId, studentCount: 1, guardianCount: 0, teacherCount: 0, otherCount: 0, note: "" }] })) }).expect(200)
     const vehicleId: string = plan.body.vehicles[0].id
     const roster = await request(app.getHttpServer()).get(`/transport/sessions/${sessionId}/people-plan`).set(admin).expect(200)
-    await request(app.getHttpServer()).put(`/transport/sessions/${sessionId}/person-allocations`).set(admin).send({ expectedPlanVersion: roster.body.planVersion, expectedRosterVersion: roster.body.rosterVersion, assignments: [{ personRef: person, vehicleId }, { personRef: otherPerson, vehicleId: plan.body.vehicles[1].id }] }).expect(200)
+    const assigned = await request(app.getHttpServer()).put(`/transport/sessions/${sessionId}/person-allocations`).set(admin).send({ expectedPlanVersion: roster.body.planVersion, expectedRosterVersion: roster.body.rosterVersion, assignments: [{ personRef: person, vehicleId }, { personRef: otherPerson, vehicleId: plan.body.vehicles[1].id }] }).expect(200)
+    await request(app.getHttpServer()).post(`/transport/sessions/${sessionId}/confirmations`).set(admin).send({ expectedPlanVersion: assigned.body.planVersion, expectedRosterVersion: assigned.body.rosterVersion }).expect(201)
     guideCookie = await staff(true, vehicleId)
     noHealthCookie = await staff(false, vehicleId)
     unassignedCookie = await staff(true, null)
@@ -54,6 +55,8 @@ describe.skipIf(databaseUrl === undefined)("per-person daily real API", () => {
   afterAll(async () => {
     if (app !== undefined) await app.close()
     if (dataSource.isInitialized) {
+      await dataSource.query("update transport_plans set current_confirmation_id = null where tour_session_id = ?", [sessionId])
+      await dataSource.query("delete from transport_confirmations where tour_session_id = ?", [sessionId])
       for (const table of ["execution_person_daily_reports", "execution_health_authorizations", "execution_daily_reports", "execution_events", "execution_guide_assignments", "transport_person_allocations", "transport_class_allocations", "transport_session_vehicles", "transport_plans"]) {
         if (table === "transport_class_allocations") await dataSource.query("delete from transport_class_allocations where vehicle_id in (select id from transport_session_vehicles where tour_session_id = ?)", [sessionId])
         else await dataSource.query(`delete from ${table} where tour_session_id = ?`, [sessionId])
@@ -103,8 +106,11 @@ describe.skipIf(databaseUrl === undefined)("per-person daily real API", () => {
     await request(app.getHttpServer()).post(endpoint).set({ Cookie: unassignedCookie, Origin: origin }).send(plain).expect(403)
     await request(app.getHttpServer()).post(endpoint).set({ Cookie: guideCookie, Origin: origin }).send(plain).expect(403)
     await request(app.getHttpServer()).post(endpoint.replace(sessionId, otherSessionId)).set({ Cookie: guideCookie, Origin: origin }).send(plain).expect(403)
-    await request(app.getHttpServer()).post(endpoint.replace(encodeURIComponent(otherPerson), "paid%3Aunknown")).set(admin).send(plain).expect(404)
-    await request(app.getHttpServer()).post(endpoint.replace(sessionId, otherSessionId)).set(admin).send(plain).expect(404)
+    const unknown = await request(app.getHttpServer()).post(endpoint.replace(encodeURIComponent(otherPerson), "paid%3Aunknown")).set(admin).send(plain).expect(404)
+    expect(unknown.body.code).toBe("execution_confirmed_person_not_found")
+    expect(await dataSource.query("select id from transport_confirmations where tour_session_id=?", [otherSessionId])).toEqual([])
+    const unconfirmed = await request(app.getHttpServer()).post(endpoint.replace(sessionId, otherSessionId)).set(admin).send(plain).expect(409)
+    expect(unconfirmed.body.code).toBe("execution_transport_confirmation_required")
     await request(app.getHttpServer()).post(endpoint).set(admin).send({ ...plain, reportDate: "2027-02-30" }).expect(400)
     await request(app.getHttpServer()).post(endpoint).set(admin).send({ ...plain, reportDate: "2027-01-01" }).expect(400)
     const parallel = await Promise.all([request(app.getHttpServer()).post(endpoint).set(admin).send(plain), request(app.getHttpServer()).post(endpoint).set(admin).send(plain)])

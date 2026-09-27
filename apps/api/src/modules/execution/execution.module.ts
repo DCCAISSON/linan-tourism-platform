@@ -1,4 +1,6 @@
-﻿import { Module } from "@nestjs/common"
+import { ExecutionManagementController } from "./execution-management.controller.js"
+import { ExecutionManagementService } from "./execution-management.service.js"
+import { Module } from "@nestjs/common"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { EnrollmentIdentityService } from "../enrollment/enrollment.identity.js"
 import { AuditLogService } from "../iam/audit-log.service.js"
@@ -11,7 +13,7 @@ import { PersonDailyController } from "./person-daily.controller.js"
 import { PersonDailyService } from "./person-daily.service.js"
 
 @Module({
-  controllers: [StaffExecutionController, FamilyExecutionController, PersonDailyController],
-  providers: [ConfigurationDatabaseService, DevStaffAccessService, EnrollmentIdentityService, AuditLogService, ExecutionAccessService, ExecutionGuideAssignmentService, ExecutionService, PersonDailyService],
+  controllers: [ExecutionManagementController, StaffExecutionController, FamilyExecutionController, PersonDailyController],
+  providers: [ExecutionManagementService, ConfigurationDatabaseService, DevStaffAccessService, EnrollmentIdentityService, AuditLogService, ExecutionAccessService, ExecutionGuideAssignmentService, ExecutionService, PersonDailyService],
 })
 export class ExecutionModule {}

@@ -3,7 +3,6 @@ import { BadRequestException, ConflictException, ForbiddenException, Inject, Inj
 import type { EntityManager } from "typeorm"
 import { ExecutionPersonDailyReportEntity } from "../../domain/entities/execution-person-daily-report.entity.js"
 import { ExecutionHealthAuthorizationEntity } from "../../domain/entities/execution-health-authorization.entity.js"
-import { TransportPersonAllocationEntity } from "../../domain/entities/transport-person-allocation.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { decryptPersonValue, encryptValue, PERSON_DATA_KEY_VERSION } from "../enrollment/person-data.js"
@@ -13,6 +12,9 @@ import { assertTravelerActionable, readTravelers, resolveTraveler } from "../tra
 import type { PersonRef } from "../travelers/travelers.types.js"
 import { ExecutionAccessService } from "./execution-access.service.js"
 import { assertHealthReadable } from "./execution-rules.js"
+import { readConfirmedPerson } from "./execution-confirmed-person.js"
+import { lockTransportPlan } from "../transport/transport-plan-store.js"
+import { readTransportConfirmation } from "../transport/transport-confirmation.read.js"
 import type { parsePersonDailyInput, parsePersonDailyApproval } from "./execution.parser.js"
 
 type DailyTarget = { readonly sessionId: string; readonly personRef: PersonRef }
@@ -49,6 +51,7 @@ export class PersonDailyService {
     if (!access.permissionKeys.has("execution.write")) throw new ForbiddenException("无权填写执行信息")
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
+      await lockTransportPlan(manager, target.sessionId)
       const { session, traveler } = await this.personAccess(manager, access, target)
       assertTravelerActionable(traveler)
       const localDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" })
@@ -109,10 +112,9 @@ export class PersonDailyService {
 
   private async personAccess(manager: EntityManager, access: StaffAccess, target: DailyTarget) {
     const session = await this.access.session(manager, access, target.sessionId)
+    const allocation = await readConfirmedPerson(manager, target)
     const traveler = resolveTraveler(await readTravelers(manager, session.id), target.personRef)
     if (!this.isManager(access)) {
-      const allocation = await manager.findOneBy(TransportPersonAllocationEntity, { tourSessionId: session.id, personRef: target.personRef })
-      if (allocation === null) throw new ConflictException({ code: "execution_vehicle_required", message: "人员尚未分配到当前车辆" })
       await this.access.assertAssignedIn(manager, access, { sessionId: session.id, vehicleId: allocation.vehicleId })
     }
     return { session, traveler }
@@ -122,8 +124,10 @@ export class PersonDailyService {
     if (!access.permissionKeys.has("health.read")) return false
     const authorization = await manager.findOneBy(ExecutionHealthAuthorizationEntity, { tourSessionId: row.tourSessionId, personRef: row.personRef })
     if (authorization === null || authorization.revokedAt !== null) return false
-    const allocation = await manager.findOneBy(TransportPersonAllocationEntity, { tourSessionId: row.tourSessionId, personRef: row.personRef })
-    if (allocation === null) return false
+    const confirmation = await readTransportConfirmation(manager, row.tourSessionId)
+    if (confirmation.status !== "current") return false
+    const allocation = confirmation.snapshot.assignments.find(person => person.personRef === row.personRef)
+    if (allocation === undefined) return false
     try { await this.access.assertAssignedIn(manager, access, { sessionId: row.tourSessionId, vehicleId: allocation.vehicleId }); return true }
     catch (error) { if (error instanceof ForbiddenException) return false; throw error }
   }
