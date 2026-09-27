@@ -49,6 +49,26 @@
       <p v-if="formError" class="transport-state transport-state--error" role="alert">{{ formError }}</p>
     </form>
 
+    <section class="transport-card transport-document" aria-labelledby="transport-document-title">
+      <h3 id="transport-document-title">联系单资料</h3>
+      <p class="transport-state">随“保存安排”保存；未填写的项目在联系单留空。人数按班级安排汇总。</p>
+      <fieldset class="transport-vehicle__grid" :disabled="!canWrite || loadingPlan || saving">
+        <label>研学行程名称<input v-model="documentSnapshot.tripTitle" maxlength="200"></label>
+        <label>出行日期<input v-model="documentSnapshot.tripDate" type="date"></label>
+        <label>联系单学校<input v-model="documentSnapshot.schoolName" maxlength="200"></label>
+        <label>联系单年级<input v-model="documentSnapshot.gradeName" maxlength="200"></label>
+        <label>导游组长<input v-model="documentSnapshot.guideLeaderName" maxlength="120"></label>
+        <label>导游组长电话<input v-model="documentSnapshot.guideLeaderPhone" maxlength="120"></label>
+        <label>学校领队<input v-model="documentSnapshot.schoolLeaderName" maxlength="120"></label>
+        <label>学校领队电话<input v-model="documentSnapshot.schoolLeaderPhone" maxlength="120"></label>
+        <label>联系单集合时间<input v-model="documentSnapshot.gatheringTime" maxlength="120"></label>
+        <label>出发时间<input v-model="documentSnapshot.departureTime" maxlength="120"></label>
+        <label class="transport-document__wide">大巴停放要求<textarea v-model="documentSnapshot.parkingInstructions" rows="3" maxlength="2000" /></label>
+        <label class="transport-document__wide">收费说明<textarea v-model="documentSnapshot.feeExplanation" rows="3" maxlength="2000" /></label>
+        <label class="transport-document__wide">物料准备<textarea v-model="documentSnapshot.materialChecklist" rows="3" maxlength="2000" /></label>
+      </fieldset>
+    </section>
+
     <section class="transport-summary" aria-label="车辆汇总">
       <article><span>已安排人数</span><strong>{{ totals.occupancy }} 人</strong></article>
       <article><span>座位合计</span><strong>{{ totals.seatCapacity }} 座</strong></article>
@@ -110,7 +130,7 @@
       <div class="transport-card__heading">
         <div>
           <h3 id="transport-people-title">逐人分配与确认快照</h3>
-          <p v-if="peoplePlan" class="transport-state">名单版本 {{ peoplePlan.rosterVersion }}；实际占用与上方班级人数估计分列。</p>
+          <p v-if="peoplePlan" class="transport-state">实际乘车人数与上方班级安排人数分列。</p>
           <p v-else class="transport-state">读取团期后显示可分配人员。</p>
         </div>
         <span v-if="peoplePlan?.confirmation">确认 {{ peoplePlan.confirmation.status === "current" ? "有效" : "已过期" }}</span>
@@ -126,9 +146,9 @@
           </ul>
         </article>
         <article class="transport-people-panel">
-          <h4>版本操作</h4>
+          <h4>方案确认</h4>
           <p v-if="peoplePlan.confirmation" class="transport-state">
-            最近确认：v{{ peoplePlan.confirmation.planVersion }} / {{ peoplePlan.confirmation.rosterVersion }}
+            最近确认：{{ new Date(peoplePlan.confirmation.confirmedAt).toLocaleString('zh-CN', { hour12: false }) }}
           </p>
           <p v-else class="transport-state">当前车辆安排尚未确认。</p>
           <button type="button" :disabled="!canWrite || confirming" @click="confirmPeoplePlan">{{ confirming ? "确认中..." : "确认当前安排" }}</button>
@@ -209,6 +229,7 @@ const schools = ref<readonly School[]>([])
 const grades = ref<readonly Grade[]>([])
 const classes = ref<readonly SchoolClass[]>([])
 const vehicles = ref<EditableVehicle[]>([])
+const documentSnapshot = ref(emptyDocument())
 const tourSessionId = ref("")
 const schoolId = ref("")
 const gradeId = ref("")
@@ -261,6 +282,7 @@ watch(tourSessionId, () => {
   const session = sessions.value.find((item) => item.id === tourSessionId.value)
   schoolId.value = session?.organizationId ?? ""
 	  vehicles.value = []
+  documentSnapshot.value = emptyDocument()
 	  serverWarnings.value = []
   peoplePlan.value = null
   peopleAssignments.value = {}
@@ -319,7 +341,7 @@ async function submitPlan(): Promise<void> {
   saving.value = true
   formError.value = ""
 	  try {
-    applyPlan(await saveTransportPlan(tourSessionId.value, { vehicles: vehicles.value.map(toPayloadVehicle) }))
+    applyPlan(await saveTransportPlan(tourSessionId.value, { vehicles: vehicles.value.map(toPayloadVehicle), documentSnapshot: documentSnapshot.value }))
     await loadPeoplePlan()
   }
 	  catch (caught) { formError.value = readableTransportError(caught) }
@@ -335,6 +357,7 @@ async function exportPlan(): Promise<void> {
 }
 
 function applyPlan(plan: TransportPlan): void {
+  documentSnapshot.value = { ...(plan.documentSnapshot ?? emptyDocument()) }
   planVersion.value = plan.planVersion
   serverWarnings.value = plan.warnings
   vehicles.value = plan.vehicles.map((vehicle) => ({
@@ -469,5 +492,9 @@ function nextSequence(): number {
 
 function emptyContact() {
   return { driverName: "", driverPhone: "", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" }
+}
+
+function emptyDocument() {
+  return { tripTitle: "", tripDate: "", schoolName: "", gradeName: "", guideLeaderName: "", guideLeaderPhone: "", schoolLeaderName: "", schoolLeaderPhone: "", parkingInstructions: "", gatheringTime: "", departureTime: "", feeExplanation: "", materialChecklist: "" }
 }
 </script>

@@ -9,6 +9,7 @@ import { malformedTransportInput } from "./transport.errors.js"
 import type {
   TransportAllocationInput,
   TransportConfirmationInput,
+  TransportDocumentSnapshot,
   TransportPeoplePlanResponse,
   TransportPersonAssignmentInput,
   TransportPersonAssignmentsInput,
@@ -111,7 +112,28 @@ function parsePlanInput(value: unknown): TransportPlanInput {
   if (!Array.isArray(vehicles)) {
     throw malformedTransportInput("车辆安排必须包含车辆列表")
   }
-  return { vehicles: vehicles.map(parseVehicle) }
+  const document = record["documentSnapshot"]
+  return { vehicles: vehicles.map(parseVehicle), ...(document === undefined ? {} : { documentSnapshot: parseDocumentSnapshot(document) }) }
+}
+
+function parseDocumentSnapshot(value: unknown): TransportDocumentSnapshot | null {
+  if (value === null) return null
+  const record = readRecord(value, "联系单资料")
+  return {
+    tripTitle: readOptionalText(record, "tripTitle", 200),
+    tripDate: readOptionalText(record, "tripDate", 32),
+    schoolName: readOptionalText(record, "schoolName", 200),
+    gradeName: readOptionalText(record, "gradeName", 200),
+    guideLeaderName: readOptionalText(record, "guideLeaderName", 120),
+    guideLeaderPhone: readOptionalText(record, "guideLeaderPhone", 120),
+    schoolLeaderName: readOptionalText(record, "schoolLeaderName", 120),
+    schoolLeaderPhone: readOptionalText(record, "schoolLeaderPhone", 120),
+    parkingInstructions: readOptionalText(record, "parkingInstructions", 2000),
+    gatheringTime: readOptionalText(record, "gatheringTime", 120),
+    departureTime: readOptionalText(record, "departureTime", 120),
+    feeExplanation: readOptionalText(record, "feeExplanation", 2000),
+    materialChecklist: readOptionalText(record, "materialChecklist", 2000),
+  }
 }
 
 function parseAssignmentsInput(value: unknown): TransportPersonAssignmentsInput {

@@ -57,6 +57,8 @@ export type FamilyPretripPerson = {
     readonly guidePhone: string | null
     readonly driverName: string | null
     readonly driverPhone: string | null
+    readonly teacherName: string | null
+    readonly teacherPhone: string | null
   }
 }
 

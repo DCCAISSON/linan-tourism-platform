@@ -66,6 +66,7 @@
 }
 
 .field,
+.transport-document label,
 .transport-vehicle label {
   display: grid;
   gap: var(--space-1);
@@ -75,6 +76,8 @@
 }
 
 .transport-filter select,
+.transport-document input,
+.transport-document textarea,
 .transport-vehicle input,
 .transport-people-panel input,
 .transport-table input,
@@ -90,12 +93,23 @@
 }
 
 .transport-filter select:focus,
+.transport-document input:focus,
+.transport-document textarea:focus,
 .transport-vehicle input:focus,
 .transport-people-panel input:focus,
 .transport-table input:focus,
 .transport-table select:focus {
   border-color: var(--accent-primary);
   outline: 2px solid var(--border-subtle);
+}
+
+.transport-document {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.transport-document__wide {
+  grid-column: 1 / -1;
 }
 
 .transport-actions,
@@ -123,6 +137,10 @@
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+}
+
+.transport-table button {
+  white-space: nowrap;
 }
 
 .transport-actions button:hover,
@@ -267,6 +285,11 @@
 }
 
 @media (max-width: 1024px) {
+  .transport-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .transport-filter fieldset,
   .transport-vehicle__grid,
   .transport-people-grid,
@@ -281,11 +304,6 @@
   .transport-card,
   .transport-summary article {
     padding: var(--space-5);
-  }
-
-  .transport-heading {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .transport-filter fieldset,

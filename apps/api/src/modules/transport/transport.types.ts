@@ -1,5 +1,8 @@
 import type { TransportContactSnapshot } from "../../domain/entities/transport-session-vehicle.entity.js"
+import type { TransportDocumentSnapshot } from "../../domain/entities/transport-plan.entity.js"
 import type { PersonRef, TravelerDto } from "../travelers/travelers.types.js"
+
+export type { TransportDocumentSnapshot } from "../../domain/entities/transport-plan.entity.js"
 
 export type TransportAllocationInput = {
   readonly classId: string
@@ -20,6 +23,7 @@ export type TransportVehicleInput = {
 
 export type TransportPlanInput = {
   readonly vehicles: readonly TransportVehicleInput[]
+  readonly documentSnapshot?: TransportDocumentSnapshot | null
 }
 
 export type TransportExpectedVersions = {
@@ -47,6 +51,7 @@ export type TransportVehicleResponse = {
 }
 
 export type TransportPlanResponse = {
+  readonly documentSnapshot?: TransportDocumentSnapshot | null
   readonly tourSessionId: string
   readonly organizationId: string
   readonly planVersion: number

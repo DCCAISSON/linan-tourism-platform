@@ -50,7 +50,8 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
   it("saves split and mixed class vehicles transactionally and exports the nine-column contact sheet", async () => {
     const catalog = await createCatalog(app, scope)
     const classTwo = await createClass(app, catalog.gradeId, `class-${scope}-two`, "Class Two")
-    const plan = transportPlan(catalog.classId, classTwo.body.id)
+    const documentSnapshot = { tripTitle: "地质研学", tripDate: "2026-10-01", schoolName: "示例小学", gradeName: "一年级", guideLeaderName: "组长甲", guideLeaderPhone: "19900000011", schoolLeaderName: "领队乙", schoolLeaderPhone: "19900000012", parkingInstructions: "停入校内广场", gatheringTime: "07:30", departureTime: "08:00", feeExplanation: "390元/对", materialChecklist: "手牌、话筒" }
+    const plan = { ...transportPlan(catalog.classId, classTwo.body.id), documentSnapshot }
 
     const saved = await request(app.getHttpServer())
       .put(`/transport/sessions/${catalog.tourSessionId}/plan`)
@@ -70,6 +71,7 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
       .set(DEV_ADMIN_HEADERS)
       .expect(200)
     expect(read.body).toMatchObject(saved.body)
+    expect(read.body.documentSnapshot).toEqual(documentSnapshot)
     expect(read.body.vehicles[0].contactSnapshot.driverPhone).toBe("19900000001")
 
     const nonsensitiveRead = await request(app.getHttpServer())
@@ -77,6 +79,7 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
       .set(schoolStaffHeaders(catalog.schoolId))
       .expect(200)
     expect(nonsensitiveRead.body.vehicles[0].contactSnapshot).toEqual({ driverName: "", driverPhone: "", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" })
+    expect(nonsensitiveRead.body.documentSnapshot).toMatchObject({ guideLeaderName: "", guideLeaderPhone: "", schoolLeaderName: "", schoolLeaderPhone: "", departureTime: "08:00" })
 
     await request(app.getHttpServer())
       .get(`/transport/sessions/${catalog.tourSessionId}/export.xlsx`)
@@ -92,9 +95,14 @@ describe.skipIf(databaseUrl === undefined)("Transport planning API", () => {
     const workbook = new ExcelJS.Workbook()
     await workbook.xlsx.load(exported.body)
     const sheet = workbook.worksheets[0]
-    expect(sheet?.getRow(1).values).toEqual([undefined, ...EXPECTED_EXPORT_HEADERS])
-    expect(sheet?.getRow(sheet.rowCount).getCell(1).value).toBe("学生：3人 家长：2人 老师：1人 其他：0人 合计：6人")
-    expect(sheet?.getRow(2).getCell(3).value).toBe("'=浙A12345")
+    expect(sheet?.getRow(3).values).toEqual([undefined, ...EXPECTED_EXPORT_HEADERS])
+    expect(sheet?.getCell("A1").text).toContain("2026-10-01 地质研学 车辆联系单 示例小学一年级")
+    expect(sheet?.getCell("A6").text).toContain("全团合计：学生3人 家长2人 老师1人 其他0人 合计6人")
+    expect(sheet?.getCell("A8").text).toBe("集合时间：07:30    出发时间：08:00")
+    expect(sheet?.getCell("C4").value).toBe("'=浙A12345")
+
+    const oldClientSave = await request(app.getHttpServer()).put(`/transport/sessions/${catalog.tourSessionId}/plan`).set(DEV_ADMIN_HEADERS).set("Origin", ORIGIN).send(transportPlan(catalog.classId, classTwo.body.id)).expect(200)
+    expect(oldClientSave.body.documentSnapshot).toEqual(documentSnapshot)
 
     const audits: readonly { readonly action: string }[] = await dataSource.query(
       "select action from audit_logs where target_id = ? order by created_at",

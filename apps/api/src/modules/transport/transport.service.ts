@@ -5,6 +5,7 @@ import {
   SchoolGradeEntity,
   TourSessionEntity,
   TransportClassAllocationEntity,
+  TransportPlanEntity,
   TransportSessionVehicleEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
@@ -13,7 +14,7 @@ import { AuditLogService } from "../iam/audit-log.service.js"
 import { DevStaffAccessService, type StaffAccess } from "../iam/dev-staff-access.service.js"
 import { malformedTransportInput, transportConflict, transportForbidden, transportSessionNotFound } from "./transport.errors.js"
 import { bumpTransportPlanVersion, ensureTransportPlan } from "./transport-plan-store.js"
-import { hasContactValue, redactContactSnapshots, sessionScope, textOrNull, toPlan, validateAllocation, validateVehicle, vehicleOccupancy } from "./transport.plan.js"
+import { hasContactValue, hasDocumentContact, redactContactSnapshots, sessionScope, textOrNull, toPlan, validateAllocation, validateVehicle, vehicleOccupancy } from "./transport.plan.js"
 import type {
   TransportAllocationRecord,
   TransportPlanInput,
@@ -54,6 +55,9 @@ export class TransportService {
 	      await this.validatePlan(manager, access, session, input)
 	      await this.upsertVehicles(manager, session, access.actorId, input)
 	      await bumpTransportPlanVersion(manager, session.id)
+        if (input.documentSnapshot !== undefined) {
+          await manager.update(TransportPlanEntity, { tourSessionId: session.id }, { documentSnapshotJson: input.documentSnapshot })
+        }
 	      await this.audit.record(manager, {
         organizationId: session.organizationId,
         actorId: access.actorId,
@@ -61,7 +65,8 @@ export class TransportService {
         targetType: "tour_session",
         targetId: session.id,
       })
-      return this.loadPlan(manager, session)
+      const savedPlan = await this.loadPlan(manager, session)
+      return access.permissionKeys.has("sensitive_data.read") ? savedPlan : redactContactSnapshots(savedPlan)
     })
   }
 
@@ -70,7 +75,7 @@ export class TransportService {
     const session = await this.requireSession(manager, tourSessionId)
     this.staffAccess.assertTransportExportScope(access, sessionScope(session))
     const plan = await this.loadPlan(manager, session)
-    if (plan.vehicles.some(hasContactValue) && !access.permissionKeys.has("sensitive_data.read")) {
+    if ((plan.vehicles.some(hasContactValue) || hasDocumentContact(plan.documentSnapshot)) && !access.permissionKeys.has("sensitive_data.read")) {
       throw transportForbidden("staff identity cannot export transport contacts")
     }
     await this.audit.record(manager, {
@@ -100,6 +105,9 @@ export class TransportService {
     const sequences = new Set<number>()
     const plates = new Set<string>()
     const classIds = new Set<string>()
+    if (hasDocumentContact(input.documentSnapshot) && !access.permissionKeys.has("sensitive_data.read")) {
+      throw transportForbidden("staff identity cannot save transport contacts")
+    }
     for (const vehicle of input.vehicles) {
       validateVehicle(vehicle, sequences, plates)
       if (hasContactValue(vehicle) && !access.permissionKeys.has("sensitive_data.read")) {
@@ -164,7 +172,8 @@ export class TransportService {
       where v.tour_session_id = ?
       order by v.sequence, g.code, c.code, a.id
     `, [session.id])
-	    return toPlan(session, records, planVersion)
+      const metadata = await manager.findOneBy(TransportPlanEntity, { tourSessionId: session.id })
+	    return { ...toPlan(session, records, planVersion), documentSnapshot: metadata?.documentSnapshotJson ?? null }
 	  }
 
 	  private async upsertVehicles(

@@ -33,6 +33,7 @@ export type TransportVehicle = {
 }
 
 export type TransportPlan = {
+  readonly documentSnapshot?: TransportDocumentSnapshot | null
   readonly tourSessionId: string
   readonly organizationId: string
   readonly planVersion: number
@@ -50,6 +51,23 @@ export type TransportPlan = {
 
 export type TransportPlanPayload = {
   readonly vehicles: readonly TransportVehicle[]
+  readonly documentSnapshot?: TransportDocumentSnapshot | null
+}
+
+export type TransportDocumentSnapshot = {
+  readonly tripTitle: string
+  readonly tripDate: string
+  readonly schoolName: string
+  readonly gradeName: string
+  readonly guideLeaderName: string
+  readonly guideLeaderPhone: string
+  readonly schoolLeaderName: string
+  readonly schoolLeaderPhone: string
+  readonly parkingInstructions: string
+  readonly gatheringTime: string
+  readonly departureTime: string
+  readonly feeExplanation: string
+  readonly materialChecklist: string
 }
 
 export type PersonRef = `paid:${string}` | `imported:${string}`

@@ -4,6 +4,7 @@ import request from "supertest"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { ExecutionGuideAssignmentService } from "../src/modules/execution/execution-guide-assignment.service.js"
 import { ExecutionService } from "../src/modules/execution/execution.service.js"
+import { FamilyEntity } from "../src/domain/entities/family.entity.js"
 import type { StaffAccess } from "../src/modules/iam/dev-staff-access.service.js"
 import type { StaffPermissionKey, StaffScope } from "../src/modules/iam/staff-permissions.js"
 import type { PersonRef } from "../src/modules/travelers/travelers.types.js"
@@ -92,12 +93,31 @@ describe.skipIf(databaseUrl === undefined)("Remaining operations DB e2e", () => 
       const orderId = await payEnrollment({ app: currentApp(), scope, catalog, family: "vehicle", names: ["Vehicle Student"], status: "succeeded", identities: [identity("20160101", "143")] })
       const paidRef = await firstPaidRef(orderId)
       const vehicleId = await saveVehiclePlan(catalog, 2)
+      const contactPlan = await request(server()).get(`/transport/sessions/${catalog.tourSessionId}/plan`).set(DEV_ADMIN_HEADERS).expect(200)
+      contactPlan.body.vehicles[0].contactSnapshot.teacherName = "随车教师甲"
+      contactPlan.body.vehicles[0].contactSnapshot.teacherPhone = "19900000033"
+      await request(server()).put(`/transport/sessions/${catalog.tourSessionId}/plan`).set(DEV_ADMIN_HEADERS).set("Origin", ORIGIN).send({ vehicles: contactPlan.body.vehicles }).expect(200)
+      const unconfirmed = await request(server()).get(`/orders/${orderId}/pretrip`).set(familyHeaders(scope, "vehicle")).expect(200)
+      expect(unconfirmed.body).toMatchObject({ transportStatus: "unconfirmed", persons: [{ vehicle: null }] })
       const peoplePlan = await readPeoplePlan(catalog.tourSessionId)
       await savePersonAssignments(catalog.tourSessionId, peoplePlan.body.planVersion, peoplePlan.body.rosterVersion, [{ personRef: paidRef, vehicleId }], 200)
       const assigned = await readPeoplePlan(catalog.tourSessionId)
       expect(assigned.body.assignments).toEqual([expect.objectContaining({ personRef: paidRef, vehicleId })])
       await savePersonAssignments(catalog.tourSessionId, peoplePlan.body.planVersion, peoplePlan.body.rosterVersion, [{ personRef: paidRef, vehicleId }], 409)
       await confirmTransport(catalog.tourSessionId, assigned.body.planVersion, assigned.body.rosterVersion)
+
+      const confirmed = await request(server()).get(`/orders/${orderId}/pretrip`).set(familyHeaders(scope, "vehicle")).expect(200)
+      expect(confirmed.body.persons).toEqual([expect.objectContaining({ vehicleStatus: "assigned", vehicle: expect.objectContaining({ teacherName: "随车教师甲", teacherPhone: "19900000033" }) })])
+      await dataSource.getRepository(FamilyEntity).save(Object.assign(new FamilyEntity(), { id: `family-other-${scope}`, organizationId: catalog.schoolId, code: `family-${scope}-other`, primaryContactName: "Other Parent" }))
+      await request(server()).get(`/orders/${orderId}/pretrip`).set(familyHeaders(scope, "other")).expect(404)
+      contactPlan.body.vehicles[0].contactSnapshot.teacherName = "随车教师乙"
+      await request(server()).put(`/transport/sessions/${catalog.tourSessionId}/plan`).set(DEV_ADMIN_HEADERS).set("Origin", ORIGIN).send({ vehicles: contactPlan.body.vehicles, documentSnapshot: { departureTime: "08:00", gatheringTime: "07:30" } }).expect(200)
+      const stalePretrip = await request(server()).get(`/orders/${orderId}/pretrip`).set(familyHeaders(scope, "vehicle")).expect(200)
+      expect(stalePretrip.body).toMatchObject({ transportStatus: "stale", persons: [{ vehicle: null, vehicleStatus: "stale" }] })
+      const revisedPlan = await readPeoplePlan(catalog.tourSessionId)
+      await confirmTransport(catalog.tourSessionId, revisedPlan.body.planVersion, revisedPlan.body.rosterVersion)
+      const revisedPretrip = await request(server()).get(`/orders/${orderId}/pretrip`).set(familyHeaders(scope, "vehicle")).expect(200)
+      expect(revisedPretrip.body.persons[0].vehicle).toMatchObject({ teacherName: "随车教师乙", teacherPhone: "19900000033" })
 
       await request(server()).post(`/pretrip/school/sessions/${catalog.tourSessionId}/confirmations`).set(schoolHeaders(scope, catalog.schoolId)).set("Origin", ORIGIN).expect(201)
       await request(server()).post(`/pretrip/school/sessions/${catalog.tourSessionId}/adjustments`).set(schoolHeaders(scope, catalog.schoolId)).set("Origin", ORIGIN).send({ kind: "vehicle_change", personRef: "line-1", requestText: "invalid" }).expect(400)

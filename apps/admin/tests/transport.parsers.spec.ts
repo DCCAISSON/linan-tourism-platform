@@ -47,6 +47,11 @@ const validPlan = {
 } as const
 
 describe("transport response boundary", () => {
+  it("keeps the optional contact-sheet details and separate departure and gathering times", () => {
+    const documentSnapshot = { tripTitle: "地质研学", tripDate: "2026-10-01", schoolName: "示例小学", gradeName: "一年级", guideLeaderName: "甲", guideLeaderPhone: "19900000001", schoolLeaderName: "乙", schoolLeaderPhone: "19900000002", parkingInstructions: "校内", gatheringTime: "07:30", departureTime: "08:00", feeExplanation: "390元/对", materialChecklist: "手牌、话筒" }
+    const parsed = parseTransportPlan({ ...validPlan, documentSnapshot })
+    expect(parsed).toHaveProperty("documentSnapshot", documentSnapshot)
+  })
   it("keeps totals, warnings, and allocation counts when the response is valid", () => {
     const parsed = parseTransportPlan(validPlan)
 

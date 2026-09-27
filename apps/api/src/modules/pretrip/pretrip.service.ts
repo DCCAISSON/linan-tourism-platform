@@ -49,6 +49,8 @@ type SnapshotVehicle = {
   readonly guidePhone: string | null
   readonly driverName: string | null
   readonly driverPhone: string | null
+  readonly teacherName: string | null
+  readonly teacherPhone: string | null
 }
 
 type SnapshotAssignment = {
@@ -297,7 +299,7 @@ function familyPerson(line: OrderLineEntity, transport: TransportState): FamilyP
   if (assignment === undefined) return { ...base, vehicleStatus: "unassigned", vehicle: null }
   const vehicle = transport.snapshot.vehicles.find((candidate) => candidate.id === assignment.vehicleId)
   if (vehicle === undefined) return { ...base, vehicleStatus: "unassigned", vehicle: null }
-  return { ...base, vehicleStatus: "assigned", vehicle: { sequence: vehicle.sequence, plateNumber: vehicle.plateNumber, guideName: vehicle.guideName, guidePhone: vehicle.guidePhone, driverName: vehicle.driverName, driverPhone: vehicle.driverPhone } }
+  return { ...base, vehicleStatus: "assigned", vehicle: { sequence: vehicle.sequence, plateNumber: vehicle.plateNumber, guideName: vehicle.guideName, guidePhone: vehicle.guidePhone, driverName: vehicle.driverName, driverPhone: vehicle.driverPhone, teacherName: vehicle.teacherName, teacherPhone: vehicle.teacherPhone } }
 }
 
 export function parseTransportSnapshot(value: unknown): TransportSnapshot {
@@ -315,6 +317,8 @@ export function parseTransportSnapshot(value: unknown): TransportSnapshot {
         guidePhone: readOptionalString(contact["guidePhone"]),
         driverName: readOptionalString(contact["driverName"]),
         driverPhone: readOptionalString(contact["driverPhone"]),
+        teacherName: readOptionalString(contact["teacherName"]),
+        teacherPhone: readOptionalString(contact["teacherPhone"]),
       }
     }),
     assignments: readArray(root["assignments"]).map((item) => {

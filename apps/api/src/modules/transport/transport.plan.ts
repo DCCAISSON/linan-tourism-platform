@@ -4,6 +4,7 @@ import type {
   TransportAllocationInput,
   TransportAllocationRecord,
   TransportAllocationResponse,
+  TransportDocumentSnapshot,
   TransportPlanResponse,
   TransportVehicleInput,
   TransportVehicleResponse,
@@ -137,9 +138,14 @@ export function hasContactValue(vehicle: TransportVehicleInput | TransportVehicl
   return Object.values(vehicle.contactSnapshot).some((value) => value.trim().length > 0)
 }
 
+export function hasDocumentContact(document: TransportDocumentSnapshot | null | undefined): boolean {
+  return document != null && [document.guideLeaderName, document.guideLeaderPhone, document.schoolLeaderName, document.schoolLeaderPhone].some(value => value.trim().length > 0)
+}
+
 export function redactContactSnapshots(plan: TransportPlanResponse): TransportPlanResponse {
   return {
     ...plan,
+    documentSnapshot: plan.documentSnapshot == null ? null : { ...plan.documentSnapshot, guideLeaderName: "", guideLeaderPhone: "", schoolLeaderName: "", schoolLeaderPhone: "" },
     vehicles: plan.vehicles.map((vehicle) => ({
       ...vehicle,
       contactSnapshot: { driverName: "", driverPhone: "", guideName: "", guidePhone: "", teacherName: "", teacherPhone: "" },

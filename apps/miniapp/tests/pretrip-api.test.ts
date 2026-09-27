@@ -24,6 +24,15 @@ const validPretrip = {
 } as const
 
 describe("miniapp pretrip API", () => {
+  it("keeps teacher contact on the assigned vehicle of a current confirmation", async () => {
+    // Given
+    const vehicle = { sequence: 1, plateNumber: "", guideName: null, guidePhone: null, driverName: null, driverPhone: null, teacherName: "随车教师", teacherPhone: "13700000000" }
+    const api = createPretripApi({ request: async () => ({ statusCode: 200, data: { ...validPretrip, transportStatus: "current", persons: [{ orderLineId: "line-1", displayName: "Student A", vehicleStatus: "assigned", vehicle }] } }) })
+    // When
+    const result = await api.getPretrip("order-1")
+    // Then
+    expect(result.persons[0]?.vehicle).toEqual(vehicle)
+  })
   it("reads family pretrip without exposing stale vehicle details", async () => {
     const requests: MiniappRequestOptions[] = []
     const api = createPretripApi({

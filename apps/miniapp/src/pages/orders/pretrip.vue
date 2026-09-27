@@ -60,6 +60,7 @@ ${link.url}`, showCancel: false })
           <text class="card-title">{{ person.displayName }}</text>
           <text v-if="person.vehicle" class="detail-line">{{ person.vehicle.sequence }}号车 {{ person.vehicle.plateNumber || '车牌待补' }}</text>
           <text v-if="person.vehicle" class="detail-line">导游：{{ person.vehicle.guideName ?? '待补' }} {{ person.vehicle.guidePhone ?? '' }}</text>
+          <text v-if="person.vehicle" class="detail-line teacher-contact">随车教师：{{ person.vehicle.teacherName ?? '待补' }} {{ person.vehicle.teacherPhone ?? '' }}</text>
           <text v-if="!person.vehicle" class="detail-line">{{ person.vehicleStatus === 'stale' ? '待重排' : '暂无已确认车辆' }}</text>
         </view>
         <text class="detail-line">已展示 {{ assignedPeople.length }} 人的当前车辆。</text>

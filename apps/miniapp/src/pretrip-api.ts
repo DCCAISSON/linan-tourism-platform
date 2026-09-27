@@ -7,7 +7,7 @@ export type FamilyPretripPerson = {
   readonly orderLineId: string
   readonly displayName: string
   readonly vehicleStatus: "unconfirmed" | "stale" | "unassigned" | "assigned"
-  readonly vehicle: null | { readonly sequence: number; readonly plateNumber: string; readonly guideName: string | null; readonly guidePhone: string | null; readonly driverName: string | null; readonly driverPhone: string | null }
+  readonly vehicle: null | { readonly sequence: number; readonly plateNumber: string; readonly guideName: string | null; readonly guidePhone: string | null; readonly driverName: string | null; readonly driverPhone: string | null; readonly teacherName: string | null; readonly teacherPhone: string | null }
 }
 export type FamilyPretrip = {
   readonly orderId: string
@@ -96,7 +96,7 @@ function parsePerson(value: unknown): FamilyPretripPerson {
 function parseVehicle(value: unknown): FamilyPretripPerson["vehicle"] {
   if (value === null) return null
   const record = readRecord(value, "pretrip.vehicle")
-  return { sequence: readNumber(record, "sequence", "pretrip.vehicle"), plateNumber: readString(record, "plateNumber", "pretrip.vehicle"), guideName: readNullableString(record, "guideName", "pretrip.vehicle"), guidePhone: readNullableString(record, "guidePhone", "pretrip.vehicle"), driverName: readNullableString(record, "driverName", "pretrip.vehicle"), driverPhone: readNullableString(record, "driverPhone", "pretrip.vehicle") }
+  return { sequence: readNumber(record, "sequence", "pretrip.vehicle"), plateNumber: readString(record, "plateNumber", "pretrip.vehicle"), guideName: readNullableString(record, "guideName", "pretrip.vehicle"), guidePhone: readNullableString(record, "guidePhone", "pretrip.vehicle"), driverName: readNullableString(record, "driverName", "pretrip.vehicle"), driverPhone: readNullableString(record, "driverPhone", "pretrip.vehicle"), teacherName: readNullableString(record, "teacherName", "pretrip.vehicle"), teacherPhone: readNullableString(record, "teacherPhone", "pretrip.vehicle") }
 }
 
 function parseAttachment(value: unknown): PretripAttachment {

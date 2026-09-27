@@ -5,6 +5,7 @@ import type {
   TransportAssignment,
   TransportConfirmation,
   TransportContactSnapshot,
+  TransportDocumentSnapshot,
   TransportPeoplePlan,
   TransportPeopleVehicle,
   TransportPlan,
@@ -21,9 +22,30 @@ export function parseTransportPlan(value: unknown): TransportPlan {
     tourSessionId: readString(record, "tourSessionId", "车辆安排"),
     organizationId: readString(record, "organizationId", "车辆安排"),
     planVersion: readNumber(record, "planVersion", "车辆安排"),
+    documentSnapshot: parseDocument(record["documentSnapshot"]),
     vehicles: vehicles.map(parseVehicle),
     totals: parseTotals(record["totals"]),
     warnings: warnings.map((item) => readDirectString(item, "车辆安排.warnings")),
+  }
+}
+
+function parseDocument(value: unknown): TransportDocumentSnapshot | null {
+  if (value === undefined || value === null) return null
+  const record = readRecord(value, "联系单资料")
+  return {
+    tripTitle: readString(record, "tripTitle", "联系单资料"),
+    tripDate: readString(record, "tripDate", "联系单资料"),
+    schoolName: readString(record, "schoolName", "联系单资料"),
+    gradeName: readString(record, "gradeName", "联系单资料"),
+    guideLeaderName: readString(record, "guideLeaderName", "联系单资料"),
+    guideLeaderPhone: readString(record, "guideLeaderPhone", "联系单资料"),
+    schoolLeaderName: readString(record, "schoolLeaderName", "联系单资料"),
+    schoolLeaderPhone: readString(record, "schoolLeaderPhone", "联系单资料"),
+    parkingInstructions: readString(record, "parkingInstructions", "联系单资料"),
+    gatheringTime: readString(record, "gatheringTime", "联系单资料"),
+    departureTime: readString(record, "departureTime", "联系单资料"),
+    feeExplanation: readString(record, "feeExplanation", "联系单资料"),
+    materialChecklist: readString(record, "materialChecklist", "联系单资料"),
   }
 }
 

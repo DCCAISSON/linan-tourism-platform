@@ -65,6 +65,8 @@ describe("parseTransportSnapshot", () => {
         guidePhone: "13800000000",
         driverName: "司机乙",
         driverPhone: "13900000000",
+        teacherName: "随车教师",
+        teacherPhone: "13700000000",
       },
     }],
     assignments: [{ personRef: "paid:line-1", vehicleId: "vehicle-1" }],
@@ -80,6 +82,8 @@ describe("parseTransportSnapshot", () => {
         guidePhone: "13800000000",
         driverName: "司机乙",
         driverPhone: "13900000000",
+        teacherName: "随车教师",
+        teacherPhone: "13700000000",
       }],
       assignments: [{ personRef: "paid:line-1", vehicleId: "vehicle-1" }],
     })
@@ -95,6 +99,8 @@ describe("parseTransportSnapshot", () => {
         guidePhone: "13800000000",
         driverName: "司机乙",
         driverPhone: "13900000000",
+        teacherName: "随车教师",
+        teacherPhone: "13700000000",
       }],
       assignments: [{ personRef: "paid:line-1", vehicleId: "vehicle-1" }],
     })
@@ -102,5 +108,12 @@ describe("parseTransportSnapshot", () => {
 
   it("keeps invalid string snapshots on the JSON.parse failure path", () => {
     expect(() => parseTransportSnapshot("[object Object]")).toThrow(SyntaxError)
+  })
+
+  it("leaves teacher contact empty when the historical confirmation never stored it", () => {
+    // Given / When
+    const result = parseTransportSnapshot({ vehicles: [{ id: "old", contactSnapshot: {} }], assignments: [] })
+    // Then
+    expect(result.vehicles[0]).toMatchObject({ teacherName: null, teacherPhone: null })
   })
 })
