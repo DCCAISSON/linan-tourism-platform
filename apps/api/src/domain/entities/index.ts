@@ -1,6 +1,7 @@
 import { AuditLogEntity } from "./audit-log.entity.js"
 import { BusinessFollowupEntity } from "./business-followup.entity.js"
 import { BusinessInquiryEntity } from "./business-inquiry.entity.js"
+import { BusinessInquiryCustomerLinkEntity } from "./business-inquiry-customer-link.entity.js"
 import { BusinessProductEntity } from "./business-product.entity.js"
 import { CatalogItemEntity } from "./catalog-item.entity.js"
 import { ConsentRecordEntity } from "./consent-record.entity.js"
@@ -12,6 +13,9 @@ import { EvaluationStandardEntity } from "./evaluation-standard.entity.js"
 import { ExecutionAttendanceEntity } from "./execution-attendance.entity.js"
 import { ExecutionDailyReportEntity } from "./execution-daily-report.entity.js"
 import { ExecutionPersonDailyReportEntity } from "./execution-person-daily-report.entity.js"
+import { ExecutionPersonDailyRevisionEntity } from "./execution-person-daily-revision.entity.js"
+import { ExecutionPlanNodeEntity } from "./execution-plan-node.entity.js"
+import { ExecutionOccurrenceEntity } from "./execution-occurrence.entity.js"
 import { ExecutionEventEntity } from "./execution-event.entity.js"
 import { ExecutionGuideAssignmentEntity } from "./execution-guide-assignment.entity.js"
 import { ExecutionHealthAuthorizationEntity } from "./execution-health-authorization.entity.js"
@@ -66,6 +70,7 @@ import { WechatTransactionEntity } from "./wechat-transaction.entity.js"
 export { AuditLogEntity } from "./audit-log.entity.js"
 export { BusinessFollowupEntity } from "./business-followup.entity.js"
 export { BusinessInquiryEntity } from "./business-inquiry.entity.js"
+export { BusinessInquiryCustomerLinkEntity } from "./business-inquiry-customer-link.entity.js"
 export { BusinessProductEntity } from "./business-product.entity.js"
 export { CatalogItemEntity } from "./catalog-item.entity.js"
 export { ConsentRecordEntity } from "./consent-record.entity.js"
@@ -77,6 +82,9 @@ export { EvaluationStandardEntity } from "./evaluation-standard.entity.js"
 export { ExecutionAttendanceEntity } from "./execution-attendance.entity.js"
 export { ExecutionDailyReportEntity } from "./execution-daily-report.entity.js"
 export { ExecutionPersonDailyReportEntity } from "./execution-person-daily-report.entity.js"
+export { ExecutionPersonDailyRevisionEntity } from "./execution-person-daily-revision.entity.js"
+export { ExecutionPlanNodeEntity } from "./execution-plan-node.entity.js"
+export { ExecutionOccurrenceEntity } from "./execution-occurrence.entity.js"
 export { ExecutionEventEntity } from "./execution-event.entity.js"
 export { ExecutionGuideAssignmentEntity } from "./execution-guide-assignment.entity.js"
 export { ExecutionHealthAuthorizationEntity } from "./execution-health-authorization.entity.js"
@@ -147,6 +155,9 @@ export const DOMAIN_ENTITIES = [
   ExecutionAttendanceEntity,
   ExecutionDailyReportEntity,
   ExecutionPersonDailyReportEntity,
+  ExecutionPersonDailyRevisionEntity,
+  ExecutionPlanNodeEntity,
+  ExecutionOccurrenceEntity,
   ExecutionEventEntity,
   ExecutionGuideAssignmentEntity,
   ExecutionHealthAuthorizationEntity,
@@ -190,6 +201,7 @@ export const DOMAIN_ENTITIES = [
   CrmFollowupEntity,
   BusinessProductEntity,
   BusinessInquiryEntity,
+  BusinessInquiryCustomerLinkEntity,
   BusinessFollowupEntity,
   WechatIdentityEntity,
   WechatFamilySessionEntity,

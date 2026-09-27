@@ -32,6 +32,8 @@ import { AddTourSessionMinimumParticipants1765990800000 } from "../migrations/17
 import { AddExecutionPersonDaily1765994400000 } from "../migrations/1765994400000-AddExecutionPersonDaily.js"
 import { AddTransportDocumentSnapshot1765998000000 } from "../migrations/1765998000000-AddTransportDocumentSnapshot.js"
 import { AddEvaluationDimensions1766001600000 } from "../migrations/1766001600000-AddEvaluationDimensions.js"
+import { AddExecutionNodes1766005200000 } from "../migrations/1766005200000-AddExecutionNodes.js"
+import { BusinessInquiryCustomerLinks1766008800000 } from "../migrations/1766008800000-business-inquiry-customer-links.js"
 
 export const DOMAIN_DATA_SOURCE_OPTIONS = {
   type: "mysql",
@@ -72,6 +74,8 @@ export const DOMAIN_DATA_SOURCE_OPTIONS = {
     AddExecutionPersonDaily1765994400000,
     AddTransportDocumentSnapshot1765998000000,
     AddEvaluationDimensions1766001600000,
+    AddExecutionNodes1766005200000,
+    BusinessInquiryCustomerLinks1766008800000,
   ],
 } satisfies DataSourceOptions
 
