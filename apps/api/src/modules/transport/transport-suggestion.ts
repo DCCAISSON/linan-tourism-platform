@@ -17,13 +17,15 @@ export function createTransportSuggestion(input: TransportSuggestionInput): Tran
   if (conflicts.length > 0) {
     return { kind: "conflict", assignments: [], explanations: slots.map((slot) => slot.explanation), conflicts }
   }
-  const assignments = assignTravelers(input.travelers, slots)
+  const assignments = assignTravelers(input.travelers, slots, input.allowClassSplit)
   if (assignments.length < input.travelers.length) {
     return {
       kind: "conflict",
       assignments,
       explanations: slots.map((slot) => slot.explanation),
-      conflicts: ["显式可用座位不足，无法为全部人员生成草案。"],
+      conflicts: [input.allowClassSplit
+        ? "显式可用座位不足，无法为全部人员生成草案。"
+        : "当前整班分配未能安排全部人员，请调整车辆座位或人工安排；本建议不代表不存在其他可行方案。"],
     }
   }
   return { kind: "draft", assignments, explanations: slots.map((slot) => slot.explanation), conflicts: [] }
@@ -65,7 +67,8 @@ function validateSuggestionRequest(input: TransportSuggestionInput, slots: reado
 function classCounts(travelers: readonly TransportSuggestionTraveler[]): ReadonlyMap<string, number> {
   const counts = new Map<string, number>()
   for (const traveler of travelers) {
-    const classId = traveler.classId ?? "未分班"
+    const classId = traveler.classId
+    if (classId === null) continue
     counts.set(classId, (counts.get(classId) ?? 0) + 1)
   }
   return counts
@@ -74,14 +77,32 @@ function classCounts(travelers: readonly TransportSuggestionTraveler[]): Readonl
 function assignTravelers(
   travelers: readonly TransportSuggestionTraveler[],
   slots: readonly VehicleSlot[],
+  allowClassSplit: boolean,
 ): readonly TransportSuggestionAssignment[] {
+  const groups: TransportSuggestionTraveler[][] = []
+  const classes = new Map<string, TransportSuggestionTraveler[]>()
+  for (const traveler of travelers) {
+    if (allowClassSplit || traveler.classId === null) {
+      groups.push([traveler])
+      continue
+    }
+    const members = classes.get(traveler.classId)
+    if (members === undefined) {
+      const group = [traveler]
+      classes.set(traveler.classId, group)
+      groups.push(group)
+    } else {
+      members.push(traveler)
+    }
+  }
+  if (!allowClassSplit) groups.sort((left, right) => right.length - left.length)
   const remaining = new Map(slots.map((slot) => [slot.sequence, slot.capacity]))
   const assignments: TransportSuggestionAssignment[] = []
-  for (const traveler of travelers) {
-    const slot = slots.find((candidate) => (remaining.get(candidate.sequence) ?? 0) > 0)
+  for (const group of groups) {
+    const slot = slots.find((candidate) => (remaining.get(candidate.sequence) ?? 0) >= group.length)
     if (slot === undefined) return assignments
-    assignments.push({ personRef: traveler.personRef, sequence: slot.sequence })
-    remaining.set(slot.sequence, (remaining.get(slot.sequence) ?? 0) - 1)
+    for (const traveler of group) assignments.push({ personRef: traveler.personRef, sequence: slot.sequence })
+    remaining.set(slot.sequence, (remaining.get(slot.sequence) ?? 0) - group.length)
   }
   return assignments
 }
