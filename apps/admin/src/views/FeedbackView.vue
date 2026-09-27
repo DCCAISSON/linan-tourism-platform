@@ -1,44 +1,109 @@
-<template>
+﻿<template>
   <section class="evaluation-page" aria-labelledby="feedback-title">
     <header class="evaluation-card evaluation-heading">
       <div>
         <p class="evaluation-eyebrow">服务反馈</p>
         <h2 id="feedback-title">反馈审核与公开</h2>
-        <p>服务反馈独立于学生等级；未审核或未授权公开的反馈不会出现在公开列表。</p>
+        <p>服务反馈独立于学生等级；公开列表仅展示已获同意、经审核的摘要。</p>
       </div>
-      <button type="button" class="evaluation-button" :disabled="loading || sessionId.trim().length === 0" @click="load">刷新</button>
+      <button type="button" class="evaluation-button" :disabled="loading || exporting" @click="refresh">刷新</button>
     </header>
     <section class="evaluation-card">
-      <label class="evaluation-field">团期 ID<input v-model="sessionId" maxlength="64" /></label>
-      <p v-if="dashboard" class="evaluation-state">全部 {{ dashboard.summary.totalCount }} 条，公开 {{ dashboard.summary.publicCount }} 条，均分 {{ dashboard.summary.averageRating }}</p>
-      <p v-if="error" class="evaluation-error" role="alert">{{ error }}</p>
-      <div v-if="dashboard" class="feedback-list">
-        <article v-for="item in dashboard.items" :key="item.id" class="feedback-item">
-          <strong>{{ item.source === "family" ? "家庭" : "学校" }} / {{ item.rating }}分 / {{ item.status }}</strong>
-          <p>{{ item.content }}</p>
-          <small>{{ item.allowPublic ? "允许公开" : "不公开" }}；公开摘要：{{ item.publicExcerpt || "无" }}</small>
-        </article>
+      <div class="feedback-filters">
+        <label class="evaluation-field">团期与学校
+          <select v-model="sessionId" :disabled="loading || exporting" @change="load">
+            <option value="">请选择团期</option>
+            <option v-for="session in sessions" :key="session.id" :value="session.id">{{ session.schoolName }} · {{ session.name }} · {{ session.startsAt.slice(0, 10) }}</option>
+          </select>
+        </label>
+        <label class="evaluation-field">来源
+          <select v-model="source" :disabled="loading || exporting" @change="load"><option value="">全部来源</option><option value="family">家属</option><option value="school">学校</option></select>
+        </label>
+        <label class="evaluation-field">状态
+          <select v-model="status" :disabled="loading || exporting" @change="load"><option value="">全部状态</option><option value="submitted">待审</option><option value="published">公开</option><option value="rejected">驳回</option></select>
+        </label>
+        <label class="evaluation-field">评分
+          <select v-model="rating" :disabled="loading || exporting" @change="load"><option value="">全部评分</option><option v-for="score in 5" :key="score" :value="score">{{ score }} 分</option></select>
+        </label>
       </div>
+      <p v-if="loading" class="evaluation-state" role="status">正在加载反馈…</p>
+      <p v-else-if="sessions.length === 0 && !error" class="evaluation-state">暂无可查看的团期。</p>
+      <p v-else-if="!sessionId && !error" class="evaluation-state">选择团期后查看反馈。</p>
+      <p v-if="error" class="evaluation-error" role="alert">{{ error }}</p>
+      <template v-if="dashboard && !loading">
+        <p class="evaluation-state" role="status">当前筛选 {{ dashboard.summary.totalCount }} 条，公开 {{ dashboard.summary.publicCount }} 条，均分 {{ dashboard.summary.averageRating }}</p>
+        <button type="button" class="evaluation-button" :disabled="exporting" @click="download">{{ exporting ? "正在导出…" : "导出 Excel（内部使用，含原反馈）" }}</button>
+        <p class="evaluation-state">文件包含当前筛选的汇总和明细，供内部使用。</p>
+        <p v-if="dashboard.items.length === 0" class="evaluation-state">当前筛选没有反馈。</p>
+        <div class="feedback-list">
+          <article v-for="item in dashboard.items" :key="item.id" class="feedback-item">
+            <strong>{{ item.source === "family" ? "家属" : "学校" }} / {{ item.rating }}分 / {{ statuses[item.status] }}</strong>
+            <p>{{ item.content }}</p>
+            <small>{{ item.allowPublic ? "同意公开" : "不同意公开" }}；审核摘要：{{ item.publicExcerpt || "无" }}</small>
+          </article>
+        </div>
+      </template>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue"
-import { loadFeedbackDashboard, type FeedbackDashboard } from "@/api/feedback"
+import { onMounted, ref } from "vue"
+import { exportFeedback, loadFeedbackDashboard, loadFeedbackSessions, type FeedbackDashboard, type FeedbackFilters, type FeedbackItem, type FeedbackSession } from "@/api/feedback"
 import { readableRosterError } from "@/api/roster.errors"
 import "@/styles/evaluations.css"
+import "@/styles/feedback.css"
 
 const sessionId = ref("")
+const sessions = ref<readonly FeedbackSession[]>([])
+const source = ref<FeedbackItem["source"] | "">("")
+const status = ref<FeedbackItem["status"] | "">("")
+const rating = ref<number | "">("")
 const dashboard = ref<FeedbackDashboard>()
 const loading = ref(false)
+const exporting = ref(false)
 const error = ref("")
+const statuses = { submitted: "待审", published: "公开", rejected: "驳回" } as const
 
-async function load(): Promise<void> {
+function filters(): FeedbackFilters {
+  return { ...(source.value === "" ? {} : { source: source.value }), ...(status.value === "" ? {} : { status: status.value }), ...(rating.value === "" ? {} : { rating: rating.value }) }
+}
+
+async function refresh(): Promise<void> {
   loading.value = true
   error.value = ""
-  try { dashboard.value = await loadFeedbackDashboard(sessionId.value.trim()) }
-  catch (cause) { dashboard.value = undefined; error.value = readableRosterError(cause) }
+  dashboard.value = undefined
+  try {
+    sessions.value = await loadFeedbackSessions()
+    if (!sessions.value.some(session => session.id === sessionId.value)) sessionId.value = ""
+    if (sessionId.value) dashboard.value = await loadFeedbackDashboard(sessionId.value, filters())
+  } catch (cause) { error.value = readableRosterError(cause) }
   finally { loading.value = false }
 }
+
+async function load(): Promise<void> {
+  dashboard.value = undefined
+  error.value = ""
+  if (!sessionId.value) return
+  loading.value = true
+  try { dashboard.value = await loadFeedbackDashboard(sessionId.value, filters()) }
+  catch (cause) { error.value = readableRosterError(cause) }
+  finally { loading.value = false }
+}
+
+async function download(): Promise<void> {
+  exporting.value = true
+  error.value = ""
+  try {
+    const url = URL.createObjectURL(await exportFeedback(sessionId.value, filters()))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = "服务反馈-内部使用.xlsx"
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (cause) { error.value = readableRosterError(cause) }
+  finally { exporting.value = false }
+}
+
+onMounted(refresh)
 </script>

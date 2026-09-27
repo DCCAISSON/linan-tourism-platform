@@ -1,5 +1,7 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
-import type { EntityManager } from "typeorm"
+import { In, type EntityManager } from "typeorm"
+import { CatalogItemEntity } from "../../domain/entities/catalog-item.entity.js"
+import { OrganizationEntity } from "../../domain/entities/organization.entity.js"
 import { ServiceFeedbackEntity } from "../../domain/entities/service-feedback.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
@@ -7,8 +9,9 @@ import { makeId } from "../configuration/configuration.persistence.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
 import { findScopedOrder } from "../order/order.persistence.js"
-import { publicFeedbackItems, summarizeFeedback } from "./feedback.policy.js"
-import type { FeedbackReviewInput, ServiceFeedbackInput, ServiceFeedbackRecord } from "./feedback.types.js"
+import { filterFeedback, publicFeedbackItems, summarizeFeedback } from "./feedback.policy.js"
+import type { FeedbackFilters, FeedbackReviewInput, ServiceFeedbackInput, ServiceFeedbackRecord } from "./feedback.types.js"
+import { buildFeedbackWorkbook } from "./feedback.workbook.js"
 
 @Injectable()
 export class FeedbackService {
@@ -68,13 +71,35 @@ export class FeedbackService {
     })
   }
 
-  async dashboard(staff: StaffAccess, tourSessionId: string): Promise<{ readonly summary: ReturnType<typeof summarizeFeedback>; readonly items: readonly ServiceFeedbackRecord[] }> {
+  async sessions(staff: StaffAccess) {
+    requirePermission(staff, "feedback.read")
+    const db = await this.database.getDataSource()
+    const all = staff.scopes.some(scope => scope.kind === "all")
+    const organizations = staff.scopes.flatMap(scope => (scope.kind === "organization" || scope.kind === "school") && scope.id !== null ? [scope.id] : [])
+    if (!all && organizations.length === 0) return []
+    const sessions = await db.manager.find(TourSessionEntity, { where: all ? {} : { organizationId: In(organizations) }, order: { startsAt: "DESC" } })
+    if (sessions.length === 0) return []
+    const schools = new Map((await db.manager.findBy(OrganizationEntity, { id: In(sessions.map(session => session.organizationId)) })).map(row => [row.id, row.name]))
+    const courses = new Map((await db.manager.findBy(CatalogItemEntity, { id: In(sessions.map(session => session.catalogItemId)) })).map(row => [row.id, row.title]))
+    return sessions.map(session => ({ id: session.id, name: `${courses.get(session.catalogItemId) ?? session.code} · ${session.code}`, schoolName: schools.get(session.organizationId) ?? "", startsAt: session.startsAt.toISOString() }))
+  }
+
+  async dashboard(staff: StaffAccess, tourSessionId: string, filters: FeedbackFilters = {}): Promise<{ readonly summary: ReturnType<typeof summarizeFeedback>; readonly items: readonly ServiceFeedbackRecord[] }> {
     requirePermission(staff, "feedback.read")
     const db = await this.database.getDataSource()
     const session = await requireSession(db.manager, tourSessionId)
     assertSchoolOrAllScope(staff, session.organizationId)
-    const items = (await db.manager.find(ServiceFeedbackEntity, { where: { tourSessionId }, order: { createdAt: "DESC" } })).map(toRecord)
+    const items = filterFeedback((await db.manager.find(ServiceFeedbackEntity, { where: { tourSessionId }, order: { createdAt: "DESC", id: "ASC" } })).map(toRecord), filters)
     return { summary: summarizeFeedback(items), items }
+  }
+
+  async exportWorkbook(staff: StaffAccess, tourSessionId: string, filters: FeedbackFilters): Promise<Buffer> {
+    const { items } = await this.dashboard(staff, tourSessionId, filters)
+    const db = await this.database.getDataSource()
+    const session = await requireSession(db.manager, tourSessionId)
+    const course = await db.manager.findOneBy(CatalogItemEntity, { id: session.catalogItemId })
+    const school = await db.manager.findOneBy(OrganizationEntity, { id: session.organizationId })
+    return buildFeedbackWorkbook({ sessionName: `${course?.title ?? session.code} · ${session.code} / ${school?.name ?? ""}`, filters, items })
   }
 
   async publicList(tourSessionId: string): Promise<ReturnType<typeof publicFeedbackItems>> {

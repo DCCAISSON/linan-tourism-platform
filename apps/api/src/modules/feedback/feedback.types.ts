@@ -1,5 +1,10 @@
 export type ServiceFeedbackSource = "family" | "school"
 export type ServiceFeedbackStatus = "submitted" | "published" | "rejected"
+export type FeedbackFilters = {
+  readonly source?: ServiceFeedbackSource
+  readonly status?: ServiceFeedbackStatus
+  readonly rating?: number
+}
 export type ServiceFeedbackInput = {
   readonly tourSessionId: string
   readonly orderId: string | null

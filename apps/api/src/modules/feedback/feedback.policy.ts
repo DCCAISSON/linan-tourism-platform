@@ -1,4 +1,8 @@
-import type { FeedbackSummary, PublicFeedbackItem, ServiceFeedbackRecord } from "./feedback.types.js"
+import type { FeedbackFilters, FeedbackSummary, PublicFeedbackItem, ServiceFeedbackRecord } from "./feedback.types.js"
+
+export function filterFeedback(rows: readonly ServiceFeedbackRecord[], filters: FeedbackFilters): readonly ServiceFeedbackRecord[] {
+  return rows.filter(row => (filters.source === undefined || row.source === filters.source) && (filters.status === undefined || row.status === filters.status) && (filters.rating === undefined || row.rating === filters.rating))
+}
 
 export function summarizeFeedback(rows: readonly ServiceFeedbackRecord[]): FeedbackSummary {
   const total = rows.length

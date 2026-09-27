@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { publicFeedbackItems, summarizeFeedback } from "./feedback.policy.js"
+import { filterFeedback, publicFeedbackItems, summarizeFeedback } from "./feedback.policy.js"
 import type { ServiceFeedbackRecord } from "./feedback.types.js"
 
 const rows: readonly ServiceFeedbackRecord[] = [
@@ -9,6 +9,12 @@ const rows: readonly ServiceFeedbackRecord[] = [
 ]
 
 describe("service feedback policy", () => {
+  it("applies all filters together before counting and averaging", () => {
+    const filtered = filterFeedback(rows, { source: "family", status: "published", rating: 5 })
+    expect(filtered.map(row => row.id)).toEqual(["feedback-a"])
+    expect(summarizeFeedback(filtered)).toEqual({ totalCount: 1, publicCount: 1, averageRating: 5 })
+    expect(summarizeFeedback(filterFeedback(rows, { status: "rejected" }))).toEqual({ totalCount: 0, publicCount: 0, averageRating: 0 })
+  })
   it("counts all feedback and public feedback separately", () => {
     expect(summarizeFeedback(rows)).toEqual({ totalCount: 3, publicCount: 1, averageRating: 4 })
   })

@@ -23,8 +23,34 @@ export type FeedbackDashboard = {
   readonly items: readonly FeedbackItem[]
 }
 
-export async function loadFeedbackDashboard(sessionId: string): Promise<FeedbackDashboard> {
-  return parseFeedbackDashboard(await request(`/feedback/staff/sessions/${encodeURIComponent(sessionId)}`))
+export type FeedbackFilters = { readonly source?: FeedbackItem["source"]; readonly status?: FeedbackItem["status"]; readonly rating?: number }
+export type FeedbackSession = { readonly id: string; readonly name: string; readonly schoolName: string; readonly startsAt: string }
+
+export function feedbackQuery(filters: FeedbackFilters): string {
+  const query = new URLSearchParams()
+  if (filters.source !== undefined) query.set("source", filters.source)
+  if (filters.status !== undefined) query.set("status", filters.status)
+  if (filters.rating !== undefined) query.set("rating", String(filters.rating))
+  return query.size === 0 ? "" : `?${query.toString()}`
+}
+
+export async function loadFeedbackSessions(): Promise<readonly FeedbackSession[]> {
+  const value = await request("/feedback/staff/sessions")
+  if (!Array.isArray(value)) throw invalidResponse()
+  return value.map(item => {
+    const row = readRecord(item)
+    return { id: readText(row, "id"), name: readText(row, "name"), schoolName: readText(row, "schoolName"), startsAt: readText(row, "startsAt") }
+  })
+}
+
+export async function loadFeedbackDashboard(sessionId: string, filters: FeedbackFilters = {}): Promise<FeedbackDashboard> {
+  return parseFeedbackDashboard(await request(`/feedback/staff/sessions/${encodeURIComponent(sessionId)}${feedbackQuery(filters)}`))
+}
+
+export async function exportFeedback(sessionId: string, filters: FeedbackFilters): Promise<Blob> {
+  const response = await fetch(`${apiBaseUrl}/feedback/staff/sessions/${encodeURIComponent(sessionId)}/export.xlsx${feedbackQuery(filters)}`, { credentials: "include" })
+  if (!response.ok) throw new RosterApiError(response.status, readErrorMessage(await readJson(response)) ?? `导出失败（${response.status}）`)
+  return response.blob()
 }
 
 export async function reviewFeedback(id: string, expectedVersion: number, status: "published" | "rejected", publicExcerpt: string): Promise<FeedbackItem> {

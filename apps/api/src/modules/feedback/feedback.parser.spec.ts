@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest"
-import { parseFeedbackReview, parseServiceFeedback } from "./feedback.parser.js"
+import { parseFeedbackFilters, parseFeedbackReview, parseServiceFeedback } from "./feedback.parser.js"
 
 describe("service feedback parser", () => {
+  it("accepts combined filters and rejects malformed query values", () => {
+    expect(parseFeedbackFilters({ source: "school", status: "rejected", rating: "3" })).toEqual({ source: "school", status: "rejected", rating: 3 })
+    expect(parseFeedbackFilters({})).toEqual({})
+    for (const query of [{ source: "all" }, { status: "draft" }, { rating: "0" }, { rating: "3.5" }, { rating: ["3", "4"] }, { rating: "" }, { unsupported: "x" }]) {
+      expect(() => parseFeedbackFilters(query)).toThrow()
+    }
+  })
   it("accepts family service feedback with explicit consent for publication", () => {
     const result = parseServiceFeedback({
       tourSessionId: "session-a",

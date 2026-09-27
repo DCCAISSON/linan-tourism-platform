@@ -1,5 +1,15 @@
 import { BadRequestException } from "@nestjs/common"
-import type { FeedbackReviewInput, ServiceFeedbackInput, ServiceFeedbackSource } from "./feedback.types.js"
+import type { FeedbackFilters, FeedbackReviewInput, ServiceFeedbackInput, ServiceFeedbackSource } from "./feedback.types.js"
+
+export function parseFeedbackFilters(query: unknown): FeedbackFilters {
+  const record = feedbackRecord(query, ["source", "status", "rating"])
+  const source = record["source"]
+  const status = record["status"]
+  const rating = record["rating"]
+  if (status !== undefined && status !== "submitted" && status !== "published" && status !== "rejected") throw invalid("status is invalid")
+  if (rating !== undefined && (typeof rating !== "string" || !/^[1-5]$/.test(rating))) throw invalid("rating is invalid")
+  return { ...(source === undefined ? {} : { source: readSource(source) }), ...(status === undefined ? {} : { status }), ...(rating === undefined ? {} : { rating: Number(rating) }) }
+}
 
 export function parseServiceFeedback(body: unknown): ServiceFeedbackInput {
   const record = feedbackRecord(body, ["tourSessionId", "orderId", "source", "rating", "content", "contactName", "allowPublic", "idempotencyKey"])

@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Headers, Inject, Param, Post } from "@nestjs/common"
+import { Body, Controller, Get, Headers, Inject, Param, Post, Query, Res } from "@nestjs/common"
+import type { Response } from "express"
 import { EnrollmentIdentityService } from "../enrollment/enrollment.identity.js"
 import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import type { StaffAccessRequestHeaders } from "../iam/dev-staff-access.service.js"
-import { parseFeedbackReview, parseServiceFeedback } from "./feedback.parser.js"
+import { parseFeedbackFilters, parseFeedbackReview, parseServiceFeedback } from "./feedback.parser.js"
 import { FeedbackService } from "./feedback.service.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
@@ -25,9 +26,23 @@ export class FeedbackController {
     return this.feedback.publicList(sessionId)
   }
 
+  @Get("staff/sessions")
+  async sessions(@Headers() headers: StaffAccessRequestHeaders) {
+    return this.feedback.sessions(await this.access.resolve(headers))
+  }
+
   @Get("staff/sessions/:sessionId")
-  async dashboard(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string) {
-    return this.feedback.dashboard(await this.access.resolve(headers), sessionId)
+  async dashboard(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string, @Query() query: unknown) {
+    return this.feedback.dashboard(await this.access.resolve(headers), sessionId, parseFeedbackFilters(query))
+  }
+
+  @Get("staff/sessions/:sessionId/export.xlsx")
+  async exportWorkbook(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string, @Query() query: unknown, @Res() response: Response) {
+    const body = await this.feedback.exportWorkbook(await this.access.resolve(headers), sessionId, parseFeedbackFilters(query))
+    response.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response.setHeader("Content-Disposition", 'attachment; filename="internal-feedback.xlsx"')
+    response.setHeader("Cache-Control", "no-store")
+    response.send(body)
   }
 
   @Post("staff/school")
