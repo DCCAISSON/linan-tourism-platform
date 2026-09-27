@@ -1,7 +1,7 @@
 {
   "pages": [
-    { "path": "pages/index/index", "style": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F8FC", "navigationBarTextStyle": "black", "backgroundColor": "#F5F8FC" } },
-    { "path": "pages/login/index", "style": { "navigationBarTitleText": "微信登录", "navigationBarBackgroundColor": "#F5F8FC", "navigationBarTextStyle": "black", "backgroundColor": "#F5F8FC", "navigationStyle": "default" } },
+    { "path": "pages/index/index", "style": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7" } },
+    { "path": "pages/login/index", "style": { "navigationBarTitleText": "微信登录", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7", "navigationStyle": "default" } },
     { "path": "pages/webview/index", "style": { "navigationBarTitleText": "活动影像" } },
     { "path": "pages/activities/index", "style": { "navigationBarTitleText": "研学活动" } },
     { "path": "pages/activities/detail", "style": { "navigationBarTitleText": "活动详情" } },
@@ -18,9 +18,9 @@
     { "path": "pages/notifications/index", "style": { "navigationBarTitleText": "通知授权" } },
     { "path": "pages/family/index", "style": { "navigationBarTitleText": "我的家庭" } }
   ],
-  "globalStyle": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F8FC", "navigationBarTextStyle": "black", "backgroundColor": "#F5F8FC" },
+  "globalStyle": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7" },
   "tabBar": {
-    "color": "#546B7D", "selectedColor": "#1468C0", "backgroundColor": "#FFFFFF", "borderStyle": "white",
+    "color": "#526A63", "selectedColor": "#08776A", "backgroundColor": "#FFFFFF", "borderStyle": "white",
     "list": [
       { "pagePath": "pages/index/index", "text": "首页" },
       { "pagePath": "pages/activities/index", "text": "研学活动" },

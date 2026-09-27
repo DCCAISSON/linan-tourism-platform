@@ -4,27 +4,28 @@ export default {}
 
 <style>
 page {
-  --surface-primary: #f5f8fc;
-  --surface-secondary: #eaf1f8;
+  --brand-primary: #26b09f;
+  --surface-primary: #f5f9f7;
+  --surface-secondary: #ebf4f0;
   --surface-elevated: #ffffff;
-  --text-primary: #16324a;
-  --text-secondary: #546b7d;
-  --text-tertiary: #566f82;
-  --border-default: #ccd9e6;
-  --border-subtle: #e2eaf2;
-  --accent-primary: #1468c0;
-  --accent-hover: #10549b;
-  --accent-soft: #e8f2ff;
+  --text-primary: #183d35;
+  --text-secondary: #526a63;
+  --text-tertiary: #5b716a;
+  --border-default: #c9ddd5;
+  --border-subtle: #e0ece6;
+  --accent-primary: #08776a;
+  --accent-hover: #065d53;
+  --accent-soft: #e5f5f0;
   --accent-secondary: #13745c;
   --accent-secondary-soft: #e7f5ef;
-  --brand-ink: #104b7a;
-  --brand-mist: #dff1f6;
+  --brand-ink: #103a32;
+  --brand-mist: #ddf2ea;
   --on-accent: #ffffff;
   --accent-warm: #9c5414;
   --status-success: #13745c;
   --status-warning: #995600;
   --status-error: #b6383e;
-  --status-info: #1468c0;
+  --status-info: #08776a;
   --font-display: 32px;
   --font-h1: 28px;
   --font-h2: 22px;

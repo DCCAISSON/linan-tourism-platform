@@ -67,6 +67,6 @@ function enroll(): void {
 .introduction { white-space: pre-wrap; }
 .parent-notice-card { gap: var(--space-2); }
 .notice-block { display: flex; flex-direction: column; gap: var(--space-1); }
-.notice-heading { font-weight: 700; color: var(--text-strong); }
+.notice-heading { font-weight: 700; color: var(--text-primary); }
 .detail-cta { position: fixed; right: 0; bottom: 0; left: 0; padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom)); background: var(--surface-elevated); }
 </style>

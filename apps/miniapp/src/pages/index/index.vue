@@ -22,9 +22,9 @@ function family(): void { uni.switchTab({ url: "/pages/family/index" }) }
       <button class="button-primary home-activities-entry" @tap="activities">查看研学活动</button>
     </view>
     <view class="home-shortcuts">
-      <button class="button-secondary" @tap="orders">我的订单</button>
-      <button class="button-secondary" @tap="family">家庭成员</button>
-      <button class="button-secondary" @tap="business">商旅服务</button>
+      <button class="button-secondary" @tap="orders"><text class="shortcut-title">我的订单</text><text class="shortcut-caption">报名与行前信息</text></button>
+      <button class="button-secondary" @tap="family"><text class="shortcut-title">常用参加人</text><text class="shortcut-caption">下次报名少填写</text></button>
+      <button class="button-secondary" @tap="business"><text class="shortcut-title">商旅服务</text><text class="shortcut-caption">旅游与疗休养</text></button>
     </view>
     <view class="row-between home-section"><text class="section-heading">研学活动</text><button class="button-secondary home-more-entry" @tap="activities">查看全部</button></view>
     <DiscoveryState :state="state" :message="error" empty-title="暂无已发布活动" @retry="load" />
@@ -34,13 +34,15 @@ function family(): void { uni.switchTab({ url: "/pages/family/index" }) }
 
 <style>
 @import "../../styles/discovery.css";
-.brand-banner { padding: var(--space-6); border-radius: var(--radius-banner); background: var(--brand-mist); }
-.brand-eyebrow { display: block; color: var(--accent-secondary); font-size: var(--font-body-sm); line-height: 1.5; }
+.brand-banner { padding: var(--space-6); border-radius: var(--radius-banner); background: var(--brand-primary); }
+.brand-eyebrow { display: block; color: var(--brand-ink); font-size: var(--font-body-sm); line-height: 1.5; }
 .brand-title { display: block; margin-top: var(--space-4); color: var(--brand-ink); font-size: var(--font-display); font-weight: 700; line-height: 1.35; white-space: pre-line; }
 .brand-title--second { margin-top: 0; }
-.brand-summary { display: block; margin: var(--space-4) 0 var(--space-5); color: var(--text-secondary); font-size: var(--font-body); line-height: 1.6; }
-.home-shortcuts { display: flex; gap: var(--space-3); margin-top: var(--space-4); }
-.home-shortcuts button { flex: 1; min-width: 0; }
+.brand-summary { display: block; margin: var(--space-4) 0 var(--space-5); color: var(--brand-ink); font-size: var(--font-body); line-height: 1.6; }
+.home-shortcuts { display: flex; gap: var(--space-2); margin-top: var(--space-4); }
+.home-shortcuts button { flex: 1; min-width: 0; padding: var(--space-3) var(--space-1); background: var(--surface-elevated); border-radius: var(--radius-card); }
+.shortcut-title { display: block; font-size: var(--font-body-sm); font-weight: 600; line-height: 1.5; }
+.shortcut-caption { display: block; margin-top: var(--space-2); color: var(--text-secondary); font-size: var(--font-caption); line-height: 1.5; }
 .home-section { margin-top: var(--space-3); }
 .home-section .section-heading { margin: var(--space-3) 0; }
 .home-more-entry { font-size: var(--font-body-sm); }

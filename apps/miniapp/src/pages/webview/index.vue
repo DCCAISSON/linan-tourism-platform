@@ -18,7 +18,7 @@ onLoad((query) => {
 <style>
 .webview-error {
   padding: 48px 24px;
-  color: #506273;
+  color: var(--text-secondary);
   font-size: 15px;
   line-height: 1.7;
   text-align: center;
