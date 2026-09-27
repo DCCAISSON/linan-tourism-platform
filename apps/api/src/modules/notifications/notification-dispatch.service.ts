@@ -8,6 +8,8 @@ import {
   NotificationDeliveryTaskEntity,
 } from "../../domain/entities/notification-delivery.entity.js"
 import { NotificationRecipientAuthorizationEntity } from "../../domain/entities/notification-recipient-authorization.entity.js"
+import { OrderEntity } from "../../domain/entities/order.entity.js"
+import { EnrollmentEntity } from "../../domain/entities/enrollment.entity.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
 import { NotificationAccessService } from "./notification-access.service.js"
@@ -93,6 +95,9 @@ export class NotificationDispatchService {
     authorization: NotificationRecipientAuthorizationEntity,
   ): Promise<WechatSubscribeOutcome> {
     if (!isAuthorizationCurrent(authorization.active, authorization.version, target.authorizationVersion)) return manual("authorization_withdrawn", "接收人授权已撤回或变更，未发送")
+    const order = await manager.findOneBy(OrderEntity, { id: authorization.orderId, organizationId: task.organizationId })
+    const enrollment = order === null ? null : await manager.findOneBy(EnrollmentEntity, { id: order.enrollmentId, tourSessionId: task.tourSessionId })
+    if (enrollment === null || authorization.orderId !== target.orderId || authorization.organizationId !== task.organizationId) return manual("authorization_scope_changed", "接收人不再属于本团，未发送")
     if (target.channel === "manual") return manual("manual_delivery_required", "该接收人仅允许人工处理")
     if (target.subscriberOpenid === null) return manual("subscriber_openid_missing", "接收人没有可用的微信订阅身份")
     if (target.subscriberOpenid === authorization.familyActorId || /^[a-f0-9]{64}$/i.test(target.subscriberOpenid)) {

@@ -36,7 +36,7 @@ async function load(): Promise<void> {
 }
 
 function openProvider(provider: AlbumProvider): void {
-  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(provider.url)}` })
+  uni.navigateTo({ url: `/pages/webview/index?orderId=${encodeURIComponent(orderId.value)}&kind=${provider.kind}` })
 }
 </script>
 

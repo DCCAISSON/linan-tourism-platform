@@ -9,24 +9,35 @@
     </header>
 
     <form class="notifications-toolbar" @submit.prevent="loadSession">
-      <label>团期 ID<input v-model.trim="sessionId" :disabled="busy" required placeholder="请输入团期 ID" /></label>
+      <label>团期<select v-model="sessionId" :disabled="busy" required><option value="">请选择团期</option><option v-for="option in sessionOptions" :key="option.id" :value="option.id">{{ option.label }}</option></select></label>
       <button type="submit" :disabled="busy || sessionId === ''">{{ busy ? "读取中..." : "读取团期通知" }}</button>
+      <button type="button" :disabled="busy" @click="loadOptions">刷新团期</button>
+      <p v-if="!busy && sessionOptions.length === 0">暂无可读取的团期。</p>
       <p v-if="message" class="notifications-feedback">{{ message }}</p>
       <p v-if="error" class="notifications-feedback notifications-feedback--error" role="alert">{{ error }}</p>
     </form>
 
     <template v-if="session">
+      <p v-if="!session.wechatConfigured" class="notifications-notice">微信订阅通知尚未配置完成。可保存内容和预览接收人；发送前请完成微信接入配置。</p>
       <section class="notifications-panel" aria-labelledby="content-title">
         <div class="notifications-section-heading">
           <div><h3 id="content-title">内容版本</h3><p>每次保存都会创建新版本，旧任务继续引用原版本。</p></div>
           <span class="notifications-count">{{ session.contents.length }} 个版本</span>
         </div>
-        <form class="notifications-form-grid" @submit.prevent="saveContent">
+        <form v-if="session.canWrite" class="notifications-form-grid" @submit.prevent="saveContent">
           <label>标题<input v-model.trim="contentDraft.title" maxlength="120" required /></label>
           <label>微信模板 ID<input v-model.trim="contentDraft.templateId" placeholder="未配置时留空" /></label>
           <label>小程序页面<input v-model.trim="contentDraft.miniappPage" placeholder="例如 pages/orders/detail" /></label>
           <label class="notifications-field-wide">正文<textarea v-model.trim="contentDraft.bodyText" rows="3" maxlength="1000" required /></label>
-          <label class="notifications-field-wide">模板数据 JSON<textarea v-model.trim="contentDraft.templateData" rows="3" spellcheck="false" placeholder='{"thing1":{"value":"集合提醒"}}' /></label>
+          <div class="notifications-field-wide">
+            <p>模板字段名须与微信公众平台中该模板的字段一致。未取得真实模板时可先保存正文。</p>
+            <div v-for="(field, index) in templateFields" :key="index" class="notifications-template-row">
+              <label>微信模板字段名<input v-model.trim="field.key" required maxlength="64" /></label>
+              <label>字段值<input v-model.trim="field.value" required maxlength="128" /></label>
+              <button type="button" @click="templateFields.splice(index, 1)">移除字段</button>
+            </div>
+            <button type="button" @click="templateFields.push({ key: '', value: '' })">添加模板字段</button>
+          </div>
           <button type="submit" :disabled="busy">创建内容版本</button>
         </form>
         <div v-if="session.contents.length" class="notifications-version-list">
@@ -34,12 +45,15 @@
             <strong>{{ content.title }}</strong>
             <p>{{ content.bodyText }}</p>
             <small>{{ content.createdAt }} · 模板 {{ content.templateId ?? "未配置" }}</small>
+            <p v-for="(field, key) in content.templateData" :key="key">{{ key }}：{{ field.value }}</p>
+            <p v-if="content.templateId && Object.keys(content.templateData).length === 0">尚未填写模板字段。</p>
+            <button v-if="session.canWrite" type="button" @click="reuseContent(content)">沿用此版本填写新内容</button>
           </article>
         </div>
         <p v-else class="notifications-empty">尚无内容版本。创建内容后才能建立发送任务。</p>
       </section>
 
-      <section class="notifications-panel" aria-labelledby="entries-title">
+      <section v-if="session.canWrite" class="notifications-panel" aria-labelledby="entries-title">
         <div class="notifications-section-heading">
           <div><h3 id="entries-title">受控 HTTPS 入口</h3><p>企业微信、公众号和客服入口逐项配置。未配置或停用时，家庭端显示空态。</p></div>
         </div>
@@ -57,24 +71,23 @@
 
       <section class="notifications-panel" aria-labelledby="task-builder-title">
         <div class="notifications-section-heading">
-          <div><h3 id="task-builder-title">接收人预览与建任务</h3><p>仅使用家庭授权记录 ID。系统不会把付款人当作接收人。</p></div>
+          <div><h3 id="task-builder-title">接收人预览与建任务</h3><p>请选择家庭已授权的接收人，核对后再创建任务。</p></div>
         </div>
         <form class="notifications-form-grid" @submit.prevent="previewTargets">
-          <label class="notifications-field-wide">授权记录 ID<textarea v-model="authorizationText" :disabled="busy" rows="3" placeholder="每行或逗号分隔一个授权 ID" required /></label>
+          <div class="notifications-field-wide"><label v-for="recipient in recipients" :key="recipient.authorizationId" class="notifications-check"><input v-model="authorizationIds" :value="recipient.authorizationId" :disabled="busy" type="checkbox" />{{ recipient.receiverName }} · {{ relationLabel(recipient.relation) }} · {{ channelLabel(recipient.channel) }}</label><p v-if="recipients.length === 0" class="notifications-empty">本团尚无有效接收人授权，请由家庭在订单通知页授权。</p></div>
           <button type="submit" :disabled="busy || authorizationIds.length === 0">预览接收人</button>
         </form>
         <p v-if="preview.length === 0" class="notifications-empty">暂无已预览的授权接收人。未授权记录不会进入任务。</p>
         <div v-else class="notifications-table-wrap">
           <table>
-            <thead><tr><th>接收人</th><th>关系</th><th>渠道</th><th>订单</th><th>授权 ID</th></tr></thead>
-            <tbody><tr v-for="target in preview" :key="target.authorizationId"><td>{{ target.receiverName }}</td><td>{{ relationLabel(target.relation) }}</td><td>{{ channelLabel(target.channel) }}</td><td>{{ target.orderId }}</td><td>{{ target.authorizationId }}</td></tr></tbody>
+            <thead><tr><th>接收人</th><th>关系</th><th>渠道</th></tr></thead>
+            <tbody><tr v-for="target in preview" :key="target.authorizationId"><td>{{ target.receiverName }}</td><td>{{ relationLabel(target.relation) }}</td><td>{{ channelLabel(target.channel) }}</td></tr></tbody>
           </table>
         </div>
-        <form class="notifications-form-grid notifications-task-form" @submit.prevent="createTask">
+        <form v-if="session.canWrite" class="notifications-form-grid notifications-task-form" @submit.prevent="createTask">
           <label>内容版本<select v-model="selectedContentId" required><option value="">请选择</option><option v-for="content in session.contents" :key="content.id" :value="content.id">{{ content.title }} · {{ content.createdAt }}</option></select></label>
-          <label>幂等键<input v-model.trim="idempotencyKey" required /></label>
           <button type="submit" :disabled="busy || !previewCurrent">创建任务</button>
-          <p v-if="!previewCurrent" class="notifications-empty notifications-field-wide">授权 ID 变更后需重新预览，避免误发。</p>
+          <p v-if="!previewCurrent" class="notifications-empty notifications-field-wide">接收人变更后需重新预览。</p>
         </form>
       </section>
 
@@ -90,8 +103,8 @@
         <div v-if="detail" class="notifications-detail">
           <div class="notifications-detail-actions">
             <div><h4>任务 {{ detail.id }}</h4><p>{{ taskStatusLabel(detail.status) }}</p></div>
-            <button type="button" :disabled="busy || detail.status !== 'pending'" @click="sendTask">发送待处理目标</button>
-            <button type="button" :disabled="busy || !hasRetryableTargets" @click="retryTask">明确重试失败目标</button>
+            <button v-if="session.canSend" type="button" :disabled="busy || detail.status !== 'pending'" @click="sendTask">发送待处理目标</button>
+            <button v-if="session.canSend" type="button" :disabled="busy || !hasRetryableTargets" @click="retryTask">明确重试失败目标</button>
           </div>
           <p class="notifications-notice">“接口已受理”仅是 API 受理证据，送达状态和阅读状态仍为未知。</p>
           <div class="notifications-table-wrap">
@@ -111,24 +124,26 @@
       </section>
     </template>
 
-    <p v-else class="notifications-welcome">请输入团期 ID 读取配置。接口未配置或家庭未授权时，页面会明确显示空态。</p>
+    <p v-else class="notifications-welcome">请选择团期读取配置。</p>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue"
+import { computed, onMounted, reactive, ref, watch } from "vue"
 import {
   createNotificationContent,
   createNotificationTask,
   getNotificationSession,
   getNotificationTask,
+  getNotificationSessions,
+  getNotificationRecipients,
   previewNotificationTargets,
   readableNotificationError,
   retryNotificationTask,
   saveNotificationEntry,
   sendNotificationTask,
 } from "@/api/notifications"
-import type { NotificationChannelEntry, NotificationDeliveryStatus, NotificationEntryKind, NotificationRelation, NotificationSession, NotificationTargetPreview, NotificationTask, NotificationTaskStatus } from "@/api/notifications"
+import type { NotificationContentVersion, NotificationSessionOption, NotificationChannelEntry, NotificationDeliveryStatus, NotificationEntryKind, NotificationRelation, NotificationSession, NotificationTargetPreview, NotificationTask, NotificationTaskStatus } from "@/api/notifications"
 import { canRetryNotificationTargets, createNotificationPreviewSelection, isNotificationPreviewCurrent, notificationAttemptTargetLabel } from "@/api/notifications.policy"
 import type { NotificationPreviewSelection } from "@/api/notifications.policy"
 import "@/styles/notifications.css"
@@ -140,26 +155,31 @@ const loadedSessionId = ref("")
 const session = ref<NotificationSession | null>(null)
 const detail = ref<NotificationTask | null>(null)
 const preview = ref<readonly NotificationTargetPreview[]>([])
-const authorizationText = ref("")
+const authorizationIds = ref<string[]>([])
+const recipients = ref<readonly NotificationTargetPreview[]>([])
+const sessionOptions = ref<readonly NotificationSessionOption[]>([])
+const templateFields = ref<{ key: string; value: string }[]>([])
 const previewSelection = ref<NotificationPreviewSelection | null>(null)
 const selectedContentId = ref("")
 const idempotencyKey = ref(newIdempotencyKey())
 const busy = ref(false)
 const message = ref("")
 const error = ref("")
-const contentDraft = reactive({ title: "", bodyText: "", templateId: "", miniappPage: "", templateData: "{}" })
+const contentDraft = reactive({ title: "", bodyText: "", templateId: "", miniappPage: "" })
 const entryForms = reactive<EntryForm[]>([
   { kind: "enterprise_wechat", label: "", url: "", enabled: false, version: 0 },
   { kind: "official_account", label: "", url: "", enabled: false, version: 0 },
   { kind: "customer_service", label: "", url: "", enabled: false, version: 0 },
 ])
-const authorizationIds = computed(() => [...new Set(authorizationText.value.split(/[\s,，]+/u).map(value => value.trim()).filter(value => value.length > 0))])
 const previewCurrent = computed(() => preview.value.length > 0 && isNotificationPreviewCurrent(previewSelection.value, loadedSessionId.value, authorizationIds.value))
 const hasRetryableTargets = computed(() => canRetryNotificationTargets(detail.value?.targets ?? []))
 watch(sessionId, invalidateLoadedSession)
+watch([selectedContentId, authorizationIds], () => { idempotencyKey.value = newIdempotencyKey() }, { deep: true })
+onMounted(loadOptions)
 
-async function loadSession(): Promise<void> { const requestedSessionId = sessionId.value; clearLoadedState(); await run(async () => { const loaded = await getNotificationSession(requestedSessionId); if (sessionId.value !== requestedSessionId) throw new Error("团期 ID 已变化，请重新读取。"); loadedSessionId.value = requestedSessionId; session.value = loaded; applyEntries(loaded.entries); message.value = "团期通知已读取。" }) }
-async function saveContent(): Promise<void> { const activeSessionId = loadedSessionId.value; if (activeSessionId === "") return; await run(async () => { await createNotificationContent(activeSessionId, { title: contentDraft.title, bodyText: contentDraft.bodyText, templateId: emptyToNull(contentDraft.templateId), miniappPage: emptyToNull(contentDraft.miniappPage), templateData: parseTemplateData(contentDraft.templateData) }); contentDraft.title = ""; contentDraft.bodyText = ""; session.value = await getNotificationSession(activeSessionId); message.value = "内容版本已创建。" }) }
+async function loadOptions(): Promise<void> { await run(async () => { sessionOptions.value = await getNotificationSessions() }) }
+async function loadSession(): Promise<void> { const requestedSessionId = sessionId.value; clearLoadedState(); await run(async () => { const [loaded, options] = await Promise.all([getNotificationSession(requestedSessionId), getNotificationRecipients(requestedSessionId)]); if (sessionId.value !== requestedSessionId) throw new Error("团期已变化，请重新读取。"); loadedSessionId.value = requestedSessionId; session.value = loaded; recipients.value = options; applyEntries(loaded.entries); message.value = "团期通知已读取。" }) }
+async function saveContent(): Promise<void> { const activeSessionId = loadedSessionId.value; if (activeSessionId === "") return; await run(async () => { await createNotificationContent(activeSessionId, { title: contentDraft.title, bodyText: contentDraft.bodyText, templateId: emptyToNull(contentDraft.templateId), miniappPage: emptyToNull(contentDraft.miniappPage), templateData: readTemplateFields() }); contentDraft.title = ""; contentDraft.bodyText = ""; session.value = await getNotificationSession(activeSessionId); message.value = "内容版本已创建。" }) }
 async function saveEntry(kind: NotificationEntryKind): Promise<void> { const activeSessionId = loadedSessionId.value; const form = entryForms.find(item => item.kind === kind); if (form === undefined || activeSessionId === "") return; await run(async () => { if (form.enabled && !form.url.startsWith("https://")) throw new Error("启用入口必须使用 HTTPS 地址。"); const saved = await saveNotificationEntry(activeSessionId, kind, { label: form.label, url: form.url, enabled: form.enabled, expectedVersion: form.version }); Object.assign(form, saved); message.value = form.enabled ? "入口已保存并启用。" : "入口已保存为停用。" }) }
 async function previewTargets(): Promise<void> { const selection = createNotificationPreviewSelection(loadedSessionId.value, authorizationIds.value); if (selection.sessionId === "" || selection.authorizationIds.length === 0) return; await run(async () => { const loadedPreview = await previewNotificationTargets(selection.sessionId, selection.authorizationIds); preview.value = loadedPreview; previewSelection.value = selection; message.value = loadedPreview.length === 0 ? "没有可用授权接收人。" : `已预览 ${loadedPreview.length} 名授权接收人。` }) }
 async function createTask(): Promise<void> { const selection = previewSelection.value; if (!previewCurrent.value || selection === null) return; await run(async () => { detail.value = await createNotificationTask(selection.sessionId, { contentVersionId: selectedContentId.value, authorizationIds: selection.authorizationIds, idempotencyKey: idempotencyKey.value }); session.value = await getNotificationSession(selection.sessionId); idempotencyKey.value = newIdempotencyKey(); message.value = "通知任务已创建，尚未发送。" }) }
@@ -170,22 +190,18 @@ async function refreshSession(): Promise<void> { if (loadedSessionId.value !== "
 async function run(action: () => Promise<void>): Promise<void> { busy.value = true; error.value = ""; message.value = ""; try { await action() } catch (cause) { error.value = cause instanceof Error ? cause.message : readableNotificationError(cause) } finally { busy.value = false } }
 
 function invalidateLoadedSession(): void { if (loadedSessionId.value !== "" && sessionId.value !== loadedSessionId.value) clearLoadedState() }
-function clearLoadedState(): void { loadedSessionId.value = ""; session.value = null; detail.value = null; preview.value = []; previewSelection.value = null; selectedContentId.value = "" }
+function clearLoadedState(): void { loadedSessionId.value = ""; session.value = null; detail.value = null; preview.value = []; recipients.value = []; authorizationIds.value = []; previewSelection.value = null; selectedContentId.value = ""; Object.assign(contentDraft, { title: "", bodyText: "", templateId: "", miniappPage: "" }); templateFields.value = []; idempotencyKey.value = newIdempotencyKey() }
 function applyEntries(entries: readonly NotificationChannelEntry[]): void { for (const form of entryForms) Object.assign(form, entries.find(entry => entry.kind === form.kind) ?? { label: "", url: "", enabled: false, version: 0 }) }
-function parseTemplateData(text: string): Readonly<Record<string, { readonly value: string }>> {
-  let value: unknown
-  try { value = JSON.parse(text) }
-  catch { throw new Error("模板数据不是有效 JSON。") }
-  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("模板数据必须是 JSON 对象。")
+function readTemplateFields(): Readonly<Record<string, { readonly value: string }>> {
   const output: Record<string, { readonly value: string }> = {}
-  for (const [key, raw] of Object.entries(value)) {
-    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error("模板字段必须包含 value 文本。")
-    const field = Object.fromEntries(Object.entries(raw))["value"]
-    if (typeof field !== "string") throw new Error("模板字段必须包含 value 文本。")
-    output[key] = { value: field }
+  for (const field of templateFields.value) {
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(field.key) || Object.hasOwn(output, field.key)) throw new Error("模板字段名不正确或重复，请核对微信后台配置。")
+    if (field.value.trim() === "") throw new Error("请填写模板字段值。")
+    output[field.key] = { value: field.value }
   }
   return output
 }
+function reuseContent(content: NotificationContentVersion): void { Object.assign(contentDraft, { title: content.title, bodyText: content.bodyText, templateId: content.templateId ?? "", miniappPage: content.miniappPage ?? "" }); templateFields.value = Object.entries(content.templateData).map(([key, field]) => ({ key, value: field.value })) }
 function newIdempotencyKey(): string { return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `notification-${Date.now()}` }
 function emptyToNull(value: string): string | null { return value === "" ? null : value }
 function attemptTargetLabel(targetId: string): string { return notificationAttemptTargetLabel(targetId, detail.value?.targets ?? []) }

@@ -36,11 +36,11 @@
       <h3 id="media-provider-title">第三方相册/直播入口</h3>
       <div class="media-provider-grid">
         <form v-for="provider in providerForms" :key="provider.kind" class="media-provider" @submit.prevent="saveProvider(provider.kind)">
-          <label>类型<input :value="provider.kind === 'album' ? '外部相册' : '图片直播'" disabled /></label>
-          <label>名称<input v-model="provider.label" maxlength="80" :required="provider.enabled" /></label>
-          <label>HTTPS入口<input v-model="provider.url" maxlength="2000" :required="provider.enabled" placeholder="https://..." /></label>
-          <label class="media-checkbox"><input v-model="provider.enabled" type="checkbox" /> 启用</label>
-          <button type="submit" :disabled="sessionId === '' || savingProvider">{{ savingProvider ? "保存中..." : "保存入口" }}</button>
+          <label>类型<input :value="provider.kind === 'album' ? '图片直播 / 外部相册' : '视频直播'" disabled /></label>
+          <label>名称<input v-model="provider.label" maxlength="80" :required="provider.enabled" :disabled="loadingCollection || savingProvider" /></label>
+          <label>HTTPS入口<input v-model="provider.url" maxlength="2000" :required="provider.enabled" :disabled="loadingCollection || savingProvider" placeholder="https://..." /></label>
+          <label class="media-checkbox"><input v-model="provider.enabled" type="checkbox" :disabled="loadingCollection || savingProvider" /> 启用</label>
+          <button type="submit" :disabled="sessionId === '' || loadingCollection || savingProvider">{{ savingProvider ? "保存中..." : "保存入口" }}</button>
           <p v-if="!provider.enabled" class="media-empty">未配置或未购买服务时，家庭端显示空态。</p>
         </form>
       </div>
@@ -144,7 +144,7 @@ async function removeAsset(asset: MediaAsset): Promise<void> {
 
 async function saveProvider(kind: "album" | "live"): Promise<void> {
   const provider = providerForms.find(item => item.kind === kind)
-  if (provider === undefined || sessionId.value === "") return
+  if (provider === undefined || sessionId.value === "" || loadingCollection.value || savingProvider.value) return
   savingProvider.value = true
   error.value = ""
   try {
@@ -175,6 +175,8 @@ function statusText(status: MediaAsset["status"]): string {
 .media-heading p { max-width: 480px; margin: 0; color: var(--text-secondary); line-height: 1.6; }
 .media-panel { margin-top: 16px; padding: 20px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-elevated); }
 .media-form fieldset, .media-provider { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 0; border: 0; }
+.media-form fieldset, .media-form label { min-width: 0; }
+.media-form select { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
 .media-form legend { grid-column: 1 / -1; font-weight: 600; }
 .media-form label, .media-provider label { display: grid; gap: 6px; color: var(--text-secondary); font-size: 14px; }
 .media-form input, .media-form select, .media-provider input { min-height: 40px; border: 1px solid var(--border-default); border-radius: 6px; padding: 0 10px; color: var(--text-primary); background: var(--surface-primary); }

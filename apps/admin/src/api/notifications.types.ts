@@ -10,6 +10,7 @@ export type NotificationContentVersion = {
   readonly bodyText: string
   readonly templateId: string | null
   readonly miniappPage: string | null
+  readonly templateData: Readonly<Record<string, { readonly value: string }>>
   readonly createdAt: string
 }
 
@@ -61,10 +62,15 @@ export type NotificationTask = NotificationTaskSummary & {
 }
 
 export type NotificationSession = {
+  readonly canWrite: boolean
+  readonly canSend: boolean
+  readonly wechatConfigured: boolean
   readonly contents: readonly NotificationContentVersion[]
   readonly entries: readonly NotificationChannelEntry[]
   readonly tasks: readonly NotificationTaskSummary[]
 }
+
+export type NotificationSessionOption = { readonly id: string; readonly label: string }
 
 export type NotificationContentInput = {
   readonly title: string

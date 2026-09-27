@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import NotificationsView from "@/views/NotificationsView.vue"
 
 const session = {
-  contents: [{ id: "content-1", title: "集合提醒", bodyText: "请准时到达", templateId: "template-1", miniappPage: null, createdAt: "2026-09-23T00:00:00.000Z" }],
+  canWrite: true, canSend: true, wechatConfigured: false,
+  contents: [{ id: "content-1", title: "集合提醒", bodyText: "请准时到达", templateId: "template-1", templateData: { thing3: { value: "学校南门" } }, miniappPage: null, createdAt: "2026-09-23T00:00:00.000Z" }],
   entries: [],
   tasks: [{ id: "task-1", contentVersionId: "content-1", status: "manual_required", createdAt: "2026-09-23T00:00:00.000Z" }],
 }
@@ -16,22 +17,22 @@ const task = {
 describe("notification admin page policies", () => {
   afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren() })
 
-  it("clears loaded data when the editable session id changes", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json(session)))
+  it("clears loaded data when the selected session changes", async () => {
+    stubResponses()
     const app = mountPage()
     await loadSession("session-1")
     expect(document.body.textContent).toContain("集合提醒")
 
-    setValue(controlByLabel("团期 ID"), "session-2")
+    setValue(controlByLabel("团期"), "session-2")
     await nextTick()
 
     expect(document.body.textContent).not.toContain("集合提醒")
-    expect(document.body.textContent).toContain("请输入团期 ID 读取配置")
+    expect(document.body.textContent).toContain("请选择团期读取配置")
     app.unmount()
   })
 
   it("enables retry from target state and shows the attempt target policy", async () => {
-    vi.stubGlobal("fetch", vi.fn(async input => Response.json(String(input).endsWith("/tasks/task-1") ? task : session)))
+    stubResponses()
     const app = mountPage()
     await loadSession("session-1")
     buttonByText("task-1").click()
@@ -41,18 +42,81 @@ describe("notification admin page policies", () => {
     app.unmount()
   })
 
-  it("shows the specific local template JSON error", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json(session)))
+  it("shows persisted fields and rejects invalid field names without JSON editing", async () => {
+    stubResponses()
     const app = mountPage()
     await loadSession("session-1")
-    setValue(controlByLabel("模板数据 JSON"), "{")
+    expect(document.body.textContent).toContain("学校南门")
+    expect(document.body.textContent).not.toContain("模板数据 JSON")
+    buttonByText("添加模板字段").click()
+    await nextTick()
+    setValue(controlByLabel("微信模板字段名"), "bad key")
+    setValue(controlByLabel("字段值"), "集合地点")
     const form = buttonByText("创建内容版本").closest("form")
     if (!(form instanceof HTMLFormElement)) throw new Error("content form missing")
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
-    await vi.waitFor(() => expect(document.body.textContent).toContain("模板数据不是有效 JSON。"))
+    await vi.waitFor(() => expect(document.body.textContent).toContain("模板字段名不正确或重复"))
+    app.unmount()
+  })
+
+  it("hides mutations when a reader has no write or send permission", async () => {
+    stubResponses(false)
+    const app = mountPage()
+    await loadSession("session-1")
+    expect(document.body.textContent).not.toContain("创建内容版本")
+    buttonByText("task-1").click()
+    await vi.waitFor(() => expect(document.body.textContent).toContain("任务 task-1"))
+    expect(document.body.textContent).not.toContain("发送待处理目标")
+    app.unmount()
+  })
+
+  it("reuses an internal task key after a failed response and never dispatches during creation", async () => {
+    stubResponses()
+    const originalFetch = globalThis.fetch
+    const keys: unknown[] = []
+    const requests: string[] = []
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      requests.push(url)
+      if (url.endsWith("/preview")) return Response.json(task.targets)
+      if (url.endsWith("/tasks") && init?.method === "POST") {
+        const body: unknown = JSON.parse(String(init.body))
+        if (typeof body !== "object" || body === null) throw new Error("Invalid task request")
+        keys.push(Object.fromEntries(Object.entries(body))["idempotencyKey"])
+        if (keys.length === 1) throw new Error("暂时未收到任务结果")
+        return Response.json(task)
+      }
+      return originalFetch(input, init)
+    }))
+    const app = mountPage()
+    await loadSession("session-1")
+    const checkbox = controlByLabel("林女士")
+    checkbox.click()
+    await nextTick()
+    buttonByText("预览接收人").click()
+    await vi.waitFor(() => expect(document.body.textContent).toContain("已预览 1 名"))
+    setValue(controlByLabel("内容版本"), "content-1")
+    await nextTick()
+    buttonByText("创建任务").click()
+    await vi.waitFor(() => expect(document.body.textContent).toContain("暂时未收到任务结果"))
+    buttonByText("创建任务").click()
+    await vi.waitFor(() => expect(document.body.textContent).toContain("通知任务已创建，尚未发送"))
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toBe(keys[1])
+    expect(requests.some(url => /\/(send|retry)$/.test(url))).toBe(false)
+    expect(document.body.textContent).not.toContain("幂等键")
     app.unmount()
   })
 })
+
+function stubResponses(canMutate = true): void {
+  vi.stubGlobal("fetch", vi.fn(async input => {
+    const url = String(input)
+    if (url.endsWith("/sessions")) return Response.json([{ id: "session-1", label: "秋季研学" }, { id: "session-2", label: "冬季研学" }])
+    if (url.endsWith("/recipients")) return Response.json([{ authorizationId: "authorization-1", orderId: "order-1", receiverName: "林女士", relation: "guardian", channel: "manual" }])
+    return Response.json(url.endsWith("/tasks/task-1") ? task : { ...session, canWrite: canMutate, canSend: canMutate })
+  }))
+}
 
 function mountPage() {
   const root = document.createElement("div")
@@ -63,16 +127,17 @@ function mountPage() {
 }
 
 async function loadSession(sessionId: string): Promise<void> {
-  setValue(controlByLabel("团期 ID"), sessionId)
+  await vi.waitFor(() => expect(document.body.textContent).toContain("秋季研学"))
+  setValue(controlByLabel("团期"), sessionId)
   await nextTick()
   buttonByText("读取团期通知").click()
   await vi.waitFor(() => expect(document.body.textContent).toContain("团期通知已读取。"))
 }
 
-function controlByLabel(text: string): HTMLInputElement | HTMLTextAreaElement {
+function controlByLabel(text: string): HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement {
   const label = [...document.querySelectorAll("label")].find(item => item.textContent?.includes(text) === true)
-  const control = label?.querySelector("input, textarea")
-  if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) return control
+  const control = label?.querySelector("input, textarea, select")
+  if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) return control
   throw new Error(`control missing: ${text}`)
 }
 
@@ -82,7 +147,7 @@ function buttonByText(text: string): HTMLButtonElement {
   throw new Error(`button missing: ${text}`)
 }
 
-function setValue(control: HTMLInputElement | HTMLTextAreaElement, value: string): void {
+function setValue(control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string): void {
   control.value = value
-  control.dispatchEvent(new Event("input", { bubbles: true }))
+  control.dispatchEvent(new Event(control instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }))
 }

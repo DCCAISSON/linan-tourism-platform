@@ -9,9 +9,12 @@ import { NotificationDeliveryTargetEntity, NotificationDeliveryTaskEntity } from
 import { NotificationRecipientAuthorizationEntity } from "../../domain/entities/notification-recipient-authorization.entity.js"
 import { OrderEntity } from "../../domain/entities/order.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
+import { CatalogItemEntity } from "../../domain/entities/catalog-item.entity.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
-import { NotificationAccessService } from "./notification-access.service.js"
+import { NotificationAccessService, notificationScopeMatches } from "./notification-access.service.js"
+import { parseContentVersion } from "./notifications.parser.js"
+import { loadWechatSubscribeConfig } from "./wechat-subscribe.adapter.js"
 import { notificationTaskFingerprint } from "./notification-domain.js"
 import type { ContentVersionInput, NotificationEntryInput, NotificationTaskInput, NotificationTargetPreview } from "./notifications.types.js"
 
@@ -22,6 +25,24 @@ export class NotificationManagementService {
     @Inject(NotificationAccessService) private readonly access: NotificationAccessService,
   ) {}
 
+  async sessions(access: StaffAccess) {
+    const manager = (await this.database.getDataSource()).manager
+    const sessions = (await manager.find(TourSessionEntity, { order: { startsAt: "DESC" } }))
+      .filter(session => notificationScopeMatches(access, session, "notifications.read"))
+    const catalogs = await manager.findBy(CatalogItemEntity, { id: In(sessions.map(session => session.catalogItemId)) })
+    const titles = new Map(catalogs.map(catalog => [catalog.id, catalog.title]))
+    return sessions.map(session => ({ id: session.id, label: `${titles.get(session.catalogItemId) ?? session.code} · ${session.code} · ${session.startsAt.toISOString().slice(0, 10)}` }))
+  }
+
+  async recipients(access: StaffAccess, sessionId: string) {
+    const manager = (await this.database.getDataSource()).manager
+    const session = await this.access.staffSession(manager, access, sessionId, "notifications.read")
+    const enrollments = await manager.findBy(EnrollmentEntity, { tourSessionId: session.id })
+    const orders = await manager.findBy(OrderEntity, { enrollmentId: In(enrollments.map(row => row.id)), organizationId: session.organizationId })
+    const rows = await manager.findBy(NotificationRecipientAuthorizationEntity, { orderId: In(orders.map(row => row.id)), organizationId: session.organizationId, active: true })
+    return rows.map(row => ({ authorizationId: row.id, orderId: row.orderId, receiverName: row.receiverName, relation: row.relation, channel: row.channel }))
+  }
+
   async session(access: StaffAccess, sessionId: string) {
     const manager = (await this.database.getDataSource()).manager
     await this.access.staffSession(manager, access, sessionId, "notifications.read")
@@ -30,7 +51,7 @@ export class NotificationManagementService {
       manager.findBy(NotificationChannelEntryEntity, { tourSessionId: sessionId }),
       manager.find(NotificationDeliveryTaskEntity, { where: { tourSessionId: sessionId }, order: { createdAt: "DESC" } }),
     ])
-    return { contents: contents.map(toContent), entries: entries.map(toEntry), tasks: tasks.map(toTaskSummary) }
+    return { contents: contents.map(toContent), entries: entries.map(toEntry), tasks: tasks.map(toTaskSummary), canWrite: access.permissionKeys.has("notifications.write"), canSend: access.permissionKeys.has("notifications.send"), wechatConfigured: loadWechatSubscribeConfig() !== null }
   }
 
   async createContent(access: StaffAccess, sessionId: string, input: ContentVersionInput) {
@@ -40,7 +61,7 @@ export class NotificationManagementService {
       const row = manager.create(NotificationContentVersionEntity, {
         id: randomUUID(), organizationId: session.organizationId, tourSessionId: session.id,
         title: input.title, bodyText: input.bodyText, templateId: input.templateId,
-        miniappPage: input.miniappPage, templateDataJson: JSON.stringify(input.templateData), createdByStaffId: access.actorId,
+        miniappPage: input.miniappPage, templateDataJson: JSON.stringify(input.templateData), createdByStaffId: access.actorId, createdAt: new Date(),
       })
       await manager.save(row)
       await audit(manager, session, access.actorId, "notification.content_created", row.id)
@@ -88,7 +109,7 @@ export class NotificationManagementService {
       const task = manager.create(NotificationDeliveryTaskEntity, {
         id: randomUUID(), organizationId: session.organizationId, tourSessionId: session.id,
         contentVersionId: content.id, createdByStaffId: access.actorId,
-        idempotencyKey: input.idempotencyKey, requestFingerprint: fingerprint,
+        idempotencyKey: input.idempotencyKey, requestFingerprint: fingerprint, createdAt: new Date(),
       })
       await manager.save(task)
       await manager.save(recipients.map((authorization) => manager.create(NotificationDeliveryTargetEntity, {
@@ -126,12 +147,13 @@ async function taskDetail(manager: EntityManager, task: NotificationDeliveryTask
 }
 
 function toContent(row: NotificationContentVersionEntity) {
-  return { id: row.id, title: row.title, bodyText: row.bodyText, templateId: row.templateId, miniappPage: row.miniappPage, createdAt: row.createdAt.toISOString() }
+  const templateData = parseContentVersion({ title: row.title, bodyText: row.bodyText, templateId: row.templateId, miniappPage: row.miniappPage, templateData: JSON.parse(row.templateDataJson) }).templateData
+  return { id: row.id, title: row.title, bodyText: row.bodyText, templateId: row.templateId, miniappPage: row.miniappPage, templateData, createdAt: row.createdAt.toISOString() }
 }
 function toEntry(row: NotificationChannelEntryEntity) { return { kind: row.kind, label: row.label, url: row.url, enabled: row.enabled, version: row.version } }
 function toTaskSummary(row: NotificationDeliveryTaskEntity) { return { id: row.id, contentVersionId: row.contentVersionId, status: row.status, createdAt: row.createdAt.toISOString() } }
 async function audit(manager: EntityManager, session: TourSessionEntity, actorId: string, action: string, targetId: string): Promise<void> {
-  await manager.save(manager.create(AuditLogEntity, { id: randomUUID(), organizationId: session.organizationId, actorId, action, targetType: "notification", targetId }))
+  await manager.save(manager.create(AuditLogEntity, { id: randomUUID(), organizationId: session.organizationId, actorId, action, targetType: "notification", targetId, createdAt: new Date() }))
 }
 function conflict(message: string): ConflictException { return new ConflictException({ code: "notification_conflict", message }) }
 function missing(message: string): NotFoundException { return new NotFoundException({ code: "notification_not_found", message }) }

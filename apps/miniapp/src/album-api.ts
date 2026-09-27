@@ -110,7 +110,7 @@ function parseAlbumProvider(value: unknown): AlbumProvider {
   const url = readString(record, "url")
   if (kind !== "album" && kind !== "live") throw new ApiError(0, "provider kind 响应格式不正确")
   if (enabled !== true) throw new ApiError(0, "provider enabled 响应格式不正确")
-  if (!url.startsWith("https://")) throw new ApiError(0, "provider url 响应格式不正确")
+  if (!/^https:\/\/(?![^/]*@)(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*(?::443)?(?:[/?#]|$)/i.test(url)) throw new ApiError(0, "provider url 响应格式不正确")
   return {
     kind,
     label: readString(record, "label"),

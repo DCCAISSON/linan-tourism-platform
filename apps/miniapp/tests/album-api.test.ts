@@ -55,6 +55,10 @@ describe("album API", () => {
     expect(() => parseAlbumCollection({ assets: [], providers: [{ ...provider, url: "http://album.example.test/a" }] })).toThrow(new ApiError(0, "provider url 响应格式不正确"))
   })
 
+  it.each(["https://user:pass@album.example.test/a", "https://127.0.0.1/a", "https://", "javascript:alert(1)"])("rejects unsafe provider URL %s before opening a webview", url => {
+    expect(() => parseAlbumCollection({ assets: [], providers: [{ ...provider, url }] })).toThrow(new ApiError(0, "provider url 响应格式不正确"))
+  })
+
   it("builds encoded content URLs without accepting object keys from the client", () => {
     expect(albumContentUrl("https://api.example.test/", "order/a", "asset/a")).toBe("https://api.example.test/orders/order%2Fa/media/asset%2Fa/content")
   })

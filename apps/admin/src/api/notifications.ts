@@ -1,11 +1,14 @@
 import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
-import { parseNotificationContent, parseNotificationEntry, parseNotificationPreview, parseNotificationSession, parseNotificationTask } from "./notifications.parsers"
+import { parseNotificationContent, parseNotificationEntry, parseNotificationPreview, parseNotificationSession, parseNotificationSessions, parseNotificationTask } from "./notifications.parsers"
 import type { NotificationContentInput, NotificationContentVersion, NotificationEntryInput, NotificationEntryKind, NotificationChannelEntry, NotificationSession, NotificationTargetPreview, NotificationTask, NotificationTaskInput } from "./notifications.types"
 
 export type * from "./notifications.types"
 
 const apiBaseUrl = resolveAdminApiBaseUrl()
+
+export async function getNotificationSessions() { return parseNotificationSessions(await request("/staff/notifications/sessions")) }
+export async function getNotificationRecipients(sessionId: string) { return parseNotificationPreview(await request(`/staff/notifications/sessions/${encodeURIComponent(sessionId)}/recipients`)) }
 
 export async function getNotificationSession(sessionId: string): Promise<NotificationSession> {
   return parseNotificationSession(await request(`/staff/notifications/sessions/${encodeURIComponent(sessionId)}`))

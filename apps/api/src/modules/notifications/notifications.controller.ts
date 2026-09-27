@@ -62,6 +62,16 @@ export class StaffNotificationsController {
     @Inject(NotificationDispatchService) private readonly dispatches: NotificationDispatchService,
   ) {}
 
+  @Get("sessions")
+  async sessions(@Headers() headers: StaffAccessRequestHeaders) {
+    return this.notifications.sessions(await this.staffAccess.resolve(headers))
+  }
+
+  @Get("sessions/:sessionId/recipients")
+  async recipients(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string) {
+    return this.notifications.recipients(await this.staffAccess.resolve(headers), parseNotificationId(sessionId))
+  }
+
   @Get("sessions/:sessionId")
   async session(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string) {
     return this.notifications.session(await this.staffAccess.resolve(headers), parseNotificationId(sessionId))

@@ -12,11 +12,15 @@ import type {
   NotificationTask,
   NotificationTaskStatus,
   NotificationTaskSummary,
+  NotificationSessionOption,
 } from "./notifications.types"
 
 export function parseNotificationSession(value: unknown): NotificationSession {
   const record = readRecord(value, "notification session")
   return {
+    canWrite: record["canWrite"] === true,
+    canSend: record["canSend"] === true,
+    wechatConfigured: record["wechatConfigured"] === true,
     contents: readArray(record, "contents", "notification session").map(parseContent),
     entries: readArray(record, "entries", "notification session").map(parseEntry),
     tasks: readArray(record, "tasks", "notification session").map(parseTaskSummary),
@@ -56,8 +60,19 @@ function parseContent(value: unknown): NotificationContentVersion {
     bodyText: readString(record, "bodyText", "notification content"),
     templateId: readNullableString(record, "templateId", "notification content"),
     miniappPage: readNullableString(record, "miniappPage", "notification content"),
+    templateData: parseTemplateFields(record["templateData"] ?? {}),
     createdAt: readString(record, "createdAt", "notification content"),
   }
+}
+
+export function parseNotificationSessions(value: unknown): readonly NotificationSessionOption[] {
+  if (!Array.isArray(value)) throw invalid("notification sessions")
+  return value.map(item => { const row = readRecord(item, "notification session"); return { id: readString(row, "id", "notification session"), label: readString(row, "label", "notification session") } })
+}
+
+function parseTemplateFields(value: unknown): Readonly<Record<string, { readonly value: string }>> {
+  const record = readRecord(value, "template fields")
+  return Object.fromEntries(Object.entries(record).map(([key, field]) => [key, { value: readString(readRecord(field, "template field"), "value", "template field") }]))
 }
 
 function parseEntry(value: unknown): NotificationChannelEntry {
