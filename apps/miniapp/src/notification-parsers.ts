@@ -7,6 +7,12 @@ export function parseNotificationOverview(value: unknown): FamilyNotificationOve
     orderId: readString(record, "orderId", "notification overview"),
     authorizations: readArray(record, "authorizations", "notification overview").map(parseAuthorization),
     entries: readArray(record, "entries", "notification overview").map(parseEntry),
+    subscribeTemplates: record["subscribeTemplates"] === undefined ? [] : readArray(record, "subscribeTemplates", "notification overview").map((value) => {
+      const item = readRecord(value, "subscription template")
+      const templateId = readString(item, "templateId", "subscription template")
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(templateId)) throw invalid("subscription template.templateId")
+      return { templateId, title: readString(item, "title", "subscription template") }
+    }),
   }
 }
 

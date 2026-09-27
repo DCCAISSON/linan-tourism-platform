@@ -90,6 +90,9 @@ describe("WechatSubscribeAdapter wire behavior", () => {
   it.each([
     [43101, "user refuse to accept the msg", "undelivered", false],
     [45009, "reach max api daily quota limit", "retryable_failed", true],
+    [40003, "invalid openid", "manual_required", false],
+    [40037, "invalid template_id", "manual_required", false],
+    [47003, "argument invalid", "manual_required", false],
   ] as const)("maps provider code %s through the HTTP fixture", async (errcode, errmsg, status, retryable) => {
     const fixture = createServer((_request, response) => {
       response.setHeader("content-type", "application/json")
@@ -123,6 +126,16 @@ describe("WechatSubscribeAdapter wire behavior", () => {
       providerMessage: "微信订阅消息未配置或未启用",
       retryable: false,
     })
+  })
+
+  it.each(["not-json", "null", "[]", '{"errmsg":"ok"}', '{"errcode":0}', '{"errcode":"0","errmsg":"ok"}'])("never claims acceptance for an invalid response body %s", async (body) => {
+    const fixture = createServer((_request, response) => response.end(body))
+    await new Promise<void>((resolve) => fixture.listen(0, "127.0.0.1", resolve))
+    const address = fixture.address()
+    if (address === null || typeof address === "string") throw new Error("fixture server did not expose a TCP address")
+    closeCallbacks.push(() => new Promise<void>((resolve, reject) => fixture.close((error) => error === undefined ? resolve() : reject(error))))
+    const adapter = new WechatSubscribeAdapter(() => ({ ...baseConfig, apiOrigin: `http://127.0.0.1:${address.port}` }))
+    await expect(adapter.send({ openid: "openid-fixture", templateId: "template-fixture", page: null, data: {} })).resolves.toMatchObject({ status: "manual_required", errorCode: "wechat_response_invalid", retryable: false })
   })
 
   it("keeps timeout results unknown and non-retryable", async () => {

@@ -28,9 +28,14 @@ export type FamilyNotificationOverview = {
   readonly orderId: string
   readonly authorizations: readonly FamilyNotificationAuthorization[]
   readonly entries: readonly FamilyNotificationEntry[]
+  readonly subscribeTemplates: readonly NotificationSubscribeTemplate[]
 }
 
+export type NotificationSubscribeTemplate = { readonly templateId: string; readonly title: string }
+export type NotificationSubscribeOutcome = "accept" | "reject" | "ban" | "filter"
+
 export type NotificationAuthorizationInput = {
+  readonly code?: string
   readonly receiverName: string
   readonly relation: NotificationRelation
   readonly channel: NotificationChannel

@@ -14,6 +14,7 @@ import {
   parseTask,
 } from "./notifications.parser.js"
 import { RecipientAuthorizationService } from "./recipient-authorization.service.js"
+import { WechatAuthService } from "../wechat/wechat-auth.service.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -22,6 +23,7 @@ export class FamilyNotificationsController {
   constructor(
     @Inject(EnrollmentIdentityService) private readonly identities: EnrollmentIdentityService,
     @Inject(RecipientAuthorizationService) private readonly recipients: RecipientAuthorizationService,
+    @Inject(WechatAuthService) private readonly wechat: WechatAuthService,
   ) {}
 
   @Get("notifications")
@@ -31,7 +33,11 @@ export class FamilyNotificationsController {
 
   @Post("notification-recipients")
   async authorize(@Headers() headers: RequestHeaders, @Param("orderId") orderId: string, @Body() body: unknown) {
-    return this.recipients.authorize(await this.identities.resolve(headers), parseNotificationId(orderId), parseRecipientAuthorization(body))
+    const input = parseRecipientAuthorization(body)
+    const identity = await this.identities.resolve(headers)
+    const verifiedOpenid = input.channel === "wechat_subscribe" && input.code !== undefined
+      ? await this.wechat.resolvePaymentOpenid(headers, input.code) : null
+    return this.recipients.authorize(identity, parseNotificationId(orderId), input, verifiedOpenid)
   }
 
   @Post("notification-recipients/:authorizationId/withdraw")

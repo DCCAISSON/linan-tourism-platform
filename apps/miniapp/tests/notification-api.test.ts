@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { ApiError } from "../src/api-error"
-import { createNotificationApi } from "../src/notification-api"
+import { createNotificationApi, requestNotificationSubscription } from "../src/notification-api"
 import type { MiniappRequestOptions } from "../src/api-types"
 
 const overview = {
@@ -10,6 +10,7 @@ const overview = {
 } as const
 
 describe("miniapp notification API", () => {
+  afterEach(() => vi.unstubAllGlobals())
   it("loads only the scoped order overview with the family identity", async () => {
     const requests: MiniappRequestOptions[] = []
     const api = createNotificationApi({ baseUrl: "https://api.example.test", familyIdentityHeader: "family-1", request: async (options) => { requests.push(options); return { statusCode: 200, data: overview } } })
@@ -44,5 +45,34 @@ describe("miniapp notification API", () => {
     const api = createNotificationApi({ request: async () => ({ statusCode: 200, data: { ...overview, entries: [{ ...overview.entries[0], url: "http://unsafe.example.test" }] } }) })
 
     await expect(api.getOverview("order-1")).rejects.toEqual(new ApiError(0, "notification entry.url response format is invalid"))
+  })
+
+  it("loads configured templates from the scoped overview and rejects malformed IDs", async () => {
+    const api = createNotificationApi({ request: async () => ({ statusCode: 200, data: { ...overview, subscribeTemplates: [{ templateId: "template-1", title: "集合提醒" }] } }) })
+    expect((await api.getOverview("order-1")).subscribeTemplates).toEqual([{ templateId: "template-1", title: "集合提醒" }])
+    const invalid = createNotificationApi({ request: async () => ({ statusCode: 200, data: { ...overview, subscribeTemplates: [{ templateId: "bad id", title: "集合提醒" }] } }) })
+    await expect(invalid.getOverview("order-1")).rejects.toThrow()
+  })
+
+  it.each(["accept", "reject", "ban", "filter"] as const)("reports the platform result %s for only the clicked template", async (outcome) => {
+    const requestSubscribeMessage = vi.fn((options: { tmplIds: string[]; success: (value: unknown) => void }) => options.success({ "template-1": outcome }))
+    vi.stubGlobal("uni", { requestSubscribeMessage })
+    const result = requestNotificationSubscription("template-1", [{ templateId: "template-1", title: "集合提醒" }, { templateId: "template-2", title: "行前提醒" }])
+    expect(requestSubscribeMessage).toHaveBeenCalledWith(expect.objectContaining({ tmplIds: ["template-1"] }))
+    await expect(result).resolves.toBe(outcome)
+  })
+
+  it("does not open platform consent for an unconfigured or forged template", async () => {
+    const requestSubscribeMessage = vi.fn()
+    vi.stubGlobal("uni", { requestSubscribeMessage })
+    await expect(requestNotificationSubscription("forged", [])).rejects.toThrow("通知模板暂未开放")
+    expect(requestSubscribeMessage).not.toHaveBeenCalled()
+  })
+
+  it("does not report acceptance when the platform fails or omits the selected result", async () => {
+    vi.stubGlobal("uni", { requestSubscribeMessage: (options: { fail: () => void }) => options.fail() })
+    await expect(requestNotificationSubscription("template-1", [{ templateId: "template-1", title: "提醒" }])).rejects.toThrow("未完成微信订阅")
+    vi.stubGlobal("uni", { requestSubscribeMessage: (options: { success: (value: unknown) => void }) => options.success({ "other-template": "accept" }) })
+    await expect(requestNotificationSubscription("template-1", [{ templateId: "template-1", title: "提醒" }])).rejects.toThrow("未完成微信订阅")
   })
 })

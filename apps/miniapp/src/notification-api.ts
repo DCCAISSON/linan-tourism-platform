@@ -1,10 +1,28 @@
 import { ApiError } from "./api-error"
 import { DEV_FAMILY_IDENTITY_HEADER, FALLBACK_API_BASE_URL, type MiniappRequestOptions, type MiniappRequestResult, type RequestTransport } from "./api-types"
 import { parseNotificationAuthorization, parseNotificationOverview } from "./notification-parsers"
-import type { FamilyNotificationAuthorization, FamilyNotificationOverview, NotificationApiOptions, NotificationAuthorizationInput } from "./notification-types"
+import type { FamilyNotificationAuthorization, FamilyNotificationOverview, NotificationApiOptions, NotificationAuthorizationInput, NotificationSubscribeOutcome, NotificationSubscribeTemplate } from "./notification-types"
 import { getWechatSessionToken } from "./wechat-token"
 
 export type * from "./notification-types"
+
+export function requestNotificationSubscription(templateId: string, templates: readonly NotificationSubscribeTemplate[]): Promise<NotificationSubscribeOutcome> {
+  if (!templates.some((item) => item.templateId === templateId)) return Promise.reject(new ApiError(0, "通知模板暂未开放，请联系工作人员。"))
+  if (typeof uni.requestSubscribeMessage !== "function") return Promise.reject(new ApiError(0, "请在微信小程序中订阅通知。"))
+  return new Promise((resolve, reject) => {
+    uni.requestSubscribeMessage({
+      tmplIds: [templateId],
+      success: (value: unknown) => {
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+          const result = Object.fromEntries(Object.entries(value))[templateId]
+          if (result === "accept" || result === "reject" || result === "ban" || result === "filter") { resolve(result); return }
+        }
+        reject(new ApiError(0, "未完成微信订阅，请重新点击订阅。"))
+      },
+      fail: () => reject(new ApiError(0, "未完成微信订阅，请检查微信设置后重试。")),
+    })
+  })
+}
 
 export function createNotificationApi(options: NotificationApiOptions = {}) {
   const baseUrl = resolveApiBaseUrl(options.baseUrl)

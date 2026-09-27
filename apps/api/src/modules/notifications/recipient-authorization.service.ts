@@ -2,12 +2,15 @@ import { randomUUID } from "node:crypto"
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { AuditLogEntity } from "../../domain/entities/audit-log.entity.js"
 import { NotificationChannelEntryEntity } from "../../domain/entities/notification-channel-entry.entity.js"
+import { NotificationContentVersionEntity } from "../../domain/entities/notification-content-version.entity.js"
 import { NotificationRecipientAuthorizationEntity } from "../../domain/entities/notification-recipient-authorization.entity.js"
 import { OrderEntity } from "../../domain/entities/order.entity.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
 import { NotificationAccessService } from "./notification-access.service.js"
 import type { RecipientAuthorizationInput } from "./notifications.types.js"
+import { hashWechatIdentity } from "../wechat/wechat-session-token.js"
+import { loadWechatSubscribeConfig } from "./wechat-subscribe.adapter.js"
 
 @Injectable()
 export class RecipientAuthorizationService {
@@ -19,23 +22,33 @@ export class RecipientAuthorizationService {
   async overview(identity: EnrollmentIdentity, orderId: string) {
     const manager = (await this.database.getDataSource()).manager
     const scoped = await this.access.familyOrder(manager, identity, orderId)
-    const [authorizations, entries] = await Promise.all([
+    const [authorizations, entries, contents] = await Promise.all([
       manager.find(NotificationRecipientAuthorizationEntity, { where: { orderId }, order: { createdAt: "DESC" } }),
       manager.findBy(NotificationChannelEntryEntity, { tourSessionId: scoped.enrollment.tourSessionId, enabled: true }),
+      loadWechatSubscribeConfig() === null ? Promise.resolve([]) : manager.find(NotificationContentVersionEntity, { where: { tourSessionId: scoped.enrollment.tourSessionId }, order: { createdAt: "DESC" } }),
     ])
-    return { orderId, authorizations: authorizations.map(toAuthorization), entries: entries.map(toEntry) }
+    const templates = new Map<string, { readonly templateId: string; readonly title: string }>()
+    for (const content of contents) {
+      if (content.templateId !== null && /^[A-Za-z0-9_-]{1,128}$/.test(content.templateId) && !templates.has(content.templateId)) {
+        templates.set(content.templateId, { templateId: content.templateId, title: content.title })
+      }
+    }
+    return { orderId, authorizations: authorizations.map(toAuthorization), entries: entries.map(toEntry), subscribeTemplates: [...templates.values()] }
   }
 
-  async authorize(identity: EnrollmentIdentity, orderId: string, input: RecipientAuthorizationInput) {
-    if (input.channel === "wechat_subscribe") {
+  async authorize(identity: EnrollmentIdentity, orderId: string, input: RecipientAuthorizationInput, verifiedOpenid: string | null = null) {
+    if (input.channel === "wechat_subscribe" && (verifiedOpenid === null || hashWechatIdentity(verifiedOpenid) !== identity.actorId)) {
       throw new BadRequestException({ code: "subscriber_openid_unavailable", message: "微信订阅通知尚未接通，请选择人工通知" })
+    }
+    if (input.channel === "wechat_subscribe" && loadWechatSubscribeConfig() === null) {
+      throw new BadRequestException({ code: "wechat_subscribe_unconfigured", message: "微信订阅通知暂未开放，请选择人工通知" })
     }
     const source = await this.database.getDataSource()
     return source.transaction(async (manager) => {
       const scoped = await this.access.familyOrder(manager, identity, orderId)
       await manager.findOneOrFail(OrderEntity, { where: { id: orderId }, lock: { mode: "pessimistic_write" } })
       const existing = await manager.findOneBy(NotificationRecipientAuthorizationEntity, { orderId, idempotencyKey: input.idempotencyKey })
-      const subscriberOpenid = null
+      const subscriberOpenid = input.channel === "wechat_subscribe" ? verifiedOpenid : null
       if (existing !== null) {
         if (sameAuthorization(existing, input, identity.actorId, subscriberOpenid)) return toAuthorization(existing)
         throw conflict("该幂等键已用于不同接收人授权")

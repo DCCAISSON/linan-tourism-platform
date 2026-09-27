@@ -295,10 +295,22 @@ describe("Todo14 remaining content and business DB e2e", () => {
     const guideList = await request(app.getHttpServer()).get(`/staff/media/sessions/${ownerCatalog.tourSessionId}`).set({ Cookie: guideCookie }).expect(200)
     expect(guideList.body.assets.map((asset: { readonly id: string }) => asset.id)).toEqual(expect.arrayContaining([publishedId, draftId]))
 
-    const ownerList = await request(app.getHttpServer()).get(`/orders/${ownerOrder.orderId}/media`).set(ownerOrder.headers).expect(200)
-    const otherList = await request(app.getHttpServer()).get(`/orders/${otherOrder.orderId}/media`).set(otherOrder.headers).expect(200)
-    expect(ownerList.body.assets.map((asset: { readonly id: string }) => asset.id)).toEqual([publishedId])
-    expect(otherList.body.assets.map((asset: { readonly id: string }) => asset.id)).toEqual([otherId])
+    const signingEnvironment = {
+      TENCENT_CLOUD_COS_BUCKET: "local-signing-fixture-1250000000",
+      TENCENT_CLOUD_REGION: "ap-shanghai",
+      TENCENT_CLOUD_SECRET_ID: "synthetic-local-signing-id",
+      TENCENT_CLOUD_SECRET_KEY: "synthetic-local-signing-key",
+    }
+    const previousSigningEnvironment = Object.keys(signingEnvironment).map((name) => ({ name, value: process.env[name] }))
+    try {
+      Object.assign(process.env, signingEnvironment)
+      const ownerList = await request(app.getHttpServer()).get(`/orders/${ownerOrder.orderId}/media`).set(ownerOrder.headers).expect(200)
+      const otherList = await request(app.getHttpServer()).get(`/orders/${otherOrder.orderId}/media`).set(otherOrder.headers).expect(200)
+      expect(ownerList.body.assets.map((asset: { readonly id: string }) => asset.id)).toEqual([publishedId])
+      expect(otherList.body.assets.map((asset: { readonly id: string }) => asset.id)).toEqual([otherId])
+    } finally {
+      for (const previous of previousSigningEnvironment) restoreEnv(previous.name, previous.value)
+    }
     const stored = await dataSource.query("select id, status from media_assets where id in (?, ?, ?) order by id", [publishedId, draftId, otherId])
     expect(stored).toHaveLength(3)
   })

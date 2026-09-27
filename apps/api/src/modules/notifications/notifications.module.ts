@@ -8,12 +8,14 @@ import { NotificationManagementService } from "./notification-management.service
 import { FamilyNotificationsController, StaffNotificationsController } from "./notifications.controller.js"
 import { RecipientAuthorizationService } from "./recipient-authorization.service.js"
 import { WechatSubscribeAdapter } from "./wechat-subscribe.adapter.js"
+import { WechatAuthService } from "../wechat/wechat-auth.service.js"
 
 @Module({
   controllers: [FamilyNotificationsController, StaffNotificationsController],
   providers: [
     ConfigurationDatabaseService,
     EnrollmentIdentityService,
+    WechatAuthService,
     DevStaffAccessService,
     NotificationAccessService,
     NotificationManagementService,

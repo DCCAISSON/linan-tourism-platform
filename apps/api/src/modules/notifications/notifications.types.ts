@@ -10,6 +10,7 @@ export type NotificationEntryKind = (typeof NOTIFICATION_ENTRY_KINDS)[number]
 export type WechatTemplateData = Readonly<Record<string, { readonly value: string }>>
 
 export type RecipientAuthorizationInput = {
+  readonly code?: string
   readonly receiverName: string
   readonly relation: NotificationRelation
   readonly channel: NotificationChannel

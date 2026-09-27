@@ -2,8 +2,10 @@ import { request as httpRequest } from "node:http"
 import { request as httpsRequest } from "node:https"
 import type { WechatTemplateData } from "./notifications.types.js"
 
-export type WechatSubscribeConfig = {
-  readonly accessToken: string
+export type WechatSubscribeConfig = ({ readonly accessToken: string; readonly credentials?: never } | {
+  readonly accessToken?: never
+  readonly credentials: { readonly appId: string; readonly secret: string }
+}) & {
   readonly apiOrigin: string
   readonly enabled: true
   readonly timeoutMs: number
@@ -35,13 +37,13 @@ class WechatTransportUnknownError extends Error {
 }
 
 export class WechatSubscribeAdapter {
+  private cachedToken: { readonly key: string; readonly value: string; readonly expiresAt: number } | null = null
   constructor(private readonly configLoader: ConfigLoader = loadWechatSubscribeConfig) {}
 
   async send(input: WechatSubscribeRequest): Promise<WechatSubscribeOutcome> {
     const config = this.configLoader()
     if (config === null) return manual("wechat_subscribe_unconfigured", "微信订阅消息未配置或未启用")
     const url = new URL("/cgi-bin/message/subscribe/send", config.apiOrigin)
-    url.searchParams.set("access_token", config.accessToken)
     const payload = JSON.stringify({
       touser: input.openid,
       template_id: input.templateId,
@@ -51,6 +53,9 @@ export class WechatSubscribeAdapter {
       data: input.data,
     })
     try {
+      const accessToken = await this.getAccessToken(config)
+      if (accessToken === null) return manual("wechat_access_token_unavailable", "微信访问凭证获取失败，请联系工作人员处理")
+      url.searchParams.set("access_token", accessToken)
       const response = await postJson(url, payload, config.timeoutMs)
       if (response.statusCode < 200 || response.statusCode >= 300) return manual(`wechat_http_${response.statusCode}`, "微信订阅消息接口返回非成功状态")
       const parsed: unknown = JSON.parse(response.body)
@@ -59,12 +64,33 @@ export class WechatSubscribeAdapter {
       const errcode = record["errcode"]
       const errmsg = record["errmsg"]
       if (typeof errcode !== "number" || !Number.isSafeInteger(errcode) || typeof errmsg !== "string") return manual("wechat_response_invalid", "微信订阅消息接口返回格式不正确")
-      return classifyWechatSubscribeResponse({ errcode, errmsg })
+      if (errcode === 40001 || errcode === 40014 || errcode === 42001) this.cachedToken = null
+      return classifyWechatSubscribeResponse({ errcode, errmsg: errmsg.replaceAll(accessToken, "[redacted]") })
     } catch (error) {
       if (error instanceof WechatTransportUnknownError) return manual("wechat_transport_unknown", error.message)
       if (error instanceof SyntaxError) return manual("wechat_response_invalid", "微信订阅消息接口返回格式不正确")
       throw error
     }
+  }
+
+  private async getAccessToken(config: WechatSubscribeConfig): Promise<string | null> {
+    if (config.credentials === undefined) return config.accessToken
+    const { appId, secret } = config.credentials
+    const key = JSON.stringify([config.apiOrigin, appId, secret])
+    if (this.cachedToken?.key === key && this.cachedToken.expiresAt > Date.now()) return this.cachedToken.value
+    const startedAt = Date.now()
+    const response = await postJson(new URL("/cgi-bin/stable_token", config.apiOrigin), JSON.stringify({
+      grant_type: "client_credential", appid: appId, secret, force_refresh: false,
+    }), config.timeoutMs)
+    if (response.statusCode < 200 || response.statusCode >= 300) return null
+    const parsed: unknown = JSON.parse(response.body)
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null
+    const record = Object.fromEntries(Object.entries(parsed))
+    const value = record["access_token"]
+    const expiresIn = record["expires_in"]
+    if (typeof value !== "string" || value.length === 0 || typeof expiresIn !== "number" || !Number.isSafeInteger(expiresIn) || expiresIn <= 0) return null
+    this.cachedToken = { key, value, expiresAt: startedAt + (expiresIn - Math.min(60, expiresIn / 10)) * 1000 }
+    return value
   }
 }
 
@@ -78,11 +104,17 @@ export function classifyWechatSubscribeResponse(response: { readonly errcode: nu
 export function loadWechatSubscribeConfig(): WechatSubscribeConfig | null {
   if (process.env["WECHAT_SUBSCRIBE_ENABLED"] !== "true") return null
   const accessToken = process.env["WECHAT_SUBSCRIBE_ACCESS_TOKEN"]
-  if (accessToken === undefined || accessToken.length === 0) return null
+  const appId = process.env["WECHAT_MINIAPP_APP_ID"]
+  const secret = process.env["WECHAT_MINIAPP_APP_SECRET"]
   const configuredOrigin = process.env["WECHAT_SUBSCRIBE_API_ORIGIN"] ?? "https://api.weixin.qq.com"
+  if (!URL.canParse(configuredOrigin)) return null
   const origin = new URL(configuredOrigin)
-  if (process.env["NODE_ENV"] === "production" && (origin.protocol !== "https:" || origin.hostname !== "api.weixin.qq.com")) return null
-  return { accessToken, apiOrigin: origin.origin, enabled: true, timeoutMs: 5000 }
+  const testOrigin = process.env["NODE_ENV"] === "test" && origin.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname)
+  if (origin.origin !== "https://api.weixin.qq.com" && !testOrigin) return null
+  const common = { apiOrigin: origin.origin, enabled: true as const, timeoutMs: 5000 }
+  if (appId && secret) return { ...common, credentials: { appId, secret } }
+  if (accessToken) return { ...common, accessToken }
+  return null
 }
 
 function postJson(url: URL, body: string, timeoutMs: number): Promise<WechatWireResponse> {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
-import { createNotificationApi } from "../../notification-api"
+import { createNotificationApi, requestNotificationSubscription } from "../../notification-api"
 import type { FamilyNotificationAuthorization, FamilyNotificationOverview, NotificationChannel, NotificationRelation } from "../../notification-types"
 import { ApiError } from "../../api-error"
 
@@ -12,10 +12,13 @@ const state = ref<"loading" | "ready" | "error">("loading")
 const saving = ref(false)
 const error = ref("")
 const message = ref("")
+const subscribing = ref(false)
+const subscriptionMessages = reactive<Record<string, string>>({})
 const form = reactive<{ receiverName: string; relation: NotificationRelation; channel: NotificationChannel }>({ receiverName: "", relation: "guardian", channel: "wechat_subscribe" })
 const activeAuthorizations = computed(() => overview.value?.authorizations.filter(item => item.active) ?? [])
 const historyAuthorizations = computed(() => overview.value?.authorizations.filter(item => !item.active) ?? [])
 const entries = computed(() => overview.value?.entries.filter(item => item.enabled && item.url.startsWith("https://")) ?? [])
+const subscribeTemplates = computed(() => overview.value?.subscribeTemplates ?? [])
 
 onLoad((query) => { orderId.value = query?.["orderId"] ?? ""; void load() })
 
@@ -38,14 +41,34 @@ async function authorize(): Promise<void> {
   error.value = ""
   message.value = ""
   try {
-    await api.authorize(orderId.value, { receiverName: form.receiverName, relation: form.relation, channel: form.channel, idempotencyKey: newIdempotencyKey() })
+    const code = form.channel === "wechat_subscribe" ? await new Promise<string>((resolve, reject) => uni.login({
+      provider: "weixin", success: (result) => result.code ? resolve(result.code) : reject(new ApiError(0, "微信身份核验失败，请重新登录。")),
+      fail: () => reject(new ApiError(0, "微信身份核验失败，请重新登录。")),
+    })) : undefined
+    await api.authorize(orderId.value, { receiverName: form.receiverName, relation: form.relation, channel: form.channel, idempotencyKey: newIdempotencyKey(), ...(code === undefined ? {} : { code }) })
     form.receiverName = ""
-    message.value = "接收人授权已保存。"
+    message.value = form.channel === "wechat_subscribe" ? "业务接收人授权已保存，请另行点击下方通知完成微信订阅。" : "人工联系授权已保存。"
     await load()
   } catch (cause) {
     error.value = readableError(cause, "授权保存失败，请重试。")
   } finally {
     saving.value = false
+  }
+}
+
+async function subscribe(templateId: string): Promise<void> {
+  if (subscribing.value || saving.value) return
+  subscribing.value = true
+  subscriptionMessages[templateId] = ""
+  try {
+    const result = await requestNotificationSubscription(templateId, subscribeTemplates.value)
+    subscriptionMessages[templateId] = result === "accept" ? "已同意本次微信订阅，实际发送以微信结果为准。"
+      : result === "reject" ? "未同意本次微信订阅。"
+      : "本次微信订阅未成功，请联系工作人员。"
+  } catch (cause) {
+    subscriptionMessages[templateId] = readableError(cause, "未完成微信订阅，请重试。")
+  } finally {
+    subscribing.value = false
   }
 }
 
@@ -129,14 +152,25 @@ function entryLabel(kind: "enterprise_wechat" | "official_account" | "customer_s
         <label class="notification-field"><text>接收人姓名</text><input v-model.trim="form.receiverName" maxlength="80" required placeholder="请填写实际接收人" /></label>
         <label class="notification-field"><text>与出行人的关系</text><picker :range="['监护人', '出行人', '紧急联系人', '其他']" @change="selectRelation"><view class="notification-picker">{{ relationLabel(form.relation) }}</view></picker></label>
         <label class="notification-field"><text>允许渠道</text><picker :range="['微信订阅消息', '人工联系']" @change="selectChannel"><view class="notification-picker">{{ channelLabel(form.channel) }}</view></picker></label>
-        <text class="notification-help">微信订阅消息使用当前登录家庭身份授权，不读取订单付款人。</text>
-        <button class="notification-button" form-type="submit" :disabled="saving || form.receiverName === ''">{{ saving ? "保存中..." : "确认授权" }}</button>
+        <text class="notification-help">微信通知只发送给当前登录微信。填写他人姓名不会改变接收微信，请由实际接收人登录后授权。保存业务授权后，还需单独同意微信订阅。</text>
+        <text v-if="form.channel === 'wechat_subscribe' && subscribeTemplates.length === 0" class="notification-help">微信订阅通知暂未开放，请选择人工联系。</text>
+        <button class="notification-button" form-type="submit" :disabled="saving || subscribing || form.receiverName === '' || (form.channel === 'wechat_subscribe' && subscribeTemplates.length === 0)">{{ saving ? "保存中..." : "确认业务授权" }}</button>
       </form>
 
       <view class="notification-card">
+        <text class="notification-card-title">微信通知订阅</text>
+        <text class="notification-card-copy">请先保存接收人业务授权，再点击需要的通知。微信会单独询问是否同意订阅；业务授权记录不代表已订阅或已收到通知。</text>
+        <text v-if="subscribeTemplates.length === 0" class="notification-help">当前团期的微信通知暂未开放，可选择人工联系。</text>
+        <view v-for="item in subscribeTemplates" :key="item.templateId" class="notification-entry">
+          <view><text class="notification-recipient-name">{{ item.title }}</text><text v-if="subscriptionMessages[item.templateId]" class="notification-meta">{{ subscriptionMessages[item.templateId] }}</text></view>
+          <button class="notification-button notification-button--secondary" :disabled="saving || subscribing || !activeAuthorizations.some(authorization => authorization.channel === 'wechat_subscribe')" @tap="subscribe(item.templateId)">订阅通知</button>
+        </view>
+      </view>
+
+      <view class="notification-card">
         <text class="notification-card-title">服务入口</text>
-        <text class="notification-card-copy">只展示运营已启用的 HTTPS 地址。未配置的渠道不会显示为已接通。</text>
-        <view v-if="entries.length === 0" class="notification-empty"><text>当前团期尚未配置企业微信、公众号或客服入口。</text></view>
+        <text class="notification-card-copy">联系工作人员，了解报名及出行安排。</text>
+        <view v-if="entries.length === 0" class="notification-empty"><text>在线联系暂未开放。</text></view>
         <view v-for="entry in entries" :key="entry.kind" class="notification-entry">
           <view><text class="notification-recipient-name">{{ entry.label }}</text><text class="notification-meta">{{ entryLabel(entry.kind) }}</text></view>
           <button class="notification-button notification-button--secondary" @tap="copyEntry(entry.url)">复制入口</button>

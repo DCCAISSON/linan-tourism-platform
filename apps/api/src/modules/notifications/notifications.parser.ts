@@ -15,7 +15,7 @@ import {
 } from "./notifications.types.js"
 
 export function parseRecipientAuthorization(value: unknown): RecipientAuthorizationInput {
-  const input = record(value, ["receiverName", "relation", "channel", "idempotencyKey"], "通知接收人请求包含不支持的字段")
+  const input = record(value, ["receiverName", "relation", "channel", "idempotencyKey", "code"], "通知接收人请求包含不支持的字段")
   const relation = input["relation"]
   const channel = input["channel"]
   if (typeof relation !== "string" || !isRelation(relation)) throw invalid("接收关系不正确")
@@ -25,12 +25,14 @@ export function parseRecipientAuthorization(value: unknown): RecipientAuthorizat
     relation,
     channel,
     idempotencyKey: text(input, "idempotencyKey", 128),
+    ...(input["code"] === undefined ? {} : { code: text(input, "code", 128) }),
   }
 }
 
 export function parseContentVersion(value: unknown): ContentVersionInput {
   const input = record(value, ["title", "bodyText", "templateId", "miniappPage", "templateData"])
   const templateId = optionalText(input, "templateId", 128)
+  if (templateId !== null && !/^[A-Za-z0-9_-]{1,128}$/.test(templateId)) throw invalid("微信订阅模板编号不正确")
   const miniappPage = optionalText(input, "miniappPage", 255)
   if (miniappPage !== null && (/^https?:\/\//i.test(miniappPage) || miniappPage.includes("..") || miniappPage.startsWith("/"))) {
     throw invalid("小程序页面必须为应用内相对路径")

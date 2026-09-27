@@ -13,6 +13,7 @@ import { hashToken, STAFF_SESSION_COOKIE } from "../src/modules/iam/staff-sessio
 import { merchantNumber } from "../src/modules/wechat/wechat-crypto.js"
 import { WechatPayClient } from "../src/modules/wechat/wechat-pay.client.js"
 import { WechatPaymentService } from "../src/modules/wechat/wechat-payment.service.js"
+import { WechatSubscribeAdapter } from "../src/modules/notifications/wechat-subscribe.adapter.js"
 import {
   closeCatalogTripDatabase,
   createScope,
@@ -62,7 +63,7 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
     process.env["WECHAT_SUBSCRIBE_ENABLED"] = "true"
     process.env["WECHAT_SUBSCRIBE_ACCESS_TOKEN"] = `token-${scope}`
     process.env["WECHAT_SUBSCRIBE_API_ORIGIN"] = subscribe.origin
-    app = await createTodo14App(billText())
+    app = await createTodo14App(billText(), subscribe.origin)
   })
 
   afterEach(async () => {
@@ -175,7 +176,8 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
     const api = requireSubscribe(subscribe)
     const catalog = await capacityCatalog(target, 8)
     const staff = await staffSession(`${scope}-notify`, ["notifications.read", "notifications.write", "notifications.send"])
-    const orders = await Promise.all(["accepted", "refused", "quota", "timeout"].map((family) => paidOrder(target, catalog, family, 1)))
+    const orders: PaidOrder[] = []
+    for (const family of ["accepted", "refused", "quota", "timeout"]) orders.push(await paidOrder(target, catalog, family, 1))
     const authorizations = []
     for (const order of orders) authorizations.push(await seedVerifiedNotificationRecipient(target, order, order.id))
     api.replies.push(
@@ -214,10 +216,12 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
   })
 })
 
-async function createTodo14App(bill: string): Promise<INestApplication> {
+async function createTodo14App(bill: string, subscribeOrigin: string): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(WechatPayClient)
     .useValue({ downloadBill: async () => ({ content: Buffer.from(bill), hashType: "SHA256", hash: createHash("sha256").update(bill).digest("hex") }) })
+    .overrideProvider(WechatSubscribeAdapter)
+    .useValue(new WechatSubscribeAdapter(() => ({ accessToken: `token-${scope}`, apiOrigin: subscribeOrigin, enabled: true, timeoutMs: 5000 })))
     .compile()
   const created = moduleFixture.createNestApplication()
   await created.init()
