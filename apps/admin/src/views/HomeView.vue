@@ -1,9 +1,34 @@
 <template>
   <section class="workbench" aria-labelledby="home-title" :aria-busy="loading">
     <header class="workbench-heading">
-      <div><h2 id="home-title">工作台</h2><p>查看活动、近期团期和当前已付款报名数据。</p></div>
-      <button type="button" :disabled="loading" @click="load">{{ loading ? "刷新中..." : "刷新数据" }}</button>
+      <div><h2 id="home-title">工作台</h2><p>查看待处理事项、近期团期和当前报名数据。</p></div>
+      <button type="button" :disabled="loading || tasksLoading" @click="load">{{ loading || tasksLoading ? "刷新中..." : "刷新数据" }}</button>
     </header>
+    <section v-if="canReadRefunds || canReadChanges || taskAccessError" class="workbench-card" aria-labelledby="tasks-title">
+      <h3 id="tasks-title">待处理事项</h3>
+      <p class="workbench-caption">包含此前提交的申请；审核通过不代表实际办理完成，请结合处理记录核实。</p>
+      <p v-if="taskAccessError" class="workbench-state workbench-state--error" role="alert">待处理事项暂时无法读取，请刷新重试。</p>
+      <ul class="workbench-tasks">
+        <li v-if="canReadRefunds" data-testid="task-refunds">
+          <span>退款待审核</span>
+          <span v-if="refundLoading" role="status">读取中…</span>
+          <span v-else-if="refundError" class="workbench-task-error" role="alert">暂时无法读取 <button type="button" @click="loadRefundTasks">重试</button></span>
+          <strong v-else-if="refundCount !== undefined">{{ refundCount }} 项</strong>
+          <router-link to="/refund-applications">查看退款申请</router-link>
+        </li>
+        <li v-if="canReadChanges" data-testid="task-changes-review">
+          <span>人员变更待审核</span>
+          <span v-if="changesLoading" role="status">读取中…</span>
+          <span v-else-if="changesError" class="workbench-task-error" role="alert">暂时无法读取 <button type="button" @click="loadChangeTasks">重试</button></span>
+          <strong v-else-if="changeReviewCount !== undefined">{{ changeReviewCount }} 项</strong>
+          <router-link to="/order-changes">查看人员变更</router-link>
+        </li>
+        <li v-if="canReadChanges && changeApprovedCount !== undefined" data-testid="task-changes-approved">
+          <span>人员变更已通过</span><strong>{{ changeApprovedCount }} 项</strong>
+          <router-link to="/order-changes">查看处理记录</router-link>
+        </li>
+      </ul>
+    </section>
     <p v-if="loading" class="workbench-state" role="status">正在加载工作台...</p>
     <p v-else-if="error" class="workbench-state workbench-state--error" role="alert">{{ error }}，请刷新重试。</p>
     <template v-else-if="summary">
@@ -43,7 +68,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue"
+import { computed, onMounted, ref } from "vue"
+import { getCurrentStaff } from "@/api/auth"
+import { getCapabilities } from "@/api/capabilities"
+import { listRefundApplications } from "@/api/refund-applications"
+import { listOrderChanges } from "@/api/order-changes"
 import { readableRosterError } from "@/api/roster"
 import { getWorkbenchSummary } from "@/api/workbench"
 import type { WorkbenchSummary } from "@/api/workbench"
@@ -52,13 +81,60 @@ import "@/styles/workbench.css"
 const summary = ref<WorkbenchSummary>()
 const loading = ref(false)
 const error = ref("")
+const canReadRefunds = ref(false)
+const canReadChanges = ref(false)
+const taskAccessLoading = ref(false)
+const taskAccessError = ref(false)
+const refundLoading = ref(false)
+const changesLoading = ref(false)
+const refundError = ref(false)
+const changesError = ref(false)
+const refundCount = ref<number>()
+const changeReviewCount = ref<number>()
+const changeApprovedCount = ref<number>()
+const tasksLoading = computed(() => taskAccessLoading.value || refundLoading.value || changesLoading.value)
 async function load(): Promise<void> {
+  await Promise.all([loadSummary(), loadTasks()])
+}
+async function loadSummary(): Promise<void> {
   loading.value = true
   error.value = ""
   summary.value = undefined
   try { summary.value = await getWorkbenchSummary() }
   catch (caught) { error.value = caught instanceof SyntaxError ? "工作台响应格式不正确" : readableRosterError(caught) }
   finally { loading.value = false }
+}
+async function loadTasks(): Promise<void> {
+  taskAccessLoading.value = true
+  taskAccessError.value = false
+  canReadRefunds.value = false; canReadChanges.value = false
+  refundCount.value = undefined; changeReviewCount.value = undefined; changeApprovedCount.value = undefined
+  try {
+    const [staff, capabilities] = await Promise.all([getCurrentStaff(), getCapabilities()])
+    const allScope = staff.scopes.some(scope => scope.kind === "all")
+    canReadRefunds.value = allScope && (staff.permissionKeys.includes("refunds.review") || (staff.permissionKeys.includes("refunds.execute") && capabilities.wechatRefundEnabled))
+    canReadChanges.value = allScope && staff.permissionKeys.includes("orders.read")
+    await Promise.all([...(canReadRefunds.value ? [loadRefundTasks()] : []), ...(canReadChanges.value ? [loadChangeTasks()] : [])])
+  } catch (caught) { if (caught instanceof Error) taskAccessError.value = true; else throw caught }
+  finally { taskAccessLoading.value = false }
+}
+async function loadRefundTasks(): Promise<void> {
+  if (!canReadRefunds.value || refundLoading.value) return
+  refundLoading.value = true; refundError.value = false; refundCount.value = undefined
+  try { refundCount.value = (await listRefundApplications("submitted")).length }
+  catch (caught) { if (caught instanceof Error) refundError.value = true; else throw caught }
+  finally { refundLoading.value = false }
+}
+async function loadChangeTasks(): Promise<void> {
+  if (!canReadChanges.value || changesLoading.value) return
+  changesLoading.value = true; changesError.value = false
+  changeReviewCount.value = undefined; changeApprovedCount.value = undefined
+  try {
+    const rows = await listOrderChanges()
+    changeReviewCount.value = rows.filter(row => row.status === "submitted").length
+    changeApprovedCount.value = rows.filter(row => row.status === "approved").length
+  } catch (caught) { if (caught instanceof Error) changesError.value = true; else throw caught }
+  finally { changesLoading.value = false }
 }
 function dateTime(value: string): string {
   return new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })

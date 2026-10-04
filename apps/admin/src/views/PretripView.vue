@@ -9,7 +9,7 @@
     <form class="pretrip-card" @submit.prevent="loadConfig">
       <div class="pretrip-grid">
         <label class="pretrip-field">团期
-          <select v-model="tourSessionId" required>
+          <select v-model="tourSessionId" :disabled="saving || uploading" required>
             <option value="">请选择团期</option>
             <option v-for="session in sessions" :key="session.id" :value="session.id">{{ session.code }}</option>
           </select>
@@ -30,7 +30,7 @@
       <label class="pretrip-field">行程须知<textarea v-model="draft.itineraryNote" rows="4" /></label>
       <div class="pretrip-actions">
         <button type="submit" :disabled="tourSessionId === '' || loading">读取配置</button>
-        <button type="button" :disabled="tourSessionId === '' || saving || uploading" @click="saveConfig">保存配置</button>
+        <button type="button" :disabled="tourSessionId === '' || loading || saving || uploading" @click="saveConfig">保存配置</button>
       </div>
       <p v-if="message" class="pretrip-state" :class="{ 'pretrip-state--error': failed }">{{ message }}</p>
     </form>
@@ -62,12 +62,24 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from "vue"
+import { inject, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
+import { useRoute, useRouter } from "vue-router"
+import { getCurrentStaff, type StaffScope } from "@/api/auth"
+import { pendingSessionNavigationKey, type PendingSessionNavigation } from "@/layouts/session-navigation"
 import { listTourSessions, type TourSession } from "@/api/configuration"
 import { getPretripConfig, listSchoolConfirmations, readablePretripError, savePretripConfig, uploadPretripAttachment, type PretripAttachment, type PretripTravelMode, type SchoolPretripConfirmation } from "@/api/pretrip"
 import "@/styles/pretrip.css"
 
 const sessions = ref<readonly TourSession[]>([])
+const route = useRoute()
+const router = useRouter()
+const pagePath = route.path
+const scopes = ref<readonly StaffScope[]>([])
+let optionsReady = false
+let queryUpdates = 0
+const pendingSession = inject(pendingSessionNavigationKey, ref<PendingSessionNavigation>())
+let navigationToken: symbol | undefined
+let sessionRevision = 0
 const tourSessionId = ref("")
 const attachments = ref<readonly PretripAttachment[]>([])
 const confirmations = ref<readonly SchoolPretripConfirmation[]>([])
@@ -83,8 +95,57 @@ const attachmentMessage = ref("")
 const attachmentFailed = ref(false)
 const draft = reactive<{ gatheringAt: string; gatheringPlace: string; gatheringLatitude: string; gatheringLongitude: string; travelMode: PretripTravelMode; itineraryNote: string; contactName: string; contactPhone: string; serviceContact: string; noticeVersionId: string }>({ gatheringAt: "", gatheringPlace: "", gatheringLatitude: "", gatheringLongitude: "", travelMode: "group", itineraryNote: "", contactName: "", contactPhone: "", serviceContact: "", noticeVersionId: "" })
 
-onMounted(async () => { sessions.value = await listTourSessions() })
-watch(tourSessionId, () => { attachments.value = []; selectedFile.value = null; loadedSessionId.value = ""; attachmentMessage.value = "" })
+onMounted(async () => {
+  try {
+    const [rows, staff] = await Promise.all([listTourSessions(), getCurrentStaff()])
+    sessions.value = rows
+    scopes.value = staff.scopes
+    optionsReady = true
+    readSessionQuery()
+  } catch (error) { failed.value = true; message.value = readablePretripError(error) }
+})
+onBeforeUnmount(() => {
+  sessionRevision += 1
+  if (pendingSession.value?.token === navigationToken) pendingSession.value = undefined
+})
+watch(tourSessionId, () => {
+  sessionRevision += 1
+  attachments.value = []; selectedFile.value = null; loadedSessionId.value = ""; attachmentMessage.value = ""
+  confirmations.value = []; version.value = 0; message.value = ""; failed.value = false
+  loading.value = false; saving.value = false; uploading.value = false
+  Object.assign(draft, { gatheringAt: "", gatheringPlace: "", gatheringLatitude: "", gatheringLongitude: "", travelMode: "group", itineraryNote: "", contactName: "", contactPhone: "", serviceContact: "", noticeVersionId: "" })
+  void writeSessionQuery()
+}, { flush: "sync" })
+watch(() => route.query["tourSessionId"], readSessionQuery)
+
+function readSessionQuery(): void {
+  if (!optionsReady || route.path !== pagePath || queryUpdates > 0) return
+  tourSessionId.value = permittedSession(route.query["tourSessionId"])?.id ?? ""
+  void writeSessionQuery()
+}
+async function writeSessionQuery(): Promise<void> {
+  if (!optionsReady || route.path !== pagePath) return
+  const current = permittedSession(tourSessionId.value)?.id
+  if (route.query["tourSessionId"] === current && pendingSession.value?.path !== pagePath) return
+  const query = { ...route.query }
+  if (current === undefined) delete query["tourSessionId"]
+  else query["tourSessionId"] = current
+  queryUpdates += 1
+  const token = Symbol()
+  navigationToken = token
+  pendingSession.value = { path: pagePath, tourSessionId: current, token }
+  try { await router.replace({ query }) }
+  finally {
+    queryUpdates -= 1
+    if (pendingSession.value?.token === token) pendingSession.value = undefined
+  }
+}
+function permittedSession(id: unknown): TourSession | undefined {
+  const session = sessions.value.find(row => row.id === id)
+  return session !== undefined && scopes.value.some(scope => scope.kind === "all"
+    || (scope.kind === "tour_session" && scope.id === session.id)
+    || ((scope.kind === "school" || scope.kind === "organization") && scope.id === session.organizationId)) ? session : undefined
+}
 
 function chooseAttachment(event: Event): void {
   selectedFile.value = event.target instanceof HTMLInputElement ? event.target.files?.[0] ?? null : null
@@ -94,22 +155,23 @@ function chooseAttachment(event: Event): void {
 async function uploadAttachment(): Promise<void> {
   const file = selectedFile.value
   const sessionId = tourSessionId.value
+  const requestRevision = sessionRevision
   if (file === null || sessionId !== loadedSessionId.value || version.value === 0) return
   attachmentFailed.value = false
   if (file.size === 0 || file.size > 10 * 1024 * 1024) { attachmentFailed.value = true; attachmentMessage.value = "请选择不超过10MB的文件"; return }
   uploading.value = true
   try {
     const saved = await uploadPretripAttachment(sessionId, file, version.value)
-    if (sessionId !== tourSessionId.value) return
+    if (requestRevision !== sessionRevision) return
     attachments.value = saved.attachments
     version.value = saved.version
     selectedFile.value = null
     attachmentMessage.value = "附件已上传，家长可在行前信息中查看"
   } catch (error) {
-    if (sessionId !== tourSessionId.value) return
+    if (requestRevision !== sessionRevision) return
     attachmentFailed.value = true
     attachmentMessage.value = readablePretripError(error)
-  } finally { uploading.value = false }
+  } finally { if (requestRevision === sessionRevision) uploading.value = false }
 }
 
 function clearGatheringCoordinates(): void {
@@ -121,11 +183,12 @@ function clearGatheringCoordinates(): void {
 
 async function loadConfig(): Promise<void> {
   const sessionId = tourSessionId.value
+  const requestRevision = sessionRevision
   loading.value = true
   failed.value = false
   try {
     const config = await getPretripConfig(sessionId)
-    if (sessionId !== tourSessionId.value) return
+    if (requestRevision !== sessionRevision) return
     loadedSessionId.value = sessionId
     version.value = config.version
     draft.gatheringAt = config.gatheringAt === null ? "" : new Date(new Date(config.gatheringAt).getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16)
@@ -139,17 +202,22 @@ async function loadConfig(): Promise<void> {
     draft.serviceContact = config.serviceContact
     draft.noticeVersionId = config.noticeVersionId ?? ""
     attachments.value = config.attachments
-    confirmations.value = await listSchoolConfirmations(tourSessionId.value)
+    const loadedConfirmations = await listSchoolConfirmations(sessionId)
+    if (requestRevision !== sessionRevision) return
+    confirmations.value = loadedConfirmations
     message.value = "配置已读取"
   } catch (error) {
+    if (requestRevision !== sessionRevision) return
     failed.value = true
     message.value = readablePretripError(error)
   } finally {
-    loading.value = false
+    if (requestRevision === sessionRevision) loading.value = false
   }
 }
 
 async function saveConfig(): Promise<void> {
+  const sessionId = tourSessionId.value
+  const requestRevision = sessionRevision
   const latitudeText = draft.gatheringLatitude.trim()
   const longitudeText = draft.gatheringLongitude.trim()
   const gatheringLatitude = latitudeText === "" ? null : Number(latitudeText)
@@ -162,7 +230,7 @@ async function saveConfig(): Promise<void> {
   saving.value = true
   failed.value = false
   try {
-    const saved = await savePretripConfig(tourSessionId.value, {
+    const saved = await savePretripConfig(sessionId, {
       gatheringAt: draft.gatheringAt === "" ? null : new Date(`${draft.gatheringAt}+08:00`).toISOString(),
       gatheringPlace: draft.gatheringPlace,
       gatheringLatitude,
@@ -175,15 +243,17 @@ async function saveConfig(): Promise<void> {
       noticeVersionId: draft.noticeVersionId === "" ? null : draft.noticeVersionId,
       expectedVersion: version.value,
     })
+    if (requestRevision !== sessionRevision) return
     version.value = saved.version
     loadedSessionId.value = saved.tourSessionId
     attachments.value = saved.attachments
     message.value = "配置已保存"
   } catch (error) {
+    if (requestRevision !== sessionRevision) return
     failed.value = true
     message.value = readablePretripError(error)
   } finally {
-    saving.value = false
+    if (requestRevision === sessionRevision) saving.value = false
   }
 }
 </script>

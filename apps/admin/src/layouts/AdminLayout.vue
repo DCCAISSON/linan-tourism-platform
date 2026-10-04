@@ -13,7 +13,7 @@
         <details v-for="group in navigationGroups" :key="group.label" class="admin-nav__group" :open="!collapsedGroups.includes(group.label)" @toggle="toggleGroup(group.label, $event)">
           <summary class="admin-nav__heading">{{ group.label }}</summary>
           <div class="admin-nav__links">
-            <router-link v-for="item in group.items" :key="item.to" class="admin-nav__item" :to="item.to">{{ item.label }}</router-link>
+            <router-link v-for="item in group.items" :key="item.to" class="admin-nav__item" :to="navigationTarget(item.to)">{{ item.label }}</router-link>
           </div>
         </details>
       </nav>
@@ -36,12 +36,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue"
+import { computed, onMounted, provide, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
 
 import { getCurrentStaff, logoutStaff, type StaffPermissionKey } from "@/api/auth"
 import { enabledPlatformCapabilities, getCapabilities, type PlatformCapabilities } from "@/api/capabilities"
 import { routeNames } from "@/router/routes"
+import { pendingSessionNavigationKey, type PendingSessionNavigation } from "./session-navigation"
 
 const router = useRouter()
 const route = useRoute()
@@ -49,6 +50,15 @@ const permissionKeys = ref<readonly StaffPermissionKey[]>([])
 const capabilities = ref<PlatformCapabilities>(enabledPlatformCapabilities)
 const canOpenRefundApplications = ref(false)
 const collapsedGroups = ref<string[]>(["今日工作", "研学运营", "出团执行", "客户服务", "系统管理"])
+const sessionPaths = ["/roster", "/travelers", "/transport", "/pretrip"]
+const pendingSession = ref<PendingSessionNavigation>()
+provide(pendingSessionNavigationKey, pendingSession)
+function navigationTarget(path: string) {
+  const tourSessionId = pendingSession.value?.path === route.path ? pendingSession.value.tourSessionId : route.query["tourSessionId"]
+  return sessionPaths.includes(route.path) && sessionPaths.includes(path) && typeof tourSessionId === "string"
+    ? { path, query: { tourSessionId } }
+    : { path }
+}
 const navigationGroups = computed(() => [
   { label: "今日工作", items: [
     { to: "/home", label: "工作台", visible: hasPermission("workbench.read") },

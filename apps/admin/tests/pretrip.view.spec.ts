@@ -1,4 +1,5 @@
 import { createApp, nextTick } from "vue"
+import { createMemoryHistory, createRouter } from "vue-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import PretripView from "@/views/PretripView.vue"
 
@@ -13,6 +14,7 @@ describe("pretrip attachment editing", () => {
     const payloads: unknown[] = []
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input)
+      if (path.endsWith("/staff/auth/me")) return Response.json({ actorId: "staff-1", kind: "administrator", forcePasswordChange: false, permissionKeys: ["pretrip.write"], scopes: [{ kind: "all", id: null }] })
       if (path.endsWith("/tour-sessions")) return Response.json([{ id: "session-1", organizationId: "school-1", catalogItemId: "catalog-1", code: "春季团", status: "published", priceFen: 100, capacity: 30, startsAt: "2027-02-01T00:00:00.000Z", endsAt: "2027-02-02T00:00:00.000Z", enrollmentOpensAt: null, enrollmentClosesAt: null }])
       if (path.endsWith("/school-confirmations")) return Response.json([])
       if (init?.method === "PUT") payloads.push(JSON.parse(String(init.body)))
@@ -20,7 +22,10 @@ describe("pretrip attachment editing", () => {
     }))
     const host = document.createElement("div")
     document.body.append(host)
-    const app = createApp(PretripView)
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/pretrip", component: PretripView }] })
+    await router.push("/pretrip")
+    await router.isReady()
+    const app = createApp(PretripView).use(router)
     app.mount(host)
     try {
       await vi.waitFor(() => expect(host.textContent).toContain("春季团"))
