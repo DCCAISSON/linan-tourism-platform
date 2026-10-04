@@ -1,0 +1,10 @@
+.feedback-filters {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+}
+.feedback-filters select { min-width: 0; width: 100%; }
+.feedback-item { overflow-wrap: anywhere; }
+@media (max-width: 768px) {
+  .feedback-filters { grid-template-columns: minmax(0, 1fr); }
+}

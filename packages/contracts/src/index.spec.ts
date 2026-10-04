@@ -7,6 +7,8 @@ import {
   HEALTH_STATUS,
   ORDER_STATUS,
   PAYMENT_STATUS,
+  REFUND_PROVIDER,
+  REFUND_STATUS,
   makeCnyFen,
   transitionPaymentStatus,
   transitionOrderStatus,
@@ -18,6 +20,7 @@ describe("health contract", () => {
     const response: HealthResponse = {
       status: HEALTH_STATUS.ok,
       service: "@linan/api",
+      revision: "test-revision",
     }
 
     expect(response.status).toBe("ok")
@@ -73,6 +76,20 @@ describe("health contract", () => {
     )
     expect(DOMAIN_ENTITY_KIND.orderLine).toBe("order_line")
     expect(DOMAIN_ENTITY_KIND.paymentEvent).toBe("payment_event")
+  })
+
+  it("publishes refund request status and entity contracts", () => {
+    expect(REFUND_STATUS).toEqual({
+      pending: "pending",
+      succeeded: "succeeded",
+      failed: "failed",
+    })
+    expect(REFUND_PROVIDER.localValidation).toBe("local_validation")
+    expect(DOMAIN_ENTITY_CONTRACTS.map(({ tableName }) => tableName)).toEqual(
+      expect.arrayContaining(["refund_requests", "refund_request_lines"]),
+    )
+    expect(DOMAIN_ENTITY_KIND.refundRequest).toBe("refund_request")
+    expect(DOMAIN_ENTITY_KIND.refundRequestLine).toBe("refund_request_line")
   })
 
   it("returns a typed state error when a succeeded payment returns to pending", () => {

@@ -69,7 +69,7 @@
   min-width: 0;
 }
 
-.roster-filter label, .roster-filter input, .roster-filter button, .roster-state, .roster-table th, .roster-table td {
+.roster-filter label, .roster-filter select, .roster-filter button, .roster-state, .roster-table th, .roster-table td {
   font-size: 14px;
   line-height: 1.5;
 }
@@ -78,10 +78,10 @@
   color: var(--text-secondary);
 }
 
-.roster-filter input {
+.roster-filter select {
   width: 100%;
   min-height: 44px;
-  padding: 10px 12px;
+  padding: var(--space-2) var(--space-3);
   color: var(--text-primary);
   background: var(--surface-primary);
   border: 1px solid var(--border-default);
@@ -89,12 +89,12 @@
   font: inherit;
 }
 
-.roster-filter input:focus {
+.roster-filter select:focus {
   border-color: var(--accent-primary);
   outline: 2px solid var(--border-subtle);
 }
 
-.roster-filter fieldset:disabled input {
+.roster-filter select:disabled {
   color: var(--text-tertiary);
   cursor: not-allowed;
 }
@@ -154,6 +154,20 @@
 .roster-state--error {
   color: var(--status-error);
 }
+.roster-state button {
+  min-height: var(--size-touch-target);
+  padding: var(--space-2) var(--space-3);
+  color: var(--accent-primary);
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  font: inherit;
+  cursor: pointer;
+}
+.roster-state button:hover { background: var(--accent-soft); }
+.roster-state button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 4px; }
+.roster-table td.roster-money { white-space: nowrap; }
+.roster-selection-label { margin: 0; font-size: var(--font-body-sm); line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
 
 .roster-stat-grid {
   display: grid;
@@ -167,7 +181,6 @@
   min-width: 0;
   padding: 24px;
   background: var(--surface-elevated);
-  border: 1px solid var(--border-subtle);
   border-radius: 8px;
 }
 
@@ -238,6 +251,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+@media (min-width: 641px) {
+  .roster-table { min-width: var(--layout-table-min-width); }
+  .roster-table th, .roster-table td:not(:last-child) { white-space: nowrap; }
+}
 
 @media (max-width: 768px) {
   .roster-heading {
@@ -287,5 +304,58 @@
   .roster-table td::before {
     color: var(--text-secondary);
     content: attr(data-label);
+  }
+}
+
+.roster-import-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 24px;
+  background: var(--surface-elevated);
+  border-radius: 8px;
+}
+
+.roster-import-card .roster-table-heading {
+  align-items: flex-start;
+}
+
+.roster-import-card .roster-table-heading p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.roster-import-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.roster-import-form select, .roster-import-form input[type="file"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  color: var(--text-primary);
+  background: var(--surface-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.roster-import-form select:focus, .roster-import-form input[type="file"]:focus {
+  border-color: var(--accent-primary);
+  outline: 2px solid var(--border-subtle);
+}
+
+@media (max-width: 768px) {
+  .roster-import-card {
+    padding: 20px;
+  }
+
+  .roster-import-form {
+    grid-template-columns: 1fr;
   }
 }

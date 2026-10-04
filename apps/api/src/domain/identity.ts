@@ -103,7 +103,7 @@ export function createProductionAdminBootstrap(
     const bootstrapToken = process.env["PRODUCTION_ADMIN_BOOTSTRAP_TOKEN"]
 
     if (!adminOpenid || !bootstrapToken) {
-      return { ok: false, error: identityError("production admin env is missing") }
+      return { ok: false, error: identityError("工作人员登录配置尚未完成") }
     }
 
     if (providedToken !== bootstrapToken) {

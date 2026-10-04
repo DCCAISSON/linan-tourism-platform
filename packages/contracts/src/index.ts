@@ -7,6 +7,7 @@ export type HealthStatus = (typeof HEALTH_STATUS)[keyof typeof HEALTH_STATUS]
 export type HealthResponse = {
   readonly status: HealthStatus
   readonly service: "@linan/api"
+  readonly revision: string
 }
 
 export type {
@@ -27,6 +28,14 @@ export type {
   SchoolGradeContract,
   TourSessionContract,
 } from "./domain-entities.js"
+export type {
+  MediaAsset,
+  MediaCollection,
+  MediaKind,
+  MediaProvider,
+  MediaSession,
+  MediaStatus,
+} from "./media.js"
 
 export const DOMAIN_POLICY_VERSION = "provisional-domain-policy-v1" as const
 export const DOMAIN_SCHEMA_VERSION = "provisional-domain-schema-v1" as const
@@ -46,6 +55,8 @@ export const DOMAIN_ENTITY_KIND = {
   orderLine: "order_line",
   payment: "payment",
   paymentEvent: "payment_event",
+  refundRequest: "refund_request",
+  refundRequestLine: "refund_request_line",
   rosterEntry: "roster_entry",
   consentRecord: "consent_record",
   auditLog: "audit_log",
@@ -71,6 +82,8 @@ export type OrderId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.order>
 export type OrderLineId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.orderLine>
 export type PaymentId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.payment>
 export type PaymentEventId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.paymentEvent>
+export type RefundRequestId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.refundRequest>
+export type RefundRequestLineId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.refundRequestLine>
 export type RosterEntryId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.rosterEntry>
 export type ConsentRecordId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.consentRecord>
 export type AuditLogId = DomainEntityId<typeof DOMAIN_ENTITY_KIND.auditLog>
@@ -121,6 +134,14 @@ export const PAYMENT_STATUS = {
 } as const
 
 export type PaymentStatus = (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS]
+
+export const REFUND_STATUS = { pending: "pending", succeeded: "succeeded", failed: "failed" } as const
+
+export type RefundStatus = (typeof REFUND_STATUS)[keyof typeof REFUND_STATUS]
+
+export const REFUND_PROVIDER = { localValidation: "local_validation", wechatPay: "wechat_pay" } as const
+
+export type RefundProvider = (typeof REFUND_PROVIDER)[keyof typeof REFUND_PROVIDER]
 
 export const ROSTER_STATUS = {
   pending: "pending",
@@ -185,6 +206,8 @@ export const DOMAIN_ENTITY_CONTRACTS = [
     tableName: "payment_events",
     idPrefix: "payment-event",
   },
+  { kind: DOMAIN_ENTITY_KIND.refundRequest, tableName: "refund_requests", idPrefix: "refund" },
+  { kind: DOMAIN_ENTITY_KIND.refundRequestLine, tableName: "refund_request_lines", idPrefix: "refund-line" },
   { kind: DOMAIN_ENTITY_KIND.rosterEntry, tableName: "roster_entries", idPrefix: "roster" },
   { kind: DOMAIN_ENTITY_KIND.consentRecord, tableName: "consent_records", idPrefix: "consent" },
   { kind: DOMAIN_ENTITY_KIND.auditLog, tableName: "audit_logs", idPrefix: "audit" },

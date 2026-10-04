@@ -1,17 +1,27 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError, readableApiError } from "./configuration.errors"
 import {
   parseCatalogItem,
+  parseCatalogTemplate,
   parseClass,
   parseGrade,
+  parseNoticeVersion,
   parseSchool,
   parseTourSession,
 } from "./configuration.parsers"
 import type {
+  EnrollmentScope,
   CatalogItem,
+  CatalogTemplate,
+  CatalogTemplateContent,
+  CatalogContentPayload,
   CatalogItemPayload,
   ClassPayload,
   Grade,
   GradePayload,
+  NoticeContent,
+  NoticeVersion,
+  NoticeVersionPayload,
   School,
   SchoolClass,
   SchoolPayload,
@@ -22,11 +32,18 @@ import type {
 
 export { ApiError, readableApiError }
 export type {
+  EnrollmentScope,
   CatalogItem,
+  CatalogTemplate,
+  CatalogTemplateContent,
+  CatalogContentPayload,
   CatalogItemPayload,
   ClassPayload,
   Grade,
   GradePayload,
+  NoticeContent,
+  NoticeVersion,
+  NoticeVersionPayload,
   School,
   SchoolClass,
   SchoolPayload,
@@ -35,9 +52,7 @@ export type {
   TourSessionUpdatePayload,
 }
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
-const devStaffId = import.meta.env["VITE_DEV_STAFF_ID"] ?? "dev-admin"
+const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export async function listSchools(): Promise<readonly School[]> {
   return await readCollection("/schools", "学校", parseSchool)
@@ -71,6 +86,30 @@ export async function createCatalogItem(payload: CatalogItemPayload): Promise<Ca
   return await createResource("/catalog-items", payload, parseCatalogItem)
 }
 
+export async function updateCatalogContent(id: string, payload: CatalogContentPayload): Promise<CatalogItem> {
+  return await patchResource(`/catalog-items/${encodeURIComponent(id)}`, payload, parseCatalogItem)
+}
+
+export async function listCatalogTemplates(): Promise<readonly CatalogTemplate[]> {
+  return readCollection("/catalog-templates", "课程模板", parseCatalogTemplate)
+}
+
+export async function createCatalogTemplate(payload: CatalogTemplateContent): Promise<CatalogTemplate> {
+  return createResource("/catalog-templates", payload, parseCatalogTemplate)
+}
+
+export async function updateCatalogTemplate(id: string, payload: CatalogTemplateContent & { readonly expectedVersion: number }): Promise<CatalogTemplate> {
+  return patchResource(`/catalog-templates/${encodeURIComponent(id)}`, payload, parseCatalogTemplate)
+}
+
+export async function addTemplateSchool(id: string, payload: { readonly organizationId: string; readonly code: string }): Promise<CatalogItem> {
+  return createResource(`/catalog-templates/${encodeURIComponent(id)}/schools`, payload, parseCatalogItem)
+}
+
+export async function linkCatalogTemplate(id: string, templateId: string | null): Promise<CatalogItem> {
+  return parseCatalogItem(await request(`/catalog-items/${encodeURIComponent(id)}/template`, jsonRequest("PUT", { templateId })))
+}
+
 export async function listTourSessions(): Promise<readonly TourSession[]> {
   return await readCollection("/tour-sessions", "团期", parseTourSession)
 }
@@ -81,6 +120,18 @@ export async function createTourSession(payload: TourSessionPayload): Promise<To
 
 export async function updateTourSession(id: string, payload: TourSessionUpdatePayload): Promise<TourSession> {
   return await patchResource(`/tour-sessions/${encodeURIComponent(id)}`, payload, parseTourSession)
+}
+
+export async function createNoticeVersion(tourSessionId: string, payload: NoticeVersionPayload): Promise<NoticeVersion> {
+  return await createResource(`/tour-sessions/${encodeURIComponent(tourSessionId)}/notices`, payload, parseNoticeVersion)
+}
+
+export async function listNoticeVersions(tourSessionId: string): Promise<readonly NoticeVersion[]> {
+  return await readCollection(`/tour-sessions/${encodeURIComponent(tourSessionId)}/notices`, "告知书", parseNoticeVersion)
+}
+
+export async function activateNoticeVersion(tourSessionId: string, noticeVersionId: string): Promise<TourSession> {
+  return await createResource(`/tour-sessions/${encodeURIComponent(tourSessionId)}/notices/${encodeURIComponent(noticeVersionId)}/activate`, {}, parseTourSession)
 }
 
 export async function deleteSchool(id: string): Promise<void> {
@@ -128,7 +179,7 @@ async function patchResource<T>(path: string, payload: object, parse: (value: un
 }
 
 async function deleteResource(path: string): Promise<void> {
-  await request(path, { method: "DELETE", headers: staffHeaders() })
+  await request(path, { method: "DELETE" })
 }
 
 function jsonRequest(method: string, payload: object): RequestInit {
@@ -136,21 +187,13 @@ function jsonRequest(method: string, payload: object): RequestInit {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...staffHeaders(),
     },
     body: JSON.stringify(payload),
   }
 }
 
-function staffHeaders(): Record<string, string> {
-  return {
-    "x-linan-dev-staff-id": devStaffId,
-    "x-linan-dev-staff-role": "administrator",
-  }
-}
-
 async function request(path: string, init: RequestInit): Promise<unknown> {
-  const response = await fetch(`${apiBaseUrl}${path}`, init)
+  const response = await fetch(`${apiBaseUrl}${path}`, { ...init, credentials: "include" })
   const value = await readJson(response)
 
   if (!response.ok) {
@@ -184,4 +227,9 @@ function readErrorMessage(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+export async function updateEnrollmentScope(id: string, enrollmentScope: EnrollmentScope): Promise<TourSession> {
+  const value = await request(`/configuration/tour-sessions/${encodeURIComponent(id)}/enrollment-scope`, jsonRequest("PUT", { enrollmentScope }))
+  return parseTourSession(value)
 }

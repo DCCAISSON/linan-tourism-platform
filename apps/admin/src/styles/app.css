@@ -1,16 +1,56 @@
 :root {
-  --surface-primary: #f7f9f8;
-  --surface-secondary: #eef3f0;
+  --surface-primary: #f5f8fc;
+  --surface-secondary: #eaf1f8;
   --surface-elevated: #ffffff;
-  --text-primary: #17231e;
-  --text-secondary: #5d6d65;
-  --text-tertiary: #89958f;
-  --border-default: #d7e0db;
-  --border-subtle: #e9efec;
-  --accent-primary: #1f6b57;
-  --accent-hover: #185644;
-  --accent-warm: #d5902f;
-  --status-info: #2d67a3;
+  --text-primary: #16324a;
+  --text-secondary: #546b7d;
+  --text-tertiary: #566f82;
+  --border-default: #ccd9e6;
+  --border-subtle: #e2eaf2;
+  --accent-primary: #1468c0;
+  --accent-hover: #10549b;
+  --accent-soft: #e8f2ff;
+  --el-color-primary: var(--accent-primary);
+  --el-color-primary-dark-2: var(--accent-hover);
+  --el-color-primary-light-3: var(--accent-hover);
+  --el-color-primary-light-5: var(--accent-primary);
+  --el-color-primary-light-7: var(--accent-soft);
+  --el-color-primary-light-9: var(--accent-soft);
+  --accent-secondary: #13745c;
+  --accent-secondary-soft: #e7f5ef;
+  --brand-ink: #104b7a;
+  --brand-mist: #dff1f6;
+  --on-accent: #ffffff;
+  --accent-warm: #9c5414;
+  --status-success: #13745c;
+  --status-warning: #995600;
+  --status-error: #b6383e;
+  --status-info: #1468c0;
+  --font-display: 32px;
+  --font-h1: 28px;
+  --font-h2: 22px;
+  --font-h3: 18px;
+  --font-body-lg: 17px;
+  --font-body: 16px;
+  --font-body-sm: 14px;
+  --font-caption: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-banner: 16px;
+  --size-touch-target: 44px;
+  --layout-content-max: 1440px;
+  --layout-sidebar-width: 240px;
+  --layout-table-min-width: 720px;
   color: var(--text-primary);
   background: var(--surface-primary);
   font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
@@ -93,6 +133,10 @@ a:active {
   line-height: 1.6;
 }
 
+.cjk-nowrap {
+  white-space: nowrap;
+}
+
 .login-form {
   padding: 24px;
   background: var(--surface-secondary);
@@ -102,6 +146,10 @@ a:active {
 .login-form__button {
   width: 100%;
   min-height: 44px;
+}
+
+.login-form__alert {
+  margin-bottom: 16px;
 }
 
 .linan-button--primary {
@@ -249,6 +297,99 @@ a:active {
   line-height: 1.4;
 }
 
+.staff-page {
+  display: grid;
+  gap: 16px;
+}
+
+.staff-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+  background: var(--surface-elevated);
+  border-radius: 8px;
+}
+
+.staff-page__header h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.staff-page__table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.staff-page__cards {
+  display: none;
+}
+
+.staff-account-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+
+.staff-account-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.staff-account-card__header div,
+.staff-account-card__facts div {
+  min-width: 0;
+}
+
+.staff-account-card__header strong,
+.staff-account-card__header span,
+.staff-account-card__facts dd {
+  overflow-wrap: anywhere;
+}
+
+.staff-account-card__header strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  line-height: 1.4;
+}
+
+.staff-account-card__header span,
+.staff-account-card__facts dt {
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+}
+
+.staff-account-card__facts {
+  margin: 0;
+}
+
+.staff-account-card__facts dd {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+}
+
+.staff-account-card__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.staff-account-card__actions .el-button {
+  min-height: var(--size-touch-target);
+  margin-left: 0;
+}
+
 @media (max-width: 768px) {
   .login-panel,
   .admin-shell,
@@ -273,5 +414,19 @@ a:active {
 
   .admin-content {
     padding: 16px;
+  }
+
+  .staff-page__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .staff-page__table {
+    display: none;
+  }
+
+  .staff-page__cards {
+    display: grid;
+    gap: 12px;
   }
 }

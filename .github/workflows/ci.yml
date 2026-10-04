@@ -49,6 +49,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Reconciliation scheduler tests
+        run: node --experimental-vm-modules deploy/cloud-test/reconcile-wechat-bill.test.mjs
+
       - name: Build
         run: pnpm build
 
@@ -92,6 +95,14 @@ jobs:
         env:
           DOMAIN_TEST_DATABASE_URL: mysql://root@127.0.0.1:3306/linan_contract_test
 
+      - name: SMS transaction e2e in a separate empty database
+        run: |
+          docker exec "${{ job.services.mysql.id }}" mysql -uroot -e "CREATE DATABASE linan_phone_auth_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+          trap 'docker exec "${{ job.services.mysql.id }}" mysql -uroot -e "DROP DATABASE linan_phone_auth_test"' EXIT
+          pnpm --filter @linan/api exec vitest run --config ./vitest.config.e2e.ts test/phone-sms-transaction.e2e-spec.ts
+        env:
+          PHONE_AUTH_TEST_DATABASE_URL: mysql://root@127.0.0.1:3306/linan_phone_auth_test
+
       - name: Admin e2e
         run: pnpm --filter @linan/admin test:e2e
 
@@ -111,6 +122,12 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
+      - name: Install locked security patches
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify security patches and compatibility
+        run: node --test scripts/dependency-security.test.mjs
+
       - name: Audit dependencies
         run: pnpm audit --prod --audit-level high
 
@@ -118,6 +135,9 @@ jobs:
     name: secret-scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -129,3 +149,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITLEAKS_VERSION: "8.30.1"

@@ -6,6 +6,7 @@ import {
   createMember,
   enrollmentBody,
   resetEnrollmentConsentData,
+  virtualPhone,
 } from "./enrollment-consent-fixture.js"
 
 export const LOCAL_MOCK_PROVIDER = "local_mock"
@@ -36,7 +37,7 @@ export async function createPaidEnrollmentFixture(
       scope: input.scope,
       headers,
       catalog,
-      displayName: `Payment Child ${index + 1}`,
+      displayName: `Payment Child ${String.fromCharCode(65 + index)}`,
       codeSuffix: `${index + 1}`,
     })
     memberIds.push(member.id)
@@ -49,7 +50,7 @@ export async function createPaidEnrollmentFixture(
       memberIds,
       contactName: `Payment Parent ${input.family}`,
       emergencyContactName: `Payment Emergency ${input.family}`,
-      emergencyContactPhone: "13900000008",
+      emergencyContactPhone: virtualPhone("0008"),
     }))
     .expect(201)
 
@@ -133,6 +134,10 @@ export async function resetMockPaymentData(scope: string): Promise<void> {
   )
   await dataSource.query(
     "delete p from payments p join orders o on o.id = p.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
+    [familyPattern],
+  )
+  await dataSource.query(
+    "delete ns from notification_business_sources ns join orders o on o.id = ns.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?",
     [familyPattern],
   )
   await dataSource.query(

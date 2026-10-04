@@ -10,6 +10,7 @@
     "db:migrate": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/domain-database.mjs migrate",
     "db:revert": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/domain-database.mjs revert",
     "db:seed:test": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/seed-domain-test.mjs",
+    "staff:bootstrap-admin": "corepack pnpm --filter @linan/contracts build && corepack pnpm build && node scripts/bootstrap-staff-admin.mjs",
     "dev": "corepack pnpm db:check && nest start --watch",
     "lint": "oxlint src/ test/ scripts/",
     "start": "corepack pnpm db:check && nest start",
@@ -28,6 +29,7 @@
     "mysql2": "^3.24.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "tencentcloud-sdk-nodejs-sms": "4.1.306",
     "typeorm": "^1.1.1"
   },
   "devDependencies": {

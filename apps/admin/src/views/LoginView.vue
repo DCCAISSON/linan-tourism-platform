@@ -4,20 +4,19 @@
       <div class="login-copy">
         <p class="login-copy__eyebrow">临安文旅数字化平台</p>
         <h1 id="login-title">管理后台登录</h1>
-        <p>
-          认证服务接入后启用正式登录。当前页面仅作为后台骨架入口，不包含预置登录信息。
-        </p>
+        <p>使用管理员开设的工作人员账号登录。</p>
       </div>
 
-      <el-form class="login-form" label-position="top">
+      <el-form class="login-form" label-position="top" @submit.prevent="submitLogin">
         <el-form-item label="账号">
-          <el-input disabled placeholder="等待正式认证服务" />
+          <el-input v-model="username" autocomplete="username" placeholder="请输入账号" />
         </el-form-item>
-        <el-form-item label="认证方式">
-          <el-input disabled placeholder="等待角色会话接入" />
+        <el-form-item label="密码">
+          <el-input v-model="password" autocomplete="current-password" placeholder="请输入密码" show-password type="password" />
         </el-form-item>
-        <el-button class="login-form__button" type="primary" @click="enterShell">
-          进入后台骨架
+        <el-alert v-if="errorMessage.length > 0" class="login-form__alert" :closable="false" type="error" :title="errorMessage" />
+        <el-button class="login-form__button" type="primary" :loading="submitting" @click="submitLogin">
+          登录后台
         </el-button>
       </el-form>
     </section>
@@ -25,13 +24,44 @@
 </template>
 
 <script setup lang="ts">
-import { useRouter } from "vue-router"
+import { ref } from "vue"
+import { useRoute, useRouter } from "vue-router"
 
+import { getCurrentStaff, loginStaff } from "@/api/auth"
+import { readableApiError } from "@/api/configuration"
+import { firstAuthorizedRouteName } from "@/router/authorized-route"
 import { routeNames } from "@/router/routes"
 
+const route = useRoute()
 const router = useRouter()
+const username = ref("")
+const password = ref("")
+const errorMessage = ref("")
+const submitting = ref(false)
 
-async function enterShell(): Promise<void> {
-  await router.push({ name: routeNames.home })
+async function submitLogin(): Promise<void> {
+  if (submitting.value) {
+    return
+  }
+  submitting.value = true
+  errorMessage.value = ""
+  try {
+    const account = await loginStaff(username.value, password.value)
+    if (account.forcePasswordChange) {
+      await router.push({ name: routeNames.forcePasswordChange, query: { username: account.username } })
+      return
+    }
+    const redirect = typeof route.query["redirect"] === "string" ? route.query["redirect"] : undefined
+    if (redirect !== undefined) {
+      await router.push(redirect)
+      return
+    }
+    const staff = await getCurrentStaff()
+    await router.push({ name: firstAuthorizedRouteName(staff.permissionKeys) ?? routeNames.login })
+  } catch (error) {
+    errorMessage.value = readableApiError(error)
+  } finally {
+    submitting.value = false
+  }
 }
 </script>

@@ -1,19 +1,37 @@
 {
   "pages": [
-    {
-      "path": "pages/index/index",
-      "style": {
-        "navigationBarTitleText": "临安文旅",
-        "navigationBarBackgroundColor": "#F7F9F8",
-        "navigationBarTextStyle": "black",
-        "backgroundColor": "#F7F9F8"
-      }
-    }
+    { "path": "pages/index/index", "style": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7" } },
+    { "path": "pages/login/index", "style": { "navigationBarTitleText": "登录", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7", "navigationStyle": "default" } },
+    { "path": "pages/webview/index", "style": { "navigationBarTitleText": "活动影像" } },
+    { "path": "pages/activities/index", "style": { "navigationBarTitleText": "研学活动" } },
+    { "path": "pages/activities/detail", "style": { "navigationBarTitleText": "活动详情" } },
+    { "path": "pages/enrollment/index", "style": { "navigationBarTitleText": "研学报名" } },
+    { "path": "pages/orders/index", "style": { "navigationBarTitleText": "我的订单" } },
+    { "path": "pages/orders/detail", "style": { "navigationBarTitleText": "订单详情" } },
+    { "path": "pages/orders/contract", "style": { "navigationBarTitleText": "合同与签字" } },
+    { "path": "pages/orders/pretrip", "style": { "navigationBarTitleText": "行前服务" } },
+    { "path": "pages/orders/refund", "style": { "navigationBarTitleText": "退款申请" } },
+    { "path": "pages/orders/change", "style": { "navigationBarTitleText": "人员变更申请" } },
+    { "path": "pages/album/index", "style": { "navigationBarTitleText": "活动影像" } },
+    { "path": "pages/business/index", "style": { "navigationBarTitleText": "文旅服务" } },
+    { "path": "pages/business/detail", "style": { "navigationBarTitleText": "服务详情" } },
+    { "path": "pages/business/booking", "style": { "navigationBarTitleText": "查看预订" } },
+    { "path": "pages/feedback/index", "style": { "navigationBarTitleText": "服务反馈" } },
+    { "path": "pages/health/index", "style": { "navigationBarTitleText": "健康信息" } },
+    { "path": "pages/notifications/index", "style": { "navigationBarTitleText": "消息提醒" } },
+    { "path": "pages/trip-contact/index", "style": { "navigationBarTitleText": "行程服务" } },
+    { "path": "pages/recipient-invite/index", "style": { "navigationBarTitleText": "接收行程通知" } },
+    { "path": "pages/family/index", "style": { "navigationBarTitleText": "我的" } },
+    { "path": "pages/settings/index", "style": { "navigationBarTitleText": "设置", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7" } }
   ],
-  "globalStyle": {
-    "navigationBarTitleText": "临安文旅",
-    "navigationBarBackgroundColor": "#F7F9F8",
-    "navigationBarTextStyle": "black",
-    "backgroundColor": "#F7F9F8"
+  "globalStyle": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7" },
+  "tabBar": {
+    "color": "#526A63", "selectedColor": "#08776A", "backgroundColor": "#FFFFFF", "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/index/index", "iconPath": "static/icons/home-default.png", "selectedIconPath": "static/icons/home-active.png", "text": "首页" },
+      { "pagePath": "pages/activities/index", "iconPath": "static/icons/activities-default.png", "selectedIconPath": "static/icons/activities-active.png", "text": "研学活动" },
+      { "pagePath": "pages/orders/index", "iconPath": "static/icons/orders-default.png", "selectedIconPath": "static/icons/orders-active.png", "text": "我的订单" },
+      { "pagePath": "pages/family/index", "iconPath": "static/icons/people-default.png", "selectedIconPath": "static/icons/people-active.png", "text": "我的" }
+    ]
   }
 }

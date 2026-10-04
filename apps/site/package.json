@@ -1,0 +1,11 @@
+{
+  "name": "@linan/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "lint": "node scripts/validate.mjs",
+    "test": "node --test scripts/build.test.mjs"
+  }
+}

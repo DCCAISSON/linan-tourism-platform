@@ -1,0 +1,151 @@
+.evaluation-page {
+  display: grid;
+  gap: var(--space-5);
+}
+.evaluation-card {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+}
+.evaluation-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+.evaluation-eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--accent-primary);
+  font-size: var(--font-caption);
+  font-weight: 700;
+}
+.evaluation-heading h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-h2);
+}
+.evaluation-heading p,
+.evaluation-state,
+.feedback-item p,
+.feedback-item small {
+  color: var(--text-secondary);
+}
+.evaluation-button {
+  min-height: var(--size-touch-target);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--accent-primary);
+  color: var(--on-accent);
+  padding: 0 var(--space-5);
+  font-weight: 700;
+}
+.evaluation-button:disabled {
+  opacity: .55;
+}
+.evaluation-form {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 720px;
+}
+.evaluation-field {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+}
+.evaluation-field input,
+.evaluation-field select {
+  min-height: var(--size-touch-target);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-control);
+  padding: 0 var(--space-3);
+  color: var(--text-primary);
+  background: var(--surface-elevated);
+}
+.evaluation-button:hover:not(:disabled) { background: var(--accent-hover); }
+.evaluation-button:focus-visible,
+.evaluation-table-wrap:focus-visible,
+.evaluation-field input:focus-visible,
+.evaluation-field select:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.evaluation-page { min-width: 0; }
+.evaluation-card { min-width: 0; }
+.evaluation-error {
+  color: var(--status-error);
+}
+.evaluation-table-wrap {
+  overflow-x: auto;
+}
+.evaluation-table {
+  min-width: var(--layout-table-min-width);
+  width: 100%;
+  border-collapse: collapse;
+}
+.evaluation-table th,
+.evaluation-table td {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: var(--space-3);
+  text-align: left;
+  vertical-align: top;
+}
+.evaluation-table small {
+  display: block;
+  color: var(--text-secondary);
+}
+.evaluation-table th,
+.evaluation-cell-short,
+.evaluation-table .evaluation-button {
+  white-space: nowrap;
+}
+.evaluation-cell-short {
+  min-width: 4ch;
+}
+.evaluation-cell-short small {
+  max-width: 12ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.evaluation-cell-observations {
+  min-width: 20ch;
+  max-width: 40ch;
+  overflow-wrap: anywhere;
+}
+.feedback-list {
+  display: grid;
+  gap: var(--space-3);
+}
+.feedback-item {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: var(--space-4);
+}
+.evaluation-mobile-grade { display: none; }
+@media (max-width: 640px) {
+  .evaluation-heading {
+    display: grid;
+  }
+  .staff-evaluation-table .evaluation-student-core {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    width: 8em;
+    min-width: 8em;
+    max-width: 8em;
+    padding-inline: var(--space-2);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    background: var(--surface-elevated);
+  }
+  .evaluation-mobile-grade { display: block; }
+  .school-evaluation-table { min-width: 0; table-layout: fixed; }
+  .school-evaluation-table th,
+  .school-evaluation-table td {
+    padding: var(--space-2);
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: var(--font-body-sm);
+  }
+  .school-evaluation-table th:first-child { width: 35%; }
+  .school-evaluation-table th:last-child { width: 25%; }
+}

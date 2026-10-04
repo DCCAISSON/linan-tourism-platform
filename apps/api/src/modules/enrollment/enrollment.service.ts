@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common"
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { DOMAIN_POLICY_VERSION, ENROLLMENT_STATUS } from "@linan/contracts"
 import { In } from "typeorm"
 import type { EntityManager } from "typeorm"
@@ -8,11 +8,13 @@ import {
   EnrollmentParticipantEntity,
   FamilyEntity,
   FamilyMemberEntity,
+  NoticeVersionEntity,
   SchoolClassEntity,
   SchoolGradeEntity,
   TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
+import { ensureParticipantsInScope, lockTourSession } from "../configuration/configuration.scope.js"
 import { throwWriteConflict } from "../configuration/configuration.errors.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import { ConfigurationService } from "../configuration/configuration.service.js"
@@ -24,6 +26,7 @@ import {
   findFamilyByCode,
   findScopedMember,
   memberFromInput,
+  resolveMemberOrganization,
 } from "./enrollment.persistence.js"
 import type {
   EnrollmentIdentity,
@@ -33,6 +36,7 @@ import type {
   NewFamilyMember,
   UpdateFamilyMember,
 } from "./enrollment.types.js"
+import { protectPersonData, protectPhoneData } from "./person-data.js"
 
 const CONSENT_PURPOSE = "enrollment_submission"
 
@@ -48,9 +52,19 @@ export class EnrollmentService {
     const dataSource = await this.database.getDataSource()
     try {
       const member = await dataSource.transaction(async (manager) => {
-        await ensureSchoolPlacement(manager, input)
-        const family = await ensureFamily(manager, identity.familyCode, input.schoolId)
-        return manager.save(FamilyMemberEntity, memberFromInput(input, family))
+        const resolved = await resolveMemberOrganization(manager, input)
+        const family = await ensureFamily(manager, identity.familyCode, resolved.organizationId)
+        const protectedInput = {
+          ...resolved,
+          protectedPersonData: input.personData === undefined ? undefined : protectPersonData(input.personData),
+        }
+        const candidate = memberFromInput(protectedInput, family)
+        const existing = await manager.findOneBy(FamilyMemberEntity, { familyId: family.id, code: input.code })
+        const fields = ["code", "organizationId", "displayName", "participantKind", "gradeId", "classId", "identityHash", "phoneHash", "personDataKeyVersion", "saveAsCommon"] as const
+        if (existing !== null && fields.every((field) => existing[field] === candidate[field])) {
+          return existing
+        }
+        return manager.save(FamilyMemberEntity, candidate)
       })
       return toMemberResponse(member)
     } catch (error) {
@@ -66,7 +80,7 @@ export class EnrollmentService {
     }
     const members = await dataSource
       .getRepository(FamilyMemberEntity)
-      .find({ where: { familyId: In(families.map((family) => family.id)) }, order: { code: "ASC" } })
+      .find({ where: { familyId: In(families.map((family) => family.id)), saveAsCommon: true }, order: { code: "ASC" } })
     return members.map(toMemberResponse)
   }
 
@@ -121,14 +135,15 @@ export class EnrollmentService {
     identity: EnrollmentIdentity,
     input: NewEnrollmentSubmission,
   ): Promise<EnrollmentSubmissionResponse> {
+    if (phoneVerificationRequired(process.env["NODE_ENV"], identity.phoneVerified)) {
+      throw new ForbiddenException({ code: "phone_verification_required", message: "报名需要已验证手机号" })
+    }
     await this.configuration.checkEnrollmentAvailability(input.tourSessionId, new Date())
     const dataSource = await this.database.getDataSource()
     try {
       return await dataSource.transaction(async (manager) => {
-        const session = await manager.findOneBy(TourSessionEntity, { id: input.tourSessionId })
-        if (session === null) {
-          throw new NotFoundException({ code: "not_found", message: "tour session was not found" })
-        }
+        const session = await lockTourSession(manager, input.tourSessionId)
+        const notice = await this.requireActiveNotice(manager, session, input)
         const family = await findFamilyByCode(manager, identity.familyCode, session.organizationId)
         if (family === null) {
           throw memberNotFound()
@@ -137,6 +152,7 @@ export class EnrollmentService {
         if (members.length !== input.memberIds.length) {
           throw memberNotFound()
         }
+        await ensureParticipantsInScope(manager, session, members)
         const enrollment = await manager.save(EnrollmentEntity, {
           id: makeId("enrollment"),
           organizationId: session.organizationId,
@@ -144,13 +160,14 @@ export class EnrollmentService {
           familyId: family.id,
           code: makeId("enrollment"),
           contactName: input.contactName,
+          contactPhone: input.contactPhone ?? null,
           emergencyContactName: input.emergencyContactName,
           emergencyContactPhone: input.emergencyContactPhone,
           participantCount: members.length,
           status: ENROLLMENT_STATUS.pending,
           policyVersion: DOMAIN_POLICY_VERSION,
         })
-        await this.createParticipants(manager, { enrollmentId: enrollment.id, familyId: family.id, members })
+        await this.createParticipants(manager, { enrollmentId: enrollment.id, familyId: family.id, members, contactPhone: input.contactPhone })
         await manager.save(ConsentRecordEntity, {
           id: makeId("consent"),
           organizationId: session.organizationId,
@@ -160,6 +177,8 @@ export class EnrollmentService {
           granted: true,
           agreementVersion: input.agreementVersion,
           schemaVersion: input.schemaVersion,
+          noticeVersionId: notice.id,
+          noticeVersion: notice.version,
           acceptedAt: new Date(),
           policyVersion: DOMAIN_POLICY_VERSION,
         })
@@ -181,6 +200,8 @@ export class EnrollmentService {
           policyVersion: enrollment.policyVersion,
           agreementVersion: input.agreementVersion,
           schemaVersion: input.schemaVersion,
+          noticeVersionId: notice.id,
+          noticeVersion: notice.version,
         }
       })
     } catch (error) {
@@ -188,26 +209,57 @@ export class EnrollmentService {
     }
   }
 
+  private async requireActiveNotice(
+    manager: EntityManager,
+    session: TourSessionEntity,
+    input: NewEnrollmentSubmission,
+  ): Promise<NoticeVersionEntity> {
+    if (session.activeNoticeId === null) {
+      throw new BadRequestException({ code: "stale_state", message: "tour session has no active parent notice" })
+    }
+    const notice = await manager.findOneBy(NoticeVersionEntity, { id: session.activeNoticeId })
+    if (notice === null || notice.tourSessionId !== session.id || notice.organizationId !== session.organizationId) {
+      throw new BadRequestException({ code: "stale_state", message: "active parent notice was not found" })
+    }
+    if (input.noticeVersionId !== notice.id || input.noticeVersion !== notice.version) {
+      throw new BadRequestException({ code: "stale_state", message: "parent notice version is no longer active" })
+    }
+    return notice
+  }
+
   private async createParticipants(
     manager: EntityManager,
     input: {
+      readonly contactPhone: string | undefined
       readonly enrollmentId: string
       readonly familyId: string
       readonly members: readonly FamilyMemberEntity[]
     },
   ): Promise<void> {
+    const contact = input.contactPhone === undefined ? undefined : protectPhoneData(input.contactPhone)
     for (const member of input.members) {
+      const phone = member.participantKind === "student" && contact !== undefined ? contact : member
       const grade = member.gradeId === null ? null : await manager.findOneBy(SchoolGradeEntity, { id: member.gradeId })
       const schoolClass = member.classId === null ? null : await manager.findOneBy(SchoolClassEntity, { id: member.classId })
-      await manager.save(EnrollmentParticipantEntity, {
+        await manager.save(EnrollmentParticipantEntity, {
         id: makeId("participant"),
         organizationId: member.organizationId,
         enrollmentId: input.enrollmentId,
         familyId: input.familyId,
         familyMemberId: member.id,
         displayNameSnapshot: member.displayName,
+        participantKindSnapshot: member.participantKind,
+        gradeIdSnapshot: member.gradeId,
+        classIdSnapshot: member.classId,
         gradeNameSnapshot: grade?.name ?? null,
         classNameSnapshot: schoolClass?.name ?? null,
+        identityCiphertextSnapshot: member.identityCiphertext,
+        identityHashSnapshot: member.identityHash,
+        identityMaskedSnapshot: member.identityMasked,
+        phoneCiphertextSnapshot: phone.phoneCiphertext,
+        phoneHashSnapshot: phone.phoneHash,
+        phoneMaskedSnapshot: phone.phoneMasked,
+        personDataKeyVersionSnapshot: member.personDataKeyVersion,
         policyVersion: DOMAIN_POLICY_VERSION,
       })
     }
@@ -218,14 +270,21 @@ export class EnrollmentService {
   }
 }
 
+export function phoneVerificationRequired(environment: string | undefined, verified: boolean | undefined): boolean {
+  return environment === "production" && verified !== true
+}
+
 function toMemberResponse(member: FamilyMemberEntity): FamilyMemberResponse {
   return {
     id: member.id,
     code: member.code,
     displayName: member.displayName,
+    participantKind: member.participantKind,
     schoolId: member.organizationId,
     gradeId: member.gradeId,
     classId: member.classId,
+    identityNumberMasked: member.identityMasked,
+    phoneMasked: member.phoneMasked,
   }
 }
 

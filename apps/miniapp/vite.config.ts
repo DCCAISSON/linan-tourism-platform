@@ -17,5 +17,8 @@ function resolveUniPlugin(module: UniPluginModule): UniPluginFactory {
 const uni = resolveUniPlugin(uniPluginModule)
 
 export default defineConfig({
+  define: {
+    "import.meta.env.VITE_WECHAT_LOGIN_ENABLED": JSON.stringify(process.env["VITE_WECHAT_LOGIN_ENABLED"] ?? "true"),
+  },
   plugins: [uni()],
 })

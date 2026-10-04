@@ -189,7 +189,11 @@ describe.skipIf(databaseUrl === undefined)("Order payment schema contracts", () 
     ])
     expect(rosterCount).toEqual([{ roster_count: "2" }])
     expect(tables).toHaveLength(2)
-    expect(columns).toHaveLength(21)
+    expect(columns).toHaveLength(29)
+    expect(columns).toEqual(expect.arrayContaining([
+      "participant_kind_snapshot", "identity_ciphertext_snapshot", "identity_hash_snapshot", "identity_masked_snapshot",
+      "phone_ciphertext_snapshot", "phone_hash_snapshot", "phone_masked_snapshot", "person_data_key_version_snapshot",
+    ].map((columnName) => expect.objectContaining({ tableName: "order_lines", columnName }))))
     expect(constraints).toHaveLength(6)
     expect(indexes).toHaveLength(7)
     expect(schemaLog.upQueries).toHaveLength(0)

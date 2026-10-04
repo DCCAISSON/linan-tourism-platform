@@ -1,8 +1,14 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common"
-import { DOMAIN_POLICY_VERSION, TOUR_SESSION_STATUS } from "@linan/contracts"
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
+import { DOMAIN_POLICY_VERSION, ORDER_STATUS, ROSTER_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
+import { In } from "typeorm"
+import { ensureScopeHierarchy, lockTourSession } from "./configuration.scope.js"
+import type { EnrollmentScope } from "./configuration.scope.js"
 import {
   CatalogItemEntity,
+  NoticeVersionEntity,
+  OrderEntity,
   OrganizationEntity,
+  RosterEntryEntity,
   SchoolClassEntity,
   SchoolGradeEntity,
   TourSessionEntity,
@@ -23,6 +29,7 @@ import {
   ensureCatalogBelongsToSchool,
   ensureTourSessionDates,
   requireEnrollmentWindow,
+  toNoticeVersionResponse,
 } from "./configuration.tour-session.js"
 import type {
   CatalogItemResponse,
@@ -31,6 +38,8 @@ import type {
   GradeResponse,
   NewCatalogItem,
   NewClass,
+  NewNoticeVersion,
+  NoticeVersionResponse,
   NewGrade,
   NewSchool,
   NewTourSession,
@@ -176,18 +185,20 @@ export class ConfigurationService {
 
   async updateCatalogItem(id: string, input: UpdateCatalogItem): Promise<CatalogItemResponse> {
     const dataSource = await this.database.getDataSource()
-    const item = await findCatalogItem(dataSource, id)
-    if (input.code !== undefined) {
-      item.code = input.code
-    }
-    if (input.title !== undefined) {
-      item.title = input.title
-    }
-    if (input.status !== undefined) {
-      item.status = input.status
-    }
     try {
-      return await dataSource.getRepository(CatalogItemEntity).save(item)
+      return await dataSource.transaction(async manager => {
+        const item = await manager.findOne(CatalogItemEntity, { where: { id }, lock: { mode: "pessimistic_write" } })
+        if (item === null) throw new NotFoundException({ code: "not_found", message: "学校课程不存在" })
+        if (item.templateId !== null && (input.title !== undefined || input.description !== undefined || input.coverImageUrl !== undefined)) {
+          throw new ConflictException({ code: "catalog_template_linked", message: "该课程使用共享模板，请编辑模板或先解除关联" })
+        }
+        if (input.code !== undefined) item.code = input.code
+        if (input.title !== undefined) item.title = input.title
+        if (input.description !== undefined) item.description = input.description
+        if (input.coverImageUrl !== undefined) item.coverImageUrl = input.coverImageUrl
+        if (input.status !== undefined) item.status = input.status
+        return manager.save(item)
+      })
     } catch (error) {
       throwWriteConflict(error)
     }
@@ -202,12 +213,18 @@ export class ConfigurationService {
     await findSchool(dataSource, input.organizationId)
     ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, input.catalogItemId), input.organizationId)
     try {
-      const session = await dataSource.getRepository(TourSessionEntity).save({
+      const session = await dataSource.transaction(async (manager) => {
+        const enrollmentScopeJson = input.enrollmentScope ?? null
+        await ensureScopeHierarchy(manager, { organizationId: input.organizationId, enrollmentScopeJson })
+        return manager.save(TourSessionEntity, {
         ...input,
+        enrollmentScopeJson,
+        minimumParticipants: input.minimumParticipants ?? null,
         id: makeId("session"),
         policyVersion: DOMAIN_POLICY_VERSION,
+        })
       })
-      return requireEnrollmentWindow(session)
+      return requireEnrollmentWindow(session, null, 0)
     } catch (error) {
       throwWriteConflict(error)
     }
@@ -222,17 +239,70 @@ export class ConfigurationService {
       .andWhere("tour_session.enrollment_closes_at is not null")
       .orderBy("tour_session.code", "ASC")
       .getMany()
-    return sessions.map(requireEnrollmentWindow)
+    const activeNotices = await this.findActiveNoticeMap(sessions)
+    return Promise.all(sessions.map(async (session) => requireEnrollmentWindow(
+      session, activeNotices.get(session.activeNoticeId ?? "") ?? null, await this.countPaidParticipants(session.id),
+    )))
+  }
+
+  async createNoticeVersion(tourSessionId: string, input: NewNoticeVersion): Promise<NoticeVersionResponse> {
+    const dataSource = await this.database.getDataSource()
+    const session = await findTourSessionEntity(dataSource, tourSessionId)
+    try {
+      const notice = await dataSource.getRepository(NoticeVersionEntity).save({
+        id: makeId("notice"),
+        organizationId: session.organizationId,
+        tourSessionId: session.id,
+        version: input.version,
+        title: input.title,
+        contentJson: input.contentJson,
+      })
+      return toNoticeVersionResponse(notice)
+    } catch (error) {
+      throwWriteConflict(error)
+    }
+  }
+
+  async listNoticeVersions(tourSessionId: string): Promise<readonly NoticeVersionResponse[]> {
+    const dataSource = await this.database.getDataSource()
+    await findTourSessionEntity(dataSource, tourSessionId)
+    const notices = await dataSource.getRepository(NoticeVersionEntity).find({
+      where: { tourSessionId },
+      order: { createdAt: "DESC" },
+    })
+    return notices.map(toNoticeVersionResponse)
+  }
+
+  async activateNoticeVersion(tourSessionId: string, noticeVersionId: string): Promise<TourSessionResponse> {
+    const dataSource = await this.database.getDataSource()
+    try {
+      return await dataSource.transaction(async (manager) => {
+        const session = await lockTourSession(manager, tourSessionId)
+        const notice = await manager.findOneBy(NoticeVersionEntity, { id: noticeVersionId })
+        if (notice === null || notice.tourSessionId !== session.id || notice.organizationId !== session.organizationId) {
+          throw new BadRequestException({ code: "not_found", message: "notice version was not found" })
+        }
+        session.activeNoticeId = notice.id
+        await manager.save(TourSessionEntity, session)
+        return requireEnrollmentWindow(session, notice, await this.countPaidParticipants(session.id))
+      })
+    } catch (error) {
+      throwWriteConflict(error)
+    }
   }
 
   async updateTourSession(id: string, input: UpdateTourSession): Promise<TourSessionResponse> {
     const dataSource = await this.database.getDataSource()
-    const session = await findTourSessionEntity(dataSource, id)
-    updateTourSessionEntity(session, input)
-    ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, session.catalogItemId), session.organizationId)
-    ensureTourSessionDates(session)
     try {
-      return requireEnrollmentWindow(await dataSource.getRepository(TourSessionEntity).save(session))
+      const saved = await dataSource.transaction(async (manager) => {
+        const session = await lockTourSession(manager, id)
+        updateTourSessionEntity(session, input)
+        ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, session.catalogItemId), session.organizationId)
+        ensureTourSessionDates(session)
+        if (input.enrollmentScope !== undefined) await ensureScopeHierarchy(manager, session)
+        return manager.save(TourSessionEntity, session)
+      })
+      return this.withActiveNotice(saved)
     } catch (error) {
       throwWriteConflict(error)
     }
@@ -256,11 +326,56 @@ export class ConfigurationService {
       throw new BadRequestException({ code: "stale_state", message: "tour session is outside enrollment window" })
     }
 
-    return { available: true, tourSessionId: id, at: at.toISOString() }
+    const occupiedCapacity = await this.countPaidParticipants(id)
+    const capacity = { capacity: session.capacity, occupiedCapacity, remainingCapacity: Math.max(0, session.capacity - occupiedCapacity) }
+    if (capacity.remainingCapacity === 0) {
+      throw new BadRequestException({ code: "stale_state", message: "tour session is full", ...capacity })
+    }
+    return { available: true, tourSessionId: id, at: at.toISOString(), ...capacity }
   }
 
   private async findTourSession(id: string): Promise<TourSessionResponse> {
     const dataSource = await this.database.getDataSource()
-    return requireEnrollmentWindow(await findTourSessionEntity(dataSource, id))
+    return this.withActiveNotice(await findTourSessionEntity(dataSource, id))
+  }
+
+  private async withActiveNotice(session: TourSessionEntity): Promise<TourSessionResponse> {
+    const dataSource = await this.database.getDataSource()
+    const occupiedCapacity = await this.countPaidParticipants(session.id)
+    if (session.activeNoticeId === null) {
+      return requireEnrollmentWindow(session, null, occupiedCapacity)
+    }
+    const notice = await dataSource.getRepository(NoticeVersionEntity).findOneBy({ id: session.activeNoticeId })
+    return requireEnrollmentWindow(session, notice, occupiedCapacity)
+  }
+
+  async updateEnrollmentScope(id: string, enrollmentScope: EnrollmentScope): Promise<TourSessionResponse> {
+    const dataSource = await this.database.getDataSource()
+    const saved = await dataSource.transaction(async (manager) => {
+      const session = await lockTourSession(manager, id)
+      session.enrollmentScopeJson = enrollmentScope
+      await ensureScopeHierarchy(manager, session)
+      return manager.save(TourSessionEntity, session)
+    })
+    return this.withActiveNotice(saved)
+  }
+
+  private async countPaidParticipants(id: string): Promise<number> {
+    const dataSource = await this.database.getDataSource()
+    return dataSource.getRepository(RosterEntryEntity).createQueryBuilder("roster")
+      .innerJoin(OrderEntity, "paid_order", "paid_order.enrollment_id = roster.enrollment_id and paid_order.status = :paid", { paid: ORDER_STATUS.paid })
+      .where("roster.tour_session_id = :id", { id })
+      .andWhere("roster.status != :cancelled", { cancelled: ROSTER_STATUS.cancelled })
+      .getCount()
+  }
+
+  private async findActiveNoticeMap(sessions: readonly TourSessionEntity[]): Promise<ReadonlyMap<string, NoticeVersionEntity>> {
+    const ids = [...new Set(sessions.map((session) => session.activeNoticeId).filter((id): id is string => id !== null))]
+    if (ids.length === 0) {
+      return new Map()
+    }
+    const dataSource = await this.database.getDataSource()
+    const notices = await dataSource.getRepository(NoticeVersionEntity).findBy({ id: In(ids) })
+    return new Map(notices.map((notice) => [notice.id, notice]))
   }
 }

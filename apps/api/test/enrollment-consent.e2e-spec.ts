@@ -1,4 +1,5 @@
 import { DOMAIN_SCHEMA_VERSION } from "@linan/contracts"
+import { TourSessionEntity } from "../src/domain/entities/index.js"
 import type { INestApplication } from "@nestjs/common"
 import request from "supertest"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
@@ -8,24 +9,36 @@ import {
   createScope,
   dataSource,
   databaseUrl,
+  DEV_ADMIN_HEADERS,
   initializeCatalogTripDatabase,
 } from "./catalog-trip-fixture.js"
 import {
   AGREEMENT_VERSION,
+  adultIdentityMemberBody,
   createCapturingLogger,
   createCatalog,
+  createDemoNotice,
   createMember,
+  demoNoticeContent,
   enrollmentBody,
   familyHeader,
   memberBody,
   resetEnrollmentConsentData,
   restoreNodeEnv,
+  studentIdentityMemberBody,
+  virtualPhone,
+  virtualResidentId,
 } from "./enrollment-consent-fixture.js"
+import { createOrder } from "./mock-payment-fixture.js"
+
+const PERSON_DATA_KEY = Buffer.alloc(32, 7).toString("base64")
 
 describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
   let app: INestApplication
   let capturedLogs: string[]
   let scope: string
+  let previousPersonDataKey: string | undefined
+  let previousSuiteNodeEnv: string | undefined
 
   beforeAll(async () => {
     await initializeCatalogTripDatabase()
@@ -34,11 +47,17 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
   beforeEach(async () => {
     scope = createScope()
     capturedLogs = []
+    previousSuiteNodeEnv = process.env["NODE_ENV"]
+    process.env["NODE_ENV"] = "development"
+    previousPersonDataKey = process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"]
+    process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"] = PERSON_DATA_KEY
     app = await createCatalogTripApp()
     app.useLogger(createCapturingLogger(capturedLogs))
   })
 
   afterEach(async () => {
+    restorePersonDataKey(previousPersonDataKey)
+    restoreNodeEnv(previousSuiteNodeEnv)
     await app.close()
     await resetEnrollmentConsentData(scope)
   })
@@ -76,7 +95,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         memberIds: [firstMember.id, secondMember.id],
         contactName: "Parent A",
         emergencyContactName: "Emergency A",
-        emergencyContactPhone: "13900000001",
+        emergencyContactPhone: virtualPhone("0001"),
       }))
       .expect(201)
 
@@ -90,11 +109,13 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         policyVersion: expect.any(String),
         agreementVersion: AGREEMENT_VERSION,
         schemaVersion: DOMAIN_SCHEMA_VERSION,
+        noticeVersionId: catalog.noticeVersionId,
+        noticeVersion: catalog.noticeVersion,
       }),
     )
     await expect(
       dataSource.query(
-        "select purpose, agreement_version, schema_version from consent_records where subject_id = ?",
+        "select purpose, agreement_version, schema_version, notice_version_id, notice_version from consent_records where subject_id = ?",
         [enrollment.body.id],
       ),
     ).resolves.toEqual([
@@ -102,9 +123,122 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         purpose: "enrollment_submission",
         agreement_version: AGREEMENT_VERSION,
         schema_version: DOMAIN_SCHEMA_VERSION,
+        notice_version_id: catalog.noticeVersionId,
+        notice_version: catalog.noticeVersion,
       }),
     ])
   })
+
+
+  it("creates immutable notice versions, activates history, and accepts customer-facing notice content", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const v2 = await request(app.getHttpServer())
+      .post(`/tour-sessions/${catalog.tourSessionId}/notices`)
+      .set(DEV_ADMIN_HEADERS)
+      .send({
+        version: "v2",
+        title: "[演示]大明山地质研学告家长书 v2",
+        contentJson: { ...demoNoticeContent(), mealNote: "[演示]第二版研学简餐说明。" },
+      })
+      .expect(201)
+
+    // When
+    const activated = await request(app.getHttpServer())
+      .post(`/tour-sessions/${catalog.tourSessionId}/notices/${v2.body.id}/activate`)
+      .set(DEV_ADMIN_HEADERS)
+      .expect(201)
+    const notices = await request(app.getHttpServer())
+      .get(`/tour-sessions/${catalog.tourSessionId}/notices`)
+      .expect(200)
+    const liveSeed = await request(app.getHttpServer())
+      .post(`/tour-sessions/${catalog.tourSessionId}/notices`)
+      .set(DEV_ADMIN_HEADERS)
+      .send({
+        version: "live-v1",
+        title: "真实团期告知书",
+        contentJson: { ...demoNoticeContent(), destination: "真实目的地" },
+      })
+      .expect(201)
+
+    // Then
+    expect(activated.body).toEqual(expect.objectContaining({ activeNoticeId: v2.body.id }))
+    expect(notices.body).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: catalog.noticeVersionId, version: "v1", contentJson: expect.objectContaining({ mealNote: "[演示]含研学简餐，过敏情况请提前备注。" }) }),
+      expect.objectContaining({ id: v2.body.id, version: "v2", contentJson: expect.objectContaining({ mealNote: "[演示]第二版研学简餐说明。" }) }),
+    ]))
+    expect(liveSeed.body).toEqual(expect.objectContaining({
+      version: "live-v1", title: "真实团期告知书",
+      contentJson: expect.objectContaining({ destination: "真实目的地" }),
+    }))
+    const session = await dataSource.getRepository(TourSessionEntity).findOneByOrFail({ id: catalog.tourSessionId })
+    expect(session.activeNoticeId).toBe(v2.body.id)
+  })
+
+  it("rejects enrollment without an active notice or with a stale notice version", async () => {
+    // Given
+    const noNoticeScope = `${scope.slice(0, 36)}-nn`
+    const staleScope = `${scope.slice(0, 36)}-st`
+    const noNoticeCatalog = await createCatalog(app, noNoticeScope, {
+      enrollmentOpensAt: "2026-01-01T00:00:00.000Z",
+      enrollmentClosesAt: "2027-01-01T00:00:00.000Z",
+      withNotice: false,
+    })
+    const noNoticeMember = await createMember({
+      app,
+      scope: noNoticeScope,
+      headers: familyHeader(noNoticeScope, "n"),
+      catalog: noNoticeCatalog,
+      displayName: "No Notice Child",
+      codeSuffix: "n",
+    })
+    const staleCatalog = await createCatalog(app, staleScope)
+    const staleMember = await createMember({
+      app,
+      scope: staleScope,
+      headers: familyHeader(staleScope, "s"),
+      catalog: staleCatalog,
+      displayName: "Stale Notice Child",
+      codeSuffix: "s",
+    })
+    const oldNotice = { id: staleCatalog.noticeVersionId, version: staleCatalog.noticeVersion }
+    await createDemoNotice(app, staleCatalog.tourSessionId, "v2")
+
+    // When
+    const noActive = await request(app.getHttpServer())
+      .post("/enrollments")
+      .set(familyHeader(noNoticeScope, "n"))
+      .send(enrollmentBody({
+        catalog: noNoticeCatalog,
+        memberIds: [noNoticeMember.id],
+        contactName: "No Notice Parent",
+        emergencyContactName: "No Notice Emergency",
+        emergencyContactPhone: virtualPhone("2001"),
+      }))
+      .expect(400)
+    const stale = await request(app.getHttpServer())
+      .post("/enrollments")
+      .set(familyHeader(staleScope, "s"))
+      .send({
+        ...enrollmentBody({
+          catalog: staleCatalog,
+          memberIds: [staleMember.id],
+          contactName: "Stale Parent",
+          emergencyContactName: "Stale Emergency",
+          emergencyContactPhone: virtualPhone("2002"),
+        }),
+        noticeVersionId: oldNotice.id,
+        noticeVersion: oldNotice.version,
+      })
+      .expect(400)
+
+    // Then
+    expect(noActive.body).toEqual(expect.objectContaining({ code: "stale_state" }))
+    expect(stale.body).toEqual(expect.objectContaining({ code: "stale_state" }))
+    await resetEnrollmentConsentData(noNoticeScope)
+    await resetEnrollmentConsentData(staleScope)
+  }, 20_000)
+
 
   it("submits one enrollment for a single child", async () => {
     // Given
@@ -127,12 +261,197 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         memberIds: [member.id],
         contactName: "Parent Single",
         emergencyContactName: "Emergency Single",
-        emergencyContactPhone: "13900000002",
+        emergencyContactPhone: virtualPhone("0002"),
       }))
       .expect(201)
 
     // Then
     expect(enrollment.body).toEqual(expect.objectContaining({ memberIds: [member.id], participantCount: 1 }))
+  })
+
+  it("stores virtual adult and student identity data encrypted while keeping per-person order totals", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    await dataSource.query("update tour_sessions set price_fen = ? where id = ?", [19_500, catalog.tourSessionId])
+    const headers = familyHeader(scope, "id")
+    const studentIdentityNumber = virtualResidentId("20100101", "003")
+    const adultIdentityNumber = virtualResidentId("19800101", "005")
+    const student = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send(studentIdentityMemberBody(catalog, "Virtual Student", `member-${scope}-student`, {
+        participantKind: "student",
+        identityNumber: studentIdentityNumber,
+        phone: virtualPhone("1001"),
+      }))
+      .expect(201)
+    const adult = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send(adultIdentityMemberBody(catalog, "Virtual Guardian", `member-${scope}-adult`, {
+        participantKind: "adult",
+        identityNumber: adultIdentityNumber,
+        phone: virtualPhone("1002"),
+      }))
+      .expect(201)
+
+    // When
+    const enrollment = await request(app.getHttpServer())
+      .post("/enrollments")
+      .set(headers)
+      .send(enrollmentBody({
+        catalog,
+        memberIds: [student.body.id, adult.body.id],
+        contactName: "Virtual Parent",
+        emergencyContactName: "Virtual Emergency",
+        emergencyContactPhone: virtualPhone("1003"),
+      }))
+      .expect(201)
+    const order = await createOrder(app, {
+      headers,
+      enrollmentId: enrollment.body.id,
+      tourSessionId: catalog.tourSessionId,
+      participantIds: [],
+    }, `order-${scope}-identity`)
+
+    // Then
+    expect(student.body).toEqual(expect.objectContaining({
+      participantKind: "student",
+      identityNumberMasked: maskIdentityNumber(studentIdentityNumber),
+      phoneMasked: "199****1001",
+    }))
+    expect(adult.body).toEqual(expect.objectContaining({
+      participantKind: "adult",
+      gradeId: null,
+      classId: null,
+      identityNumberMasked: maskIdentityNumber(adultIdentityNumber),
+      phoneMasked: "199****1002",
+    }))
+    expect(enrollment.body).toEqual(expect.objectContaining({ participantCount: 2 }))
+    expect(order.amountFen).toBe(39_000)
+    const orderLines: readonly {
+      readonly amount_fen: number
+      readonly participant_kind_snapshot: string
+    }[] = await dataSource.query(
+      "select participant_kind_snapshot, amount_fen from order_lines where order_id = ? order by participant_kind_snapshot",
+      [order.id],
+    )
+    expect(orderLines).toEqual([
+      { participant_kind_snapshot: "adult", amount_fen: 19_500 },
+      { participant_kind_snapshot: "student", amount_fen: 19_500 },
+    ])
+    const stored: readonly {
+      readonly identity_ciphertext: string | null
+      readonly identity_hash: string | null
+      readonly identity_masked: string | null
+      readonly participant_kind: string
+    }[] = await dataSource.query(
+      "select participant_kind, identity_ciphertext, identity_hash, identity_masked from family_members where code in (?, ?) order by code",
+      [`member-${scope}-adult`, `member-${scope}-student`],
+    )
+    expect(stored).toHaveLength(2)
+    expect(stored.every((row) => row.identity_ciphertext !== null && row.identity_hash !== null)).toBe(true)
+    expect(JSON.stringify(stored)).not.toContain(studentIdentityNumber)
+    expect(JSON.stringify(stored)).not.toContain(adultIdentityNumber)
+    expect(capturedLogs.join("\n")).not.toContain(studentIdentityNumber)
+  })
+
+  it("rejects malformed identity data and missing encryption key with typed errors", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const headers = familyHeader(scope, "bad")
+    const validIdentityNumber = virtualResidentId("20100101", "007")
+    const badChecksumIdentityNumber = `${validIdentityNumber.slice(0, 17)}${validIdentityNumber.endsWith("X") ? "0" : "X"}`
+
+    // When
+    const badChecksum = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send(studentIdentityMemberBody(catalog, "Bad Checksum", `member-${scope}-bad-checksum`, {
+        participantKind: "student",
+        identityNumber: badChecksumIdentityNumber,
+        phone: virtualPhone("1004"),
+      }))
+      .expect(400)
+    const badPhone = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send(studentIdentityMemberBody(catalog, "Bad Phone", `member-${scope}-bad-phone`, {
+        participantKind: "student",
+        identityNumber: validIdentityNumber,
+        phone: "100",
+      }))
+      .expect(400)
+    delete process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"]
+    const missingKey = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send(studentIdentityMemberBody(catalog, "Missing Key", `member-${scope}-missing-key`, {
+        participantKind: "student",
+        identityNumber: validIdentityNumber,
+        phone: virtualPhone("1005"),
+      }))
+      .expect(400)
+
+    // Then
+    expect(badChecksum.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
+    expect(badPhone.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
+    expect(missingKey.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
+  })
+
+  it("rejects new members without protected identity fields or adult school placement", async () => {
+    // Given
+    const catalog = await createCatalog(app, scope)
+    const headers = familyHeader(scope, "req")
+    const adultIdentityNumber = virtualResidentId("19800101", "009")
+
+    // When
+    const missingIdentity = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send({
+        code: `member-${scope}-missing-identity`,
+        displayName: "Missing Identity",
+        participantKind: "student",
+        schoolId: catalog.schoolId,
+        gradeId: catalog.gradeId,
+        classId: catalog.classId,
+        phone: virtualPhone("1006"),
+      })
+      .expect(400)
+    const missingPhone = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send({
+        code: `member-${scope}-missing-phone`,
+        displayName: "Missing Phone",
+        participantKind: "student",
+        schoolId: catalog.schoolId,
+        gradeId: catalog.gradeId,
+        classId: catalog.classId,
+        identityNumber: adultIdentityNumber,
+      })
+      .expect(400)
+    const adultWithClass = await request(app.getHttpServer())
+      .post("/enrollment/members")
+      .set(headers)
+      .send({
+        code: `member-${scope}-adult-class`,
+        displayName: "Adult With Class",
+        participantKind: "adult",
+        schoolId: catalog.schoolId,
+        gradeId: catalog.gradeId,
+        classId: catalog.classId,
+        tourSessionId: catalog.tourSessionId,
+        identityNumber: adultIdentityNumber,
+        phone: virtualPhone("1007"),
+      })
+      .expect(400)
+
+    // Then
+    expect(missingIdentity.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
+    expect(missingPhone.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
+    expect(adultWithClass.body).toEqual(expect.objectContaining({ code: "malformed_input" }))
   })
 
   it("rejects enrollment submission when consent versions are missing or unsupported", async () => {
@@ -156,7 +475,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         memberIds: [member.id],
         contactName: "Parent Missing",
         emergencyContactName: "Emergency Missing",
-        emergencyContactPhone: "13900000003",
+        emergencyContactPhone: virtualPhone("0003"),
         withConsent: false,
       }))
       .expect(400)
@@ -173,7 +492,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
           memberIds: [member.id],
           contactName: "Parent Missing",
           emergencyContactName: "Emergency Missing",
-          emergencyContactPhone: "13900000003",
+          emergencyContactPhone: virtualPhone("0003"),
         }),
         agreementVersion: "unsupported-agreement-v0",
       })
@@ -196,7 +515,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
     const duplicate = await request(app.getHttpServer())
       .post("/enrollment/members")
       .set(familyHeader(scope, "d"))
-      .send(memberBody(catalog, "Duplicate Child", `member-${scope}-d`))
+      .send(memberBody(catalog, "Different Child", `member-${scope}-d`))
       .expect(409)
 
     // Then
@@ -224,7 +543,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         memberIds: [member.id],
         contactName: "Crud Parent",
         emergencyContactName: "Crud Emergency",
-        emergencyContactPhone: "13900000006",
+        emergencyContactPhone: virtualPhone("0006"),
       }))
       .expect(201)
     const deletion = await request(app.getHttpServer()).delete(`/enrollment/members/${member.id}`).set(headers).expect(409)
@@ -240,7 +559,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
     // Given
     const catalog = await createCatalog(app, scope)
     const sensitiveName = "Sensitive Child"
-    const sensitivePhone = "13900000004"
+    const sensitivePhone = virtualPhone("0004")
     const member = await createMember({
       app,
       scope,
@@ -294,7 +613,7 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
         memberIds: [member.id],
         contactName: "Parent Closed",
         emergencyContactName: "Emergency Closed",
-        emergencyContactPhone: "13900000005",
+        emergencyContactPhone: virtualPhone("0005"),
       }))
       .expect(400)
 
@@ -318,3 +637,15 @@ describe.skipIf(databaseUrl === undefined)("Enrollment consent API", () => {
     }
   })
 })
+
+function restorePersonDataKey(value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"]
+    return
+  }
+  process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"] = value
+}
+
+function maskIdentityNumber(value: string): string {
+  return `${value.slice(0, 6)}********${value.slice(-4)}`
+}

@@ -1,0 +1,6 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="临安文旅">
+  <rect width="32" height="32" rx="8" fill="#104B7A"/>
+  <path d="M5 22.5 12.5 13l5 6 3.5-4.5 6 8H5Z" fill="#DFF1F6"/>
+  <path d="M7 24h18" stroke="#13745C" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="23.5" cy="8.5" r="3" fill="#E8F2FF"/>
+</svg>

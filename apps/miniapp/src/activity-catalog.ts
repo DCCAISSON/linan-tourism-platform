@@ -1,0 +1,66 @@
+import type { CatalogItem, Grade, SchoolClass, School, TourSession } from "./api"
+import { readTripGate } from "./checkout-flow"
+
+export type ActivityTrip = {
+  readonly activity: CatalogItem
+  readonly session: TourSession
+  readonly schoolName: string
+  readonly registrationLabel: string
+  readonly canEnroll: boolean
+  readonly minimumParticipantsLabel: string | null
+}
+
+export function activitySessionChoices(
+  trips: readonly ActivityTrip[],
+  selectedSessionId: string,
+): readonly ActivityTrip[] {
+  const selected = trips.find((trip) => trip.session.id === selectedSessionId)
+  if (selected === undefined) return []
+  return trips.filter((trip) =>
+    trip.activity.id === selected.activity.id
+    && trip.session.organizationId === selected.session.organizationId,
+  )
+}
+
+export function activeEnrollmentOptions(
+  activities: readonly CatalogItem[],
+  sessions: readonly TourSession[],
+  schools: readonly School[],
+): { readonly schools: readonly School[]; readonly sessions: readonly TourSession[] } {
+  const activeCatalogKeys = new Set(
+    activities
+      .filter((activity) => activity.status === "active")
+      .map((activity) => `${activity.organizationId}:${activity.id}`),
+  )
+  const visibleSessions = sessions.filter((session) =>
+    session.status !== "draft"
+    && session.status !== "cancelled"
+    && activeCatalogKeys.has(`${session.organizationId}:${session.catalogItemId}`),
+  )
+  const visibleSchoolIds = new Set(visibleSessions.map((session) => session.organizationId))
+  return {
+    schools: schools.filter((school) => visibleSchoolIds.has(school.id)),
+    sessions: visibleSessions,
+  }
+}
+
+export function activityTrips(activities: readonly CatalogItem[], sessions: readonly TourSession[], schools: readonly School[]): readonly ActivityTrip[] {
+  return sessions.flatMap((session) => {
+    const activity = activities.find((item) => item.id === session.catalogItemId && item.organizationId === session.organizationId && item.status === "active")
+    if (activity === undefined || session.status === "draft" || session.status === "cancelled") return []
+    const gate = readTripGate(session, new Date().toISOString())
+    const minimumParticipantsLabel = session.minimumParticipants == null ? null
+      : `已付款且未取消${session.occupiedCapacity == null ? "人数暂未提供" : `：${session.occupiedCapacity} 人`} / 成团最低人数：${session.minimumParticipants} 人`
+    return [{ activity, session, schoolName: schools.find((school) => school.id === session.organizationId)?.name ?? "学校信息待完善", registrationLabel: gate.open ? "报名开放" : gate.reason, canEnroll: gate.open, minimumParticipantsLabel }]
+  })
+}
+
+export function enrollmentGrades(grades: readonly Grade[], session: TourSession | undefined): readonly Grade[] {
+  const scope = session?.enrollmentScope
+  return scope == null ? grades : grades.filter(grade => scope.some(entry => entry.gradeId === grade.id))
+}
+
+export function enrollmentClasses(classes: readonly SchoolClass[], session: TourSession | undefined): readonly SchoolClass[] {
+  const scope = session?.enrollmentScope
+  return scope == null ? classes : classes.filter(item => scope.some(entry => entry.gradeId === item.gradeId && (entry.classIds === null || entry.classIds.includes(item.id))))
+}

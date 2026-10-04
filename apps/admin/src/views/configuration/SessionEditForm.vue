@@ -11,8 +11,14 @@
         </select>
       </div>
       <div class="field">
-        <label for="session-edit-price">修改价格（元）</label>
-        <input id="session-edit-price" v-model.trim="editPriceYuan" inputmode="decimal" />
+        <label for="session-edit-price">修改单价（元/人）</label>
+        <input id="session-edit-price" v-model.trim="editPriceYuan" inputmode="decimal" aria-describedby="session-edit-price-help" />
+        <small id="session-edit-price-help" class="state-text">学生、成人同价；修改后用于新订单，已有订单金额不变。</small>
+      </div>
+      <div class="field">
+        <label for="session-edit-minimum">修改最低人数参考（可选）</label>
+        <input id="session-edit-minimum" v-model.trim="editMinimumParticipants" inputmode="numeric" aria-describedby="session-edit-minimum-help" />
+        <small id="session-edit-minimum-help" class="state-text">留空关闭参考；有效人数包含已付款且未取消的所有参加人。</small>
       </div>
       <div class="field">
         <label for="session-edit-start">修改出发日期</label>
@@ -30,6 +36,8 @@
         <label for="session-edit-close">修改报名截止</label>
         <input id="session-edit-close" v-model="editEnrollmentClosesAt" type="date" />
       </div>
+      <SessionEnrollmentScope :key="selectedSessionId" v-model="enrollmentScope" input-id="session-edit-scope" :school-id="selectedSchoolId" @valid="scopeValid = $event" />
+      <button type="button" :disabled="submitting || !scopeValid || !selectedSessionId" @click="saveScope">{{ submitting ? "保存中…" : "保存招生范围" }}</button>
       <p v-if="visibleError" class="form-error">{{ visibleError }}</p>
       <button type="submit" :disabled="submitting || selectedSessionId === ''">保存团期修改</button>
     </fieldset>
@@ -39,6 +47,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 
+import SessionEnrollmentScope from "./SessionEnrollmentScope.vue"
+import type { EnrollmentScope } from "@/api/configuration"
 import type { TourSession, TourSessionUpdatePayload } from "@/api/configuration"
 import { formatDate } from "./format"
 
@@ -56,18 +66,24 @@ const editEndsAt = ref("")
 const editEnrollmentClosesAt = ref("")
 const editEnrollmentOpensAt = ref("")
 const editPriceYuan = ref("")
+const editMinimumParticipants = ref("")
 const editStartsAt = ref("")
 const localError = ref("")
 const selectedSessionId = ref("")
+
+const enrollmentScope = ref<EnrollmentScope>(null)
+const scopeValid = ref(true)
+const selectedSchoolId = computed(() => props.tourSessions.find(item => item.id === selectedSessionId.value)?.organizationId ?? "")
+function saveScope(): void {
+  if (scopeValid.value && selectedSessionId.value) emit("update", { id: selectedSessionId.value, payload: { enrollmentScope: enrollmentScope.value } })
+}
 
 const visibleError = computed(() => localError.value || props.formError)
 
 watch(
   () => props.tourSessions,
   sessions => {
-    if (selectedSessionId.value === "") {
-      fillEditFields(sessions.at(0))
-    }
+    fillEditFields(sessions.find(item => item.id === selectedSessionId.value) ?? sessions.at(0))
   },
   { immediate: true },
 )
@@ -93,10 +109,18 @@ function submit(): void {
     return
   }
 
+  const minimumCount = editMinimumParticipants.value === "" ? null : Number(editMinimumParticipants.value)
+  const session = props.tourSessions.find(item => item.id === selectedSessionId.value)
+  if (minimumCount !== null && (!Number.isSafeInteger(minimumCount) || minimumCount <= 0 || session === undefined || minimumCount > session.capacity)) {
+    localError.value = "最低人数须为不超过容量的正整数，留空可关闭"
+    return
+  }
+
   emit("update", {
     id: selectedSessionId.value,
     payload: {
       priceFen,
+      minimumParticipants: minimumCount,
       startsAt: toIsoDate(editStartsAt.value),
       endsAt: toIsoDate(editEndsAt.value),
       enrollmentOpensAt: toIsoDate(editEnrollmentOpensAt.value),
@@ -106,8 +130,10 @@ function submit(): void {
 }
 
 function fillEditFields(session: TourSession | undefined): void {
+  enrollmentScope.value = session?.enrollmentScope ?? null
   selectedSessionId.value = session?.id ?? ""
   editPriceYuan.value = session === undefined ? "" : String(session.priceFen / 100)
+  editMinimumParticipants.value = session?.minimumParticipants == null ? "" : String(session.minimumParticipants)
   editStartsAt.value = session === undefined ? "" : formatDate(session.startsAt)
   editEndsAt.value = session === undefined ? "" : formatDate(session.endsAt)
   editEnrollmentOpensAt.value = session === undefined ? "" : formatDate(session.enrollmentOpensAt)

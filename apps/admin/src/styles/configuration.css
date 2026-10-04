@@ -81,6 +81,15 @@
   padding: 0;
   border: 0;
 }
+.configuration-form__legend {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  padding: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+}
 .field {
   gap: 4px;
 }
@@ -97,7 +106,8 @@
   color: var(--text-secondary);
 }
 .configuration-form input,
-.configuration-form select {
+.configuration-form select,
+.configuration-form textarea {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
@@ -108,12 +118,14 @@
   font: inherit;
 }
 .configuration-form input:focus,
-.configuration-form select:focus {
+.configuration-form select:focus,
+.configuration-form textarea:focus {
   border-color: var(--accent-primary);
   outline: 2px solid var(--border-subtle);
 }
 .configuration-form input:disabled,
 .configuration-form select:disabled,
+.configuration-form textarea:disabled,
 .configuration-form fieldset:disabled {
   color: var(--text-tertiary);
   cursor: not-allowed;
@@ -146,6 +158,8 @@
 .configuration-form--grid button {
   grid-column: 1 / -1;
 }
+.configuration-content-field { grid-column: span 2; }
+.configuration-form textarea { resize: vertical; }
 .form-error,
 .state-text {
   margin: 0;
@@ -220,6 +234,7 @@
   .record-list--columns li {
     grid-template-columns: 1fr;
   }
+  .configuration-content-field { grid-column: auto; }
 }
 @media (max-width: 768px) {
   .configuration-heading {

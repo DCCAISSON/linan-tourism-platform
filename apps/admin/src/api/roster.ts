@@ -1,24 +1,81 @@
+import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError, readableRosterError } from "./roster.errors"
-import { parseRosterSummary } from "./roster.parsers"
-import type { RosterQuery, RosterSummary } from "./roster.types"
+import { parseRosterImportResult, parseRosterSummary } from "./roster.parsers"
+import type { RosterImportPayload, RosterImportResult, RosterImportTemplate, RosterQuery, RosterSummary } from "./roster.types"
 
 export { RosterApiError, readableRosterError }
-export type { RosterFilters, RosterQuery, RosterRow, RosterSummary } from "./roster.types"
+export type { RosterFilters, RosterImportPayload, RosterImportResult, RosterImportTemplate, RosterQuery, RosterRow, RosterSummary } from "./roster.types"
 
-const fallbackApiBaseUrl = "http://127.0.0.1:3000"
-const apiBaseUrl = import.meta.env["VITE_API_BASE_URL"] ?? fallbackApiBaseUrl
-const devStaffId = import.meta.env["VITE_DEV_STAFF_ID"] ?? "dev-admin"
-const devStaffSchoolId = import.meta.env["VITE_DEV_STAFF_SCHOOL_ID"]
+const apiBaseUrl = resolveAdminApiBaseUrl()
+
+export async function downloadRosterTemplate(template: RosterImportTemplate): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/roster/templates/${template}.xlsx`, {
+    method: "GET",
+    credentials: "include",
+  })
+  if (!response.ok) {
+    const value = await readJson(response)
+    throw new RosterApiError(response.status, readErrorMessage(value) ?? `下载失败（${response.status}）`)
+  }
+  const names = { parent_child: "1-2年级亲子模板", grade_3_6: "3-6年级学生模板", teacher: "教师名单模板" } as const
+  const objectUrl = URL.createObjectURL(await response.blob())
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = `${names[template]}.xlsx`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
+}
 
 export async function getRosterSummary(query: RosterQuery): Promise<RosterSummary> {
   const value = await requestJson(`/roster/summary?${buildQueryString(query)}`)
   return parseRosterSummary(value)
 }
 
+export async function importRoster(payload: RosterImportPayload): Promise<RosterImportResult> {
+  const form = new FormData()
+  form.set("template", payload.template)
+  form.set("tourSessionId", payload.tourSessionId)
+  form.set("schoolId", payload.schoolId ?? "")
+  form.set("gradeId", payload.gradeId ?? "")
+  form.set("classId", payload.classId ?? "")
+  form.set("file", payload.file)
+  const response = await fetch(`${apiBaseUrl}/roster/imports`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  })
+  const value = await readJson(response)
+  if (!response.ok) {
+    throw new RosterApiError(response.status, readErrorMessage(value) ?? `导入失败（${response.status}）`)
+  }
+  return parseRosterImportResult(value)
+}
+
+export async function downloadRosterImportErrors(batchId: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/roster/imports/${encodeURIComponent(batchId)}/errors.csv`, {
+    method: "GET",
+    credentials: "include",
+  })
+  if (!response.ok) {
+    const value = await readJson(response)
+    throw new RosterApiError(response.status, readErrorMessage(value) ?? `下载失败（${response.status}）`)
+  }
+  const objectUrl = URL.createObjectURL(await response.blob())
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = `名单导入错误-${batchId}.csv`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
+}
+
 export async function downloadRosterExport(query: RosterQuery): Promise<void> {
   const response = await fetch(`${apiBaseUrl}/roster/export.xlsx?${buildQueryString(query)}`, {
     method: "GET",
-    headers: buildStaffHeaders(),
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -39,7 +96,7 @@ export async function downloadRosterExport(query: RosterQuery): Promise<void> {
 async function requestJson(path: string): Promise<unknown> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: "GET",
-    headers: buildStaffHeaders(),
+    credentials: "include",
   })
   const value = await readJson(response)
 
@@ -48,18 +105,6 @@ async function requestJson(path: string): Promise<unknown> {
   }
 
   return value
-}
-
-function buildStaffHeaders(): Headers {
-  const headers = new Headers()
-  headers.set("x-linan-dev-staff-id", devStaffId)
-  headers.set("x-linan-dev-staff-role", "administrator")
-
-  if (devStaffSchoolId !== undefined && devStaffSchoolId.length > 0) {
-    headers.set("x-linan-dev-staff-school-id", devStaffSchoolId)
-  }
-
-  return headers
 }
 
 function buildQueryString(query: RosterQuery): string {

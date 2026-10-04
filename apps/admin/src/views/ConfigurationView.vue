@@ -5,7 +5,7 @@
         <p class="configuration-heading__eyebrow">基础配置</p>
         <h2 id="configuration-title">学校、课程与团期配置</h2>
       </div>
-      <p>维护学校、年级、班级、课程与团期，团期价格以元展示，提交给接口时仍使用整数分。</p>
+      <p>维护学校、年级、班级与活动安排，按团期设置学校价格和报名时间。</p>
     </header>
 
     <div class="configuration-grid">
@@ -42,6 +42,7 @@
         @delete="removeClass"
         @select-grade="selectGrade"
       />
+      <CatalogTemplatePanel :schools="schools" :catalog-items="catalogItems" @changed="loadCatalogList" />
       <CatalogPanel
         :catalog-items="catalogItems"
         :error="catalogError"
@@ -50,6 +51,7 @@
         :schools="schools"
         :submitting="catalogSubmitting"
         @create="submitCatalogItem"
+        @update="updateCatalog"
         @delete="removeCatalogItem"
       />
       <SessionPanel
@@ -59,10 +61,13 @@
         :loading="sessionLoading"
         :schools="schools"
         :submitting="sessionSubmitting"
+        :notice-versions="noticeVersions"
         :tour-sessions="tourSessions"
         @create="submitTourSession"
         @delete="removeTourSession"
         @update="updateSession"
+        @create-notice="createNotice"
+        @activate-notice="activateNotice"
       />
     </div>
   </section>
@@ -74,6 +79,7 @@ import { onMounted } from "vue"
 import "@/styles/configuration.css"
 import ClassPanel from "@/views/configuration/ClassPanel.vue"
 import CatalogPanel from "@/views/configuration/CatalogPanel.vue"
+import CatalogTemplatePanel from "@/views/configuration/CatalogTemplatePanel.vue"
 import GradePanel from "@/views/configuration/GradePanel.vue"
 import SchoolPanel from "@/views/configuration/SchoolPanel.vue"
 import SessionPanel from "@/views/configuration/SessionPanel.vue"
@@ -119,6 +125,9 @@ const {
   loadSessionList,
   removeCatalogItem,
   removeTourSession,
+  noticeVersions,
+  createNotice,
+  activateNotice,
   sessionError,
   sessionFormError,
   sessionLoading,
@@ -127,6 +136,7 @@ const {
   submitTourSession,
   tourSessions,
   updateSession,
+  updateCatalog,
 } = useCatalogSessions()
 
 onMounted(() => {

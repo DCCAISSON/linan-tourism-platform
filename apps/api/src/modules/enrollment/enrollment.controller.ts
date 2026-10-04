@@ -18,12 +18,12 @@ export class EnrollmentController {
     @Headers() headers: RequestHeaders,
     @Body() body: unknown,
   ): Promise<FamilyMemberResponse> {
-    return this.enrollment.createMember(this.identity.resolve(headers), parseFamilyMember(body))
+    return this.enrollment.createMember(await this.identity.resolve(headers), parseFamilyMember(body))
   }
 
   @Get("enrollment/members")
   async listMembers(@Headers() headers: RequestHeaders): Promise<readonly FamilyMemberResponse[]> {
-    return this.enrollment.listMembers(this.identity.resolve(headers))
+    return this.enrollment.listMembers(await this.identity.resolve(headers))
   }
 
   @Get("enrollment/members/:id")
@@ -31,7 +31,7 @@ export class EnrollmentController {
     @Headers() headers: RequestHeaders,
     @Param("id") id: string,
   ): Promise<FamilyMemberResponse> {
-    return this.enrollment.getMember(this.identity.resolve(headers), id)
+    return this.enrollment.getMember(await this.identity.resolve(headers), id)
   }
 
   @Patch("enrollment/members/:id")
@@ -40,7 +40,16 @@ export class EnrollmentController {
     @Param("id") id: string,
     @Body() body: unknown,
   ): Promise<FamilyMemberResponse> {
-    return this.enrollment.updateMember(this.identity.resolve(headers), id, parseFamilyMemberPatch(body))
+    return this.enrollment.updateMember(await this.identity.resolve(headers), id, parseFamilyMemberPatch(body))
+  }
+
+  @Post("enrollment/members/:id/update")
+  async updateMemberFromMiniapp(
+    @Headers() headers: RequestHeaders,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<FamilyMemberResponse> {
+    return this.enrollment.updateMember(await this.identity.resolve(headers), id, parseFamilyMemberPatch(body))
   }
 
   @Delete("enrollment/members/:id")
@@ -48,7 +57,7 @@ export class EnrollmentController {
     @Headers() headers: RequestHeaders,
     @Param("id") id: string,
   ): Promise<void> {
-    await this.enrollment.deleteMember(this.identity.resolve(headers), id)
+    await this.enrollment.deleteMember(await this.identity.resolve(headers), id)
   }
 
   @Post("enrollments")
@@ -56,6 +65,6 @@ export class EnrollmentController {
     @Headers() headers: RequestHeaders,
     @Body() body: unknown,
   ): Promise<EnrollmentSubmissionResponse> {
-    return this.enrollment.submitEnrollment(this.identity.resolve(headers), parseEnrollmentSubmission(body))
+    return this.enrollment.submitEnrollment(await this.identity.resolve(headers), parseEnrollmentSubmission(body))
   }
 }

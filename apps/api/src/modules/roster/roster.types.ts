@@ -5,6 +5,10 @@ export type RosterFilters = {
   readonly classId: string | null
 }
 
+export type RosterQueryFilters = RosterFilters & {
+  readonly includeSensitive: boolean
+}
+
 export type RosterRow = {
   readonly participantId: string
   readonly displayName: string

@@ -10,6 +10,7 @@ describe("HealthController", () => {
     expect(response).toEqual({
       status: "ok",
       service: "@linan/api",
+      revision: "local",
     })
   })
 })

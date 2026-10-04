@@ -1,3 +1,4 @@
+import { parseEnrollmentScope } from "./configuration.scope.js"
 import { BadRequestException } from "@nestjs/common"
 import { TOUR_SESSION_STATUS, type TourSessionStatus } from "@linan/contracts"
 import type {
@@ -5,6 +6,7 @@ import type {
   NewClass,
   NewGrade,
   NewSchool,
+  NewNoticeVersion,
   NewTourSession,
   UpdateCatalogItem,
   UpdateClass,
@@ -36,6 +38,26 @@ function readOptionalString(body: UnknownRecord, field: string): string | undefi
   return readString(body, field)
 }
 
+function readCatalogContent(body: UnknownRecord, field: "description" | "coverImageUrl"): string | undefined {
+  if (!(field in body)) return undefined
+  const value = body[field]
+  const limit = field === "description" ? 4000 : 2048
+  if (typeof value !== "string" || value.length > limit) {
+    throw malformedInput(`${field} must be a string of at most ${limit} characters`)
+  }
+  if (field === "coverImageUrl" && value !== "") {
+    let url: URL
+    try {
+      url = new URL(value)
+    } catch (error) {
+      if (error instanceof TypeError) throw malformedInput("coverImageUrl must be a valid HTTPS URL")
+      throw error
+    }
+    if (url.protocol !== "https:") throw malformedInput("coverImageUrl must be a valid HTTPS URL")
+  }
+  return value
+}
+
 function readInteger(body: UnknownRecord, field: string): number {
   const value = body[field]
   if (typeof value !== "number" || !Number.isInteger(value)) {
@@ -51,6 +73,19 @@ function readOptionalInteger(body: UnknownRecord, field: string): number | undef
   }
 
   return readInteger(body, field)
+}
+
+function readMinimumParticipants(body: UnknownRecord): number | null | undefined {
+  const value = body["minimumParticipants"]
+  if (value === undefined || value === null) return value
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    throw malformedInput("minimumParticipants must be a positive integer or null")
+  }
+  const capacity = body["capacity"]
+  if (typeof capacity === "number" && value > capacity) {
+    throw malformedInput("minimumParticipants must not exceed capacity")
+  }
+  return value
 }
 
 function readTourSessionStatus(body: UnknownRecord): TourSessionStatus {
@@ -140,6 +175,8 @@ export function parseCatalogItem(body: unknown): NewCatalogItem {
     organizationId: readString(record, "organizationId"),
     code: readString(record, "code"),
     title: readString(record, "title"),
+    description: readCatalogContent(record, "description") ?? "",
+    coverImageUrl: readCatalogContent(record, "coverImageUrl") ?? "",
     status: readString(record, "status"),
   }
 }
@@ -171,6 +208,8 @@ export function parseTourSession(body: unknown): NewTourSession {
     status: readTourSessionStatus(record),
     priceFen,
     capacity: readInteger(record, "capacity"),
+    enrollmentScope: "enrollmentScope" in record ? parseEnrollmentScope(record["enrollmentScope"]) : undefined,
+    minimumParticipants: readMinimumParticipants(record) ?? null,
     startsAt,
     endsAt,
     enrollmentOpensAt,
@@ -220,6 +259,8 @@ export function parseCatalogItemPatch(body: unknown): UpdateCatalogItem {
   return {
     code: readOptionalString(record, "code"),
     title: readOptionalString(record, "title"),
+    description: readCatalogContent(record, "description"),
+    coverImageUrl: readCatalogContent(record, "coverImageUrl"),
     status: readOptionalString(record, "status"),
   }
 }
@@ -237,9 +278,52 @@ export function parseTourSessionPatch(body: unknown): UpdateTourSession {
     status: readOptionalTourSessionStatus(record),
     priceFen,
     capacity: readOptionalInteger(record, "capacity"),
+    enrollmentScope: "enrollmentScope" in record ? parseEnrollmentScope(record["enrollmentScope"]) : undefined,
+    minimumParticipants: readMinimumParticipants(record),
     startsAt: readOptionalDate(record, "startsAt"),
     endsAt: readOptionalDate(record, "endsAt"),
     enrollmentOpensAt: readOptionalDate(record, "enrollmentOpensAt"),
     enrollmentClosesAt: readOptionalDate(record, "enrollmentClosesAt"),
   }
+}
+
+
+export function parseNoticeVersion(body: unknown): NewNoticeVersion {
+  const record = parseBody(body)
+  const title = readString(record, "title")
+  const version = readString(record, "version")
+  const content = readNoticeContent(record["contentJson"])
+  return { version, title, contentJson: content }
+}
+
+function readNoticeContent(value: unknown): NewNoticeVersion["contentJson"] {
+  if (!isRecord(value)) {
+    throw malformedInput("contentJson must be an object")
+  }
+  const content = {
+    destination: readString(value, "destination"),
+    departurePlace: readString(value, "departurePlace"),
+    mealNote: readString(value, "mealNote"),
+    itinerary: readStringList(value, "itinerary"),
+    unitPrices: readStringList(value, "unitPrices"),
+    packageExamples: readStringList(value, "packageExamples"),
+    reminders: readStringList(value, "reminders"),
+  }
+  if (content.itinerary.length !== 7) {
+    throw malformedInput("itinerary must contain exactly seven items")
+  }
+  return content
+}
+
+function readStringList(record: UnknownRecord, field: string): readonly string[] {
+  const value = record[field]
+  if (!Array.isArray(value) || value.length === 0) {
+    throw malformedInput(`${field} must be a non-empty string array`)
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || item.trim().length === 0 || item.length > 400) {
+      throw malformedInput(`${field} must be a non-empty string array`)
+    }
+    return item.trim()
+  })
 }

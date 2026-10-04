@@ -8,13 +8,21 @@ import {
   type SchoolClass,
   type TourSession,
 } from "./api"
+import { createLocalMemberCode, readFirstEnrollmentInvalidTarget } from "./enrollment-validation"
 
 export type FamilyMember = {
   id: string
   code: string
   displayName: string
+  participantKind?: "student" | "adult"
+  identityNumber?: string
+  phone?: string
+  saveAsCommon?: boolean
+  fromCommonList?: boolean
   selected: boolean
   remoteMemberId?: string
+  healthNotes?: string
+  healthConsent?: boolean
 }
 
 export type EmergencyContact = {
@@ -23,6 +31,8 @@ export type EmergencyContact = {
 }
 
 export type EnrollmentDraft = {
+  readonly contactPhone: string
+  readonly emergencySameAsParent: boolean
   readonly contactName: string
   readonly emergencyContact: EmergencyContact
   readonly selectedSchoolId: string
@@ -50,6 +60,8 @@ export type EnrollmentReadiness =
 export function createEmptyDraft(): EnrollmentDraft {
   return {
     contactName: "",
+    contactPhone: "",
+    emergencySameAsParent: true,
     emergencyContact: {
       name: "",
       phone: "",
@@ -66,39 +78,12 @@ export function createEmptyDraft(): EnrollmentDraft {
 export function selectedFamilyMembers(
   members: readonly FamilyMember[],
 ): readonly FamilyMember[] {
-  return members.filter((member) => member.selected && member.displayName.trim().length > 0)
+  return members.filter((member) => member.selected)
 }
 
 export function readEnrollmentReadiness(draft: EnrollmentDraft): EnrollmentReadiness {
-  if (draft.selectedSchoolId.length === 0 || draft.selectedGradeId.length === 0 || draft.selectedClassId.length === 0) {
-    return { ready: false, reason: "请选择学校、年级和班级" }
-  }
-
-  if (draft.selectedTourSessionId.length === 0) {
-    return { ready: false, reason: "请选择可报名团期" }
-  }
-
-  if (selectedFamilyMembers(draft.familyMembers).length === 0) {
-    return { ready: false, reason: "请至少选择一名家庭成员" }
-  }
-
-  if (selectedFamilyMembers(draft.familyMembers).some((member) => member.code.trim().length === 0)) {
-    return { ready: false, reason: "请填写成员编号" }
-  }
-
-  if (draft.contactName.trim().length === 0) {
-    return { ready: false, reason: "请填写家长联系人" }
-  }
-
-  if (draft.emergencyContact.name.trim().length === 0 || draft.emergencyContact.phone.trim().length === 0) {
-    return { ready: false, reason: "请填写紧急联系人" }
-  }
-
-  if (!draft.agreementAccepted) {
-    return { ready: false, reason: "请确认协议版本" }
-  }
-
-  return { ready: true }
+  const target = readFirstEnrollmentInvalidTarget(draft)
+  return target === undefined ? { ready: true } : { ready: false, reason: target.reason }
 }
 
 export function buildEnrollmentPayload(
@@ -116,14 +101,22 @@ export function buildEnrollmentPayload(
     throw new Error("请选择有效团期")
   }
 
+  const activeNotice = selectedSession.activeNotice
+  if (activeNotice === null) {
+    throw new Error("该团期暂未提供家长告知书，请稍后再试")
+  }
+
   return {
     tourSessionId: selectedSession.id,
     memberIds,
     contactName: draft.contactName.trim(),
-    emergencyContactName: draft.emergencyContact.name.trim(),
-    emergencyContactPhone: draft.emergencyContact.phone.trim(),
+    contactPhone: draft.contactPhone.trim(),
+    emergencyContactName: (draft.emergencySameAsParent ? draft.contactName : draft.emergencyContact.name).trim(),
+    emergencyContactPhone: (draft.emergencySameAsParent ? draft.contactPhone : draft.emergencyContact.phone).trim(),
     agreementVersion: FAMILY_ENROLLMENT_AGREEMENT_VERSION,
     schemaVersion: DOMAIN_SCHEMA_VERSION,
+    noticeVersionId: activeNotice.id,
+    noticeVersion: activeNotice.version,
   }
 }
 
@@ -133,13 +126,7 @@ export function buildSelectedMemberPayloads(draft: EnrollmentDraft): readonly En
     throw new Error(readiness.reason)
   }
 
-  return selectedFamilyMembers(draft.familyMembers).map((member) => ({
-    schoolId: draft.selectedSchoolId,
-    gradeId: draft.selectedGradeId,
-    classId: draft.selectedClassId,
-    code: member.code.trim(),
-    displayName: member.displayName.trim(),
-  }))
+  return selectedFamilyMembers(draft.familyMembers).map((member) => buildMemberPayload(draft, member))
 }
 
 export async function prepareSelectedMembersForSubmit(
@@ -169,12 +156,24 @@ export async function prepareSelectedMembersForSubmit(
 }
 
 function buildMemberPayload(draft: EnrollmentDraft, member: FamilyMember): EnrollmentMemberPayload {
+  const participantKind = member.participantKind ?? "student"
+  const base = {
+    tourSessionId: draft.selectedTourSessionId,
+    code: readInternalMemberCode(member),
+    displayName: member.displayName.trim(),
+    participantKind,
+    identityNumber: (member.identityNumber ?? "").trim(),
+    phone: participantKind === "adult" && (member.phone ?? "").trim().length > 0 ? (member.phone ?? "").trim() : draft.contactPhone.trim(),
+    saveAsCommon: member.saveAsCommon === true,
+  } as const
+  if (participantKind === "adult") {
+    return base
+  }
   return {
+    ...base,
     schoolId: draft.selectedSchoolId,
     gradeId: draft.selectedGradeId,
     classId: draft.selectedClassId,
-    code: member.code.trim(),
-    displayName: member.displayName.trim(),
   }
 }
 
@@ -207,6 +206,11 @@ export function formatDateLabel(iso: string): string {
 
 function pad(value: number): string {
   return value.toString().padStart(2, "0")
+}
+
+function readInternalMemberCode(member: FamilyMember): string {
+  const code = member.code.trim()
+  return code.length > 0 ? code : createLocalMemberCode(member.id)
 }
 
 function sessionStatusLabel(status: TourSession["status"]): string {

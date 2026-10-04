@@ -4,9 +4,10 @@ import {
   EnrollmentParticipantEntity,
   OrderEntity,
   OrderLineEntity,
-  TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
+import { ensureParticipantsInScope, lockTourSession } from "../configuration/configuration.scope.js"
+import { recordOrderNotificationSource } from "../notifications/notification-business-source.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import {
   enrollmentOrderConflict,
@@ -17,6 +18,7 @@ import {
 import { findScopedOrder, lockScopedEnrollment, toOrderResponse } from "./order.persistence.js"
 import type { NewOrder, OrderResponse } from "./order.types.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
+import { captureOrderContract } from "../contracts/contracts.persistence.js"
 
 const MAX_UNSIGNED_INT = 4_294_967_295
 
@@ -42,14 +44,20 @@ export class OrderService {
           throw enrollmentOrderConflict()
         }
 
-        const session = await manager.findOneBy(TourSessionEntity, { id: enrollment.tourSessionId })
+        const session = await lockTourSession(manager, enrollment.tourSessionId)
         const participants = await manager.find(EnrollmentParticipantEntity, {
           where: { enrollmentId: enrollment.id },
           order: { id: "ASC" },
         })
-        if (session === null || participants.length === 0) {
+        if (participants.length === 0) {
           throw invalidOrderAmount()
         }
+        await ensureParticipantsInScope(manager, session, participants.map((participant) => ({
+          organizationId: participant.organizationId,
+          participantKind: participant.participantKindSnapshot,
+          gradeId: participant.gradeIdSnapshot,
+          classId: participant.classIdSnapshot,
+        })))
         const amountFen = session.priceFen * participants.length
         if (!Number.isSafeInteger(amountFen) || amountFen > MAX_UNSIGNED_INT) {
           throw invalidOrderAmount()
@@ -75,12 +83,22 @@ export class OrderService {
             orderId: order.id,
             enrollmentParticipantId: participant.id,
             displayNameSnapshot: participant.displayNameSnapshot,
+            participantKindSnapshot: participant.participantKindSnapshot,
             gradeNameSnapshot: participant.gradeNameSnapshot,
             classNameSnapshot: participant.classNameSnapshot,
+            identityCiphertextSnapshot: participant.identityCiphertextSnapshot,
+            identityHashSnapshot: participant.identityHashSnapshot,
+            identityMaskedSnapshot: participant.identityMaskedSnapshot,
+            phoneCiphertextSnapshot: participant.phoneCiphertextSnapshot,
+            phoneHashSnapshot: participant.phoneHashSnapshot,
+            phoneMaskedSnapshot: participant.phoneMaskedSnapshot,
+            personDataKeyVersionSnapshot: participant.personDataKeyVersionSnapshot,
             amountFen: session.priceFen,
             policyVersion: DOMAIN_POLICY_VERSION,
           })),
         )
+        await captureOrderContract(manager, { session, enrollment, order })
+        await recordOrderNotificationSource(manager, { session, order })
         return toOrderResponse(manager, order)
       })
     } catch (error) {

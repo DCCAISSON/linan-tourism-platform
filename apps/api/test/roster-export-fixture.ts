@@ -7,6 +7,9 @@ import {
   createMember,
   enrollmentBody,
   familyHeader,
+  studentIdentityMemberBody,
+  type VirtualIdentityFixture,
+  virtualPhone,
 } from "./enrollment-consent-fixture.js"
 import {
   createOrder,
@@ -34,6 +37,7 @@ type EnrollmentPaymentInput = {
   readonly family: string
   readonly names: readonly string[]
   readonly status: "succeeded" | "failed"
+  readonly identities?: readonly VirtualIdentityFixture[]
 }
 
 export async function payEnrollment(input: EnrollmentPaymentInput): Promise<string> {
@@ -98,13 +102,23 @@ async function createEnrollment(input: EnrollmentPaymentInput): Promise<PaidEnro
   const headers = familyHeader(input.scope, input.family)
   const memberIds: string[] = []
   for (const [index, name] of input.names.entries()) {
-    const member = await createMember({
+    const identity = input.identities?.[index]
+    const memberInput = {
       app: input.app,
       scope: input.scope,
       headers,
       catalog: input.catalog,
       displayName: name,
       codeSuffix: `${input.family.slice(0, 1)}${index}`,
+    }
+    const member = await createMember(identity === undefined ? memberInput : {
+      ...memberInput,
+      body: studentIdentityMemberBody(
+        input.catalog,
+        name,
+        `member-${input.scope}-${input.family.slice(0, 1)}${index}`,
+        identity,
+      ),
     })
     memberIds.push(member.id)
   }
@@ -116,7 +130,7 @@ async function createEnrollment(input: EnrollmentPaymentInput): Promise<PaidEnro
       memberIds,
       contactName: `Roster Parent ${input.family}`,
       emergencyContactName: `Roster Emergency ${input.family}`,
-      emergencyContactPhone: "13900000009",
+      emergencyContactPhone: virtualPhone("0009"),
     }))
     .expect(201)
   const participantRows: readonly { readonly id: string }[] = await dataSource.query(

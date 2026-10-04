@@ -5,7 +5,7 @@ import {
   PAYMENT_STATUS,
   ROSTER_STATUS,
 } from "@linan/contracts"
-import { Inject, Injectable } from "@nestjs/common"
+import { ConflictException, Inject, Injectable } from "@nestjs/common"
 import { createHash } from "node:crypto"
 import type { EntityManager } from "typeorm"
 import {
@@ -15,6 +15,7 @@ import {
   PaymentEntity,
   PaymentEventEntity,
   RosterEntryEntity,
+  TourSessionEntity,
 } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { makeId } from "../configuration/configuration.persistence.js"
@@ -41,10 +42,15 @@ import {
 } from "./order.types.js"
 import { reduceMockPaymentStatus } from "./payment-state.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
+import { EnrollmentAutoNotificationService } from "../notifications/enrollment-auto-notification.service.js"
+import { assertOrderContractSigned } from "../contracts/contracts.persistence.js"
 
 @Injectable()
 export class MockPaymentService {
-  constructor(@Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService) {}
+  constructor(
+    @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
+    @Inject(EnrollmentAutoNotificationService) private readonly notifications: EnrollmentAutoNotificationService,
+  ) {}
 
   ensureAvailable(): void {
     if (process.env["NODE_ENV"] === "production") {
@@ -57,6 +63,7 @@ export class MockPaymentService {
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
       const { order } = await lockScopedOrder(manager, identity, orderId)
+      await assertOrderContractSigned(manager, order.id)
       if (order.status === ORDER_STATUS.cancelled || order.status === ORDER_STATUS.refunded) {
         throw orderNotPayable()
       }
@@ -89,7 +96,9 @@ export class MockPaymentService {
     }
     const dataSource = await this.database.getDataSource()
     try {
-      return await dataSource.transaction(async (manager) => {
+      // Read committed makes the capacity count see payments committed while waiting for the session lock.
+      let confirmedOrder = false
+      const result = await dataSource.transaction("READ COMMITTED", async (manager) => {
         const { order, enrollment } = await lockScopedOrder(manager, identity, event.orderId)
         const payment = await manager.findOne(PaymentEntity, {
           where: { organizationId: order.organizationId, paymentNo: mockPaymentNumber(order.id) },
@@ -140,10 +149,14 @@ export class MockPaymentService {
           enrollment.status = ENROLLMENT_STATUS.confirmed
           await manager.save(order)
           await manager.save(enrollment)
+          await this.notifications.enqueueConfirmed(manager, { enrollment, orderId: order.id })
+          confirmedOrder = true
         }
         await manager.save(payment)
         return toPaymentResponse(payment)
       })
+      if (confirmedOrder) this.notifications.dispatchAfterConfirmation()
+      return result
     } catch (error) {
       if (!isDuplicateEntry(error)) {
         throw error
@@ -171,7 +184,18 @@ export class MockPaymentService {
     order: OrderEntity,
     enrollment: EnrollmentEntity,
   ): Promise<void> {
+    const session = await manager.findOneOrFail(TourSessionEntity, {
+      where: { id: enrollment.tourSessionId }, lock: { mode: "pessimistic_write" },
+    })
     const lines = await manager.find(OrderLineEntity, { where: { orderId: order.id }, order: { id: "ASC" } })
+    const occupiedCapacity = await manager.createQueryBuilder(RosterEntryEntity, "roster")
+      .innerJoin(OrderEntity, "paid_order", "paid_order.enrollment_id = roster.enrollment_id and paid_order.status = :paid", { paid: ORDER_STATUS.paid })
+      .where("roster.tour_session_id = :id", { id: session.id })
+      .andWhere("roster.status != :cancelled", { cancelled: ROSTER_STATUS.cancelled })
+      .getCount()
+    if (occupiedCapacity + lines.length > session.capacity) {
+      throw new ConflictException({ code: "tour_session_full", message: "tour session has insufficient remaining capacity" })
+    }
     for (const line of lines) {
       await manager.save(RosterEntryEntity, {
         id: makeId("roster"),

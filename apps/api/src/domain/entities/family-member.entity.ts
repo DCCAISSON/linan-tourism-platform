@@ -13,6 +13,7 @@ import { OrganizationEntity } from "./organization.entity.js"
 import { SchoolClassEntity } from "./school-class.entity.js"
 import { SchoolGradeEntity } from "./school-grade.entity.js"
 
+@Index("idx_family_members_identity_hash", ["identityHash"])
 @Entity({ name: "family_members" })
 @Index("uq_family_members_family_code", ["familyId", "code"], { unique: true })
 @Index("idx_family_members_organization", ["organizationId"])
@@ -41,8 +42,14 @@ export class FamilyMemberEntity {
   @Column({ type: "varchar", length: 64 })
   code = ""
 
+  @Column({ name: "save_as_common", type: "boolean", default: true })
+  saveAsCommon = true
+
   @Column({ name: "display_name", type: "varchar", length: 120 })
   displayName = ""
+
+  @Column({ name: "participant_kind", type: "varchar", length: 16, default: "student" })
+  participantKind: "student" | "adult" = "student"
 
   @ForeignKey(() => SchoolGradeEntity, {
     name: "fk_family_members_grade",
@@ -59,6 +66,27 @@ export class FamilyMemberEntity {
   })
   @Column({ name: "class_id", type: "varchar", length: 64, nullable: true })
   classId: string | null = null
+
+  @Column({ name: "identity_ciphertext", type: "text", nullable: true })
+  identityCiphertext: string | null = null
+
+  @Column({ name: "identity_hash", type: "char", length: 64, nullable: true })
+  identityHash: string | null = null
+
+  @Column({ name: "identity_masked", type: "varchar", length: 64, nullable: true })
+  identityMasked: string | null = null
+
+  @Column({ name: "phone_ciphertext", type: "text", nullable: true })
+  phoneCiphertext: string | null = null
+
+  @Column({ name: "phone_hash", type: "char", length: 64, nullable: true })
+  phoneHash: string | null = null
+
+  @Column({ name: "phone_masked", type: "varchar", length: 32, nullable: true })
+  phoneMasked: string | null = null
+
+  @Column({ name: "person_data_key_version", type: "varchar", length: 16, default: "v1" })
+  personDataKeyVersion = "v1"
 
   @Column({ name: "policy_version", type: "varchar", length: 64 })
   policyVersion = DOMAIN_POLICY_VERSION

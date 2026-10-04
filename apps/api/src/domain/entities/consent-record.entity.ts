@@ -1,9 +1,11 @@
 import { DOMAIN_POLICY_VERSION } from "@linan/contracts"
+import { NoticeVersionEntity } from "./notice-version.entity.js"
 import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn } from "typeorm"
 import { EnrollmentEntity } from "./enrollment.entity.js"
 import { FamilyEntity } from "./family.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 
+@Index("idx_consent_records_notice_version", ["noticeVersionId"])
 @Entity({ name: "consent_records" })
 @Index(
   "uq_consent_records_subject_purpose_agreement_schema",
@@ -51,6 +53,13 @@ export class ConsentRecordEntity {
 
   @Column({ name: "schema_version", type: "varchar", length: 64 })
   schemaVersion = ""
+
+  @ForeignKey(() => NoticeVersionEntity, { name: "fk_consent_records_notice_version", onDelete: "RESTRICT", onUpdate: "CASCADE" })
+  @Column({ name: "notice_version_id", type: "varchar", length: 64, nullable: true })
+  noticeVersionId: string | null = null
+
+  @Column({ name: "notice_version", type: "varchar", length: 64, nullable: true })
+  noticeVersion: string | null = null
 
   @Column({ name: "accepted_at", type: "datetime", precision: 6 })
   acceptedAt = new Date(0)

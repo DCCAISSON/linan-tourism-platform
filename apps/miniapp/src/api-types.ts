@@ -21,7 +21,30 @@ export type SchoolClass = {
   readonly name: string
 }
 
+export type NoticeContent = {
+  readonly destination: string
+  readonly departurePlace: string
+  readonly mealNote: string
+  readonly itinerary: readonly string[]
+  readonly unitPrices: readonly string[]
+  readonly packageExamples: readonly string[]
+  readonly reminders: readonly string[]
+}
+
+export type NoticeVersion = {
+  readonly id: string
+  readonly organizationId: string
+  readonly tourSessionId: string
+  readonly version: string
+  readonly title: string
+  readonly contentJson: NoticeContent
+  readonly createdAt: string
+}
+
+export type EnrollmentScope = readonly { readonly gradeId: string; readonly classIds: readonly string[] | null }[] | null
+
 export type TourSession = {
+  readonly enrollmentScope?: EnrollmentScope
   readonly id: string
   readonly organizationId: string
   readonly catalogItemId: string
@@ -29,10 +52,14 @@ export type TourSession = {
   readonly status: TourSessionStatus
   readonly priceFen: number
   readonly capacity: number
+  readonly minimumParticipants?: number | null
+  readonly occupiedCapacity?: number | null
   readonly startsAt: string
   readonly endsAt: string
   readonly enrollmentOpensAt: string
   readonly enrollmentClosesAt: string
+  readonly activeNoticeId: string | null
+  readonly activeNotice: NoticeVersion | null
   readonly policyVersion: string
 }
 
@@ -40,17 +67,29 @@ export type EnrollmentPayload = {
   readonly tourSessionId: string
   readonly memberIds: readonly string[]
   readonly contactName: string
+  readonly contactPhone?: string
   readonly emergencyContactName: string
   readonly emergencyContactPhone: string
   readonly agreementVersion: typeof FAMILY_ENROLLMENT_AGREEMENT_VERSION
   readonly schemaVersion: typeof DOMAIN_SCHEMA_VERSION
+  readonly noticeVersionId: string
+  readonly noticeVersion: string
 }
 
 export type EnrollmentMemberPayload = {
-  readonly schoolId: string
-  readonly gradeId: string
-  readonly classId: string
+  readonly saveAsCommon?: boolean
+  readonly schoolId?: string
+  readonly gradeId?: string
+  readonly classId?: string
+  readonly tourSessionId?: string
   readonly code: string
+  readonly displayName: string
+  readonly participantKind?: "student" | "adult"
+  readonly identityNumber?: string
+  readonly phone?: string
+}
+
+export type EnrollmentMemberPatch = {
   readonly displayName: string
 }
 
@@ -58,6 +97,78 @@ export type EnrollmentMember = {
   readonly id: string
   readonly code: string
   readonly displayName: string
+  readonly participantKind?: "student" | "adult"
+  readonly identityNumberMasked?: string | null
+  readonly phoneMasked?: string | null
+}
+
+export type SavedEnrollmentMember = EnrollmentMember & {
+  readonly schoolId: string | null
+  readonly gradeId: string | null
+  readonly classId: string | null
+}
+
+export type CatalogItem = {
+  readonly id: string
+  readonly organizationId: string
+  readonly code: string
+  readonly title: string
+  readonly status: string
+  readonly policyVersion: string
+  readonly description: string
+  readonly coverImageUrl: string
+}
+
+export type OrderHistoryItem = Order & {
+  readonly tourSessionId: string
+  readonly activityTitle: string
+  readonly schoolName: string
+  readonly startsAt: string
+  readonly endsAt: string
+  readonly createdAt: string
+}
+
+export type OrderParticipant = {
+  readonly id: string
+  readonly enrollmentParticipantId: string
+  readonly familyMemberId: string
+  readonly displayName: string
+  readonly participantKind: "student" | "adult"
+  readonly gradeName: string | null
+  readonly className: string | null
+  readonly amountFen: number
+  readonly refundedFen: number
+  readonly refundStatus: "none" | "pending" | "refunded" | "failed"
+}
+
+export type RefundSummary = {
+  readonly status: "none" | "partial" | "full"
+  readonly refundedFen: number
+  readonly pendingFen: number
+  readonly failedCount: number
+}
+
+export type RefundHistoryItem = {
+  readonly id: string
+  readonly status: "pending" | "succeeded" | "failed"
+  readonly amountFen: number
+  readonly requestedAt: string
+  readonly processedAt: string | null
+  readonly lines: readonly {
+    readonly lineId: string
+    readonly displayName: string
+    readonly amountFen: number
+  }[]
+}
+
+export type OrderDetail = OrderHistoryItem & {
+  readonly contactName: string
+  readonly contactPhone?: string | null
+  readonly emergencyContactName: string | null
+  readonly emergencyContactPhone: string | null
+  readonly refundSummary: RefundSummary
+  readonly refundHistory: readonly RefundHistoryItem[]
+  readonly participants: readonly OrderParticipant[]
 }
 
 export type EnrollmentSubmission = {
@@ -97,6 +208,37 @@ export type MockPayment = {
   readonly amountFen: number
 }
 
+export type WechatLoginResponse = {
+  readonly token: string
+  readonly familyCode: string
+  readonly expiresAt: string
+  readonly phoneVerified?: boolean
+}
+
+export type SmsSendResponse = { readonly ok: true; readonly retryAfterSeconds: number }
+
+export type ServiceCapabilities = {
+  readonly wechatPaymentEnabled: boolean
+  readonly wechatRefundEnabled: boolean
+  readonly paymentReconciliationEnabled: boolean
+}
+
+export type WechatMiniappPayment = {
+  readonly id: string
+  readonly orderId: string
+  readonly paymentNo: string
+  readonly provider: "wechat_pay"
+  readonly status: PaymentStatus
+  readonly amountFen: number
+  readonly miniappPayment: {
+    readonly timeStamp: string
+    readonly nonceStr: string
+    readonly package: string
+    readonly signType: "RSA"
+    readonly paySign: string
+  }
+}
+
 export type MiniappRequestOptions = {
   readonly url: string
   readonly method: "GET" | "POST"
@@ -114,12 +256,21 @@ export type RequestTransport = (
 ) => Promise<MiniappRequestResult>
 
 export type MiniappApi = {
+  readonly logoutWechat: () => Promise<void>
+  readonly listCatalogItems: () => Promise<readonly CatalogItem[]>
+  readonly listEnrollmentMembers: () => Promise<readonly SavedEnrollmentMember[]>
+  readonly listOrders: () => Promise<readonly OrderHistoryItem[]>
+  readonly getOrderDetail: (orderId: string) => Promise<OrderDetail>
   readonly listSchools: () => Promise<readonly School[]>
   readonly listGrades: (schoolId: string) => Promise<readonly Grade[]>
   readonly listClasses: (gradeId: string) => Promise<readonly SchoolClass[]>
   readonly listTourSessions: () => Promise<readonly TourSession[]>
   readonly createEnrollmentMember: (
     payload: EnrollmentMemberPayload,
+  ) => Promise<EnrollmentMember>
+  readonly updateEnrollmentMember: (
+    memberId: string,
+    payload: EnrollmentMemberPatch,
   ) => Promise<EnrollmentMember>
   readonly checkEnrollmentAvailability: (
     tourSessionId: string,
@@ -130,15 +281,24 @@ export type MiniappApi = {
   ) => Promise<EnrollmentSubmission>
   readonly createOrder: (payload: CreateOrderPayload) => Promise<Order>
   readonly getOrder: (orderId: string) => Promise<Order>
+  readonly cancelOrder: (orderId: string) => Promise<Order>
   readonly createMockPayment: (orderId: string) => Promise<MockPayment>
+  readonly loginWithWechatCode: (code: string, familyCode?: string) => Promise<WechatLoginResponse>
+  readonly loginWithWechatPhone: (loginCode: string, phoneCode: string) => Promise<WechatLoginResponse>
+  readonly sendSmsLoginCode: (phone: string) => Promise<SmsSendResponse>
+  readonly loginWithSmsCode: (loginCode: string, phone: string, code: string) => Promise<WechatLoginResponse>
+  readonly bindWechatCode: (code: string, familyCode: string) => Promise<WechatLoginResponse>
+  readonly createWechatPayment: (orderId: string, code: string) => Promise<WechatMiniappPayment>
+  readonly getCapabilities: () => Promise<ServiceCapabilities>
 }
 
 export type MiniappApiOptions = {
   readonly baseUrl?: string
   readonly familyIdentityHeader?: string
+  readonly wechatSessionToken?: string
   readonly request?: RequestTransport
 }
 
-export const FALLBACK_API_BASE_URL = "http://127.0.0.1:3000" as const
+export const FALLBACK_API_BASE_URL = "https://api.linantravel.cn" as const
 export const DEV_FAMILY_IDENTITY_HEADER = "x-linan-dev-family-identity" as const
 export { FAMILY_ENROLLMENT_AGREEMENT_VERSION }

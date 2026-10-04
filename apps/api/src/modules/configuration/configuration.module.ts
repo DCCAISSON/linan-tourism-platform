@@ -1,11 +1,13 @@
 import { Module } from "@nestjs/common"
-import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import { ConfigurationController } from "./configuration.controller.js"
 import { ConfigurationDatabaseService } from "./configuration-database.service.js"
 import { ConfigurationService } from "./configuration.service.js"
+import { CatalogTemplateController } from "./catalog-template.controller.js"
+import { CatalogTemplateService } from "./catalog-template.service.js"
 
 @Module({
-  controllers: [ConfigurationController],
-  providers: [ConfigurationDatabaseService, ConfigurationService, DevStaffAccessService],
+  controllers: [ConfigurationController, CatalogTemplateController],
+  providers: [ConfigurationDatabaseService, ConfigurationService, CatalogTemplateService],
+  exports: [ConfigurationDatabaseService],
 })
 export class ConfigurationModule {}

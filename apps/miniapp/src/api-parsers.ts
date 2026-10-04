@@ -1,3 +1,4 @@
+import { parseEnrollmentScope } from "./enrollment-scope-parser"
 import type { OrderStatus, PaymentStatus, TourSessionStatus } from "@linan/contracts"
 import { ApiError } from "./api-error"
 import type {
@@ -9,6 +10,8 @@ import type {
   Order,
   School,
   SchoolClass,
+  NoticeContent,
+  NoticeVersion,
   TourSession,
 } from "./api-types"
 
@@ -16,7 +19,7 @@ type UnknownRecord = Record<string, unknown>
 
 export function readCollection<T>(value: unknown, parse: (item: unknown) => T): readonly T[] {
   if (!Array.isArray(value)) {
-    throw new ApiError(0, "列表响应格式不正确")
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
 
   return value.map(parse)
@@ -61,19 +64,77 @@ export function parseTourSession(value: unknown): TourSession {
     status: readTourSessionStatus(record),
     priceFen: readNumber(record, "priceFen"),
     capacity: readNumber(record, "capacity"),
+    enrollmentScope: parseEnrollmentScope(record["enrollmentScope"]),
+    minimumParticipants: readOptionalCount(record, "minimumParticipants"),
+    occupiedCapacity: readOptionalCount(record, "occupiedCapacity"),
     startsAt: readIsoString(record, "startsAt"),
     endsAt: readIsoString(record, "endsAt"),
     enrollmentOpensAt: readIsoString(record, "enrollmentOpensAt"),
     enrollmentClosesAt: readIsoString(record, "enrollmentClosesAt"),
+    activeNoticeId: readOptionalNullableString(record, "activeNoticeId") ?? null,
+    activeNotice: parseNullableNoticeVersion(record["activeNotice"]),
     policyVersion: readString(record, "policyVersion"),
   }
+}
+
+function readOptionalCount(record: UnknownRecord, key: "minimumParticipants" | "occupiedCapacity"): number | null {
+  const value = record[key]
+  if (value === undefined || value === null) return null
+  const minimum = key === "minimumParticipants" ? 1 : 0
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum
+    || (key === "minimumParticipants" && value > readNumber(record, "capacity"))) {
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
+  }
+  return value
+}
+
+function parseNullableNoticeVersion(value: unknown): NoticeVersion | null {
+  if (value === null || value === undefined) {
+    return null
+  }
+  const record = readRecord(value)
+  return {
+    id: readString(record, "id"),
+    organizationId: readString(record, "organizationId"),
+    tourSessionId: readString(record, "tourSessionId"),
+    version: readString(record, "version"),
+    title: readString(record, "title"),
+    contentJson: parseNoticeContent(record["contentJson"]),
+    createdAt: readIsoString(record, "createdAt"),
+  }
+}
+
+function parseNoticeContent(value: unknown): NoticeContent {
+  const record = readRecord(value)
+  return {
+    destination: readString(record, "destination"),
+    departurePlace: readString(record, "departurePlace"),
+    mealNote: readString(record, "mealNote"),
+    itinerary: readStringList(record, "itinerary"),
+    unitPrices: readStringList(record, "unitPrices"),
+    packageExamples: readStringList(record, "packageExamples"),
+    reminders: readStringList(record, "reminders"),
+  }
+}
+
+function readStringList(record: UnknownRecord, field: string): readonly string[] {
+  const value = record[field]
+  if (!Array.isArray(value)) {
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
+  }
+  return value.map((item) => {
+    if (typeof item !== "string" || item.length === 0) {
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
+    }
+    return item
+  })
 }
 
 export function parseEnrollmentAvailability(value: unknown): EnrollmentAvailability {
   const record = readRecord(value)
   const available = record["available"]
   if (available !== true) {
-    throw new ApiError(0, "报名可用性响应格式不正确")
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
 
   return {
@@ -93,10 +154,16 @@ export function parseEnrollmentSubmission(value: unknown): EnrollmentSubmission 
 
 export function parseEnrollmentMember(value: unknown): EnrollmentMember {
   const record = readRecord(value)
+  const participantKind = readOptionalParticipantKind(record)
+  const identityNumberMasked = readOptionalNullableString(record, "identityNumberMasked")
+  const phoneMasked = readOptionalNullableString(record, "phoneMasked")
   return {
     id: readString(record, "id"),
     code: readString(record, "code"),
     displayName: readString(record, "displayName"),
+    ...(participantKind !== undefined ? { participantKind } : {}),
+    ...(identityNumberMasked !== undefined ? { identityNumberMasked } : {}),
+    ...(phoneMasked !== undefined ? { phoneMasked } : {}),
   }
 }
 
@@ -118,7 +185,7 @@ export function parseMockPayment(value: unknown): MockPayment {
   const record = readRecord(value)
   const provider = readString(record, "provider")
   if (provider !== "local_mock") {
-    throw new ApiError(0, "provider 响应格式不正确")
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
 
   return {
@@ -140,34 +207,61 @@ export function readErrorMessage(value: unknown): string | undefined {
   return typeof message === "string" ? message : undefined
 }
 
-function readRecord(value: unknown): UnknownRecord {
+export function readRecord(value: unknown): UnknownRecord {
   if (isRecord(value)) {
     return value
   }
 
-  throw new ApiError(0, "响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function readString(record: UnknownRecord, field: string): string {
+export function readString(record: UnknownRecord, field: string): string {
   const value = record[field]
   if (typeof value === "string" && value.length > 0) {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
-function readIsoString(record: UnknownRecord, field: string): string {
+function readOptionalNullableString(record: UnknownRecord, field: string): string | null | undefined {
+  const value = record[field]
+  if (value === undefined) {
+    return undefined
+  }
+  if (value === null) {
+    return null
+  }
+  if (typeof value === "string") {
+    return value
+  }
+
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
+}
+
+function readOptionalParticipantKind(record: UnknownRecord): "student" | "adult" | undefined {
+  const value = record["participantKind"]
+  if (value === undefined) {
+    return undefined
+  }
+  if (value === "student" || value === "adult") {
+    return value
+  }
+
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
+}
+
+export function readIsoString(record: UnknownRecord, field: string): string {
   const value = readString(record, field)
   if (!Number.isNaN(new Date(value).getTime())) {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readNumber(record: UnknownRecord, field: string): number {
@@ -176,16 +270,16 @@ function readNumber(record: UnknownRecord, field: string): number {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
-function readNonNegativeInteger(record: UnknownRecord, field: string): number {
+export function readNonNegativeInteger(record: UnknownRecord, field: string): number {
   const value = record[field]
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readPositiveInteger(record: UnknownRecord, field: string): number {
@@ -194,7 +288,7 @@ function readPositiveInteger(record: UnknownRecord, field: string): number {
     return value
   }
 
-  throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readTourSessionStatus(record: UnknownRecord): TourSessionStatus {
@@ -203,7 +297,7 @@ function readTourSessionStatus(record: UnknownRecord): TourSessionStatus {
     return value
   }
 
-  throw new ApiError(0, "status 响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readOrderStatus(record: UnknownRecord): OrderStatus {
@@ -212,7 +306,7 @@ function readOrderStatus(record: UnknownRecord): OrderStatus {
     return value
   }
 
-  throw new ApiError(0, "status 响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readPaymentStatus(record: UnknownRecord): PaymentStatus {
@@ -221,5 +315,5 @@ function readPaymentStatus(record: UnknownRecord): PaymentStatus {
     return value
   }
 
-  throw new ApiError(0, "status 响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }

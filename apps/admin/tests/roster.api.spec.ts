@@ -1,14 +1,24 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+﻿import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { downloadRosterExport, getRosterSummary, readableRosterError, RosterApiError } from "@/api/roster"
+import { downloadRosterExport, downloadRosterTemplate, getRosterSummary, importRoster, readableRosterError, RosterApiError } from "@/api/roster"
+import { parseRosterImportResult } from "@/api/roster.parsers"
 
 describe("roster API", () => {
+  it("requests the selected blank template with staff credentials and surfaces forbidden errors", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: "没有导入权限" }), { status: 403 }))
+    vi.stubGlobal("fetch", fetchMock)
+    await expect(downloadRosterTemplate("teacher")).rejects.toThrow("没有导入权限")
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:3000/roster/templates/teacher.xlsx", {
+      method: "GET", credentials: "include",
+    })
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
-  it("requests summary with development staff headers and parses the response", async () => {
+  it("requests summary with staff session cookies and parses the response", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () =>
         new Response(
@@ -30,10 +40,8 @@ describe("roster API", () => {
     if (call === undefined) {
       throw new Error("fetch was not called")
     }
-    const headers = new Headers(call[1]?.headers)
     expect(call[0]).toBe("http://127.0.0.1:3000/roster/summary?tourSessionId=session-1&schoolId=school-1")
-    expect(headers.get("x-linan-dev-staff-id")).toBe("dev-admin")
-    expect(headers.get("x-linan-dev-staff-role")).toBe("administrator")
+    expect(call[1]?.credentials).toBe("include")
     expect(summary.paidHeadcount).toBe(1)
   })
 
@@ -50,7 +58,80 @@ describe("roster API", () => {
     await expect(getRosterSummary({ tourSessionId: "session-1" })).rejects.toThrow("名单服务暂不可用")
   })
 
-  it("downloads the export file with the same query and headers", async () => {
+
+  it("uploads roster import workbooks with staff session cookies and parses the result", async () => {
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            id: "batch-1",
+            sourceTemplate: "grade_3_6",
+            tourSessionId: "session-1",
+            schoolId: "school-1",
+            gradeId: "grade-1",
+            classId: "class-1",
+            fileName: "roster.xlsx",
+            totalRows: 1,
+            importedCount: 1,
+            duplicateCount: 0,
+            errorCount: 0,
+            errors: [],
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const result = await importRoster({
+      template: "grade_3_6",
+      tourSessionId: "session-1",
+      schoolId: "school-1",
+      gradeId: "grade-1",
+      classId: "class-1",
+      file: new File(["xlsx"], "roster.xlsx"),
+    })
+
+    const call = fetchMock.mock.calls[0]
+    expect(call).toBeDefined()
+    if (call === undefined) {
+      throw new Error("fetch was not called")
+    }
+    expect(call[0]).toBe("http://127.0.0.1:3000/roster/imports")
+    expect(call[1]?.method).toBe("POST")
+    expect(call[1]?.credentials).toBe("include")
+    expect(call[1]?.body).toBeInstanceOf(FormData)
+    expect(result.importedCount).toBe(1)
+  })
+
+  it("maps import row errors to business labels", () => {
+    const result = parseRosterImportResult({
+      id: "batch-1",
+      sourceTemplate: "grade_3_6",
+      tourSessionId: "session-1",
+      schoolId: "school-1",
+      gradeId: "grade-1",
+      classId: "class-1",
+      fileName: "roster.xlsx",
+      totalRows: 1,
+      importedCount: 0,
+      duplicateCount: 0,
+      errorCount: 1,
+      errors: [
+        {
+          rowNumber: 4,
+          role: "student",
+          field: "identityNumber",
+          message: "identityNumber must be a valid resident identity number",
+        },
+      ],
+    })
+
+    expect(result.errors[0]).toMatchObject({
+      fieldLabel: "证件号码",
+      messageLabel: "证件号码格式不正确",
+    })
+  })
+  it("downloads the export file with the same query and staff session cookies", async () => {
     const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () =>
         new Response("xlsx", {
@@ -90,9 +171,8 @@ describe("roster API", () => {
     if (call === undefined) {
       throw new Error("fetch was not called")
     }
-    const headers = new Headers(call[1]?.headers)
     expect(call[0]).toBe("http://127.0.0.1:3000/roster/export.xlsx?tourSessionId=session-1&classId=class-1")
-    expect(headers.get("x-linan-dev-staff-role")).toBe("administrator")
+    expect(call[1]?.credentials).toBe("include")
     expect(createObjectURL).toHaveBeenCalledOnce()
     expect(downloadedFileName).toBe("名单统计-session-1.xlsx")
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:roster")

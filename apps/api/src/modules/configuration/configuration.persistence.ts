@@ -84,6 +84,9 @@ export function updateTourSessionEntity(
   session: TourSessionEntity,
   input: UpdateTourSession,
 ): void {
+  if (input.enrollmentScope !== undefined) {
+    session.enrollmentScopeJson = input.enrollmentScope
+  }
   if (input.catalogItemId !== undefined) {
     session.catalogItemId = input.catalogItemId
   }
@@ -98,6 +101,9 @@ export function updateTourSessionEntity(
   }
   if (input.capacity !== undefined) {
     session.capacity = input.capacity
+  }
+  if (input.minimumParticipants !== undefined) {
+    session.minimumParticipants = input.minimumParticipants
   }
   if (input.startsAt !== undefined) {
     session.startsAt = input.startsAt

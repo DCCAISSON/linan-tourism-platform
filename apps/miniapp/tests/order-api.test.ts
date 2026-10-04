@@ -27,6 +27,16 @@ const paymentResponse = {
 }
 
 describe("miniapp order API client", () => {
+  it("cancels through the authenticated order endpoint and reads the server status", async () => {
+    const requests: MiniappRequestOptions[] = []
+    const request: RequestTransport = async (options) => {
+      requests.push(options)
+      return { data: { ...orderResponse, status: "cancelled" }, statusCode: 200 }
+    }
+    const api = createMiniappApi({ baseUrl: "https://api.example.test", request, wechatSessionToken: "session-fixture" })
+    expect(await api.cancelOrder("order/1")).toMatchObject({ status: "cancelled", paidFen: 0 })
+    expect(requests).toEqual([expect.objectContaining({ url: "https://api.example.test/orders/order%2F1/cancel", method: "POST", header: expect.objectContaining({ Authorization: "Bearer session-fixture" }) })])
+  })
   it("creates an order without client-controlled amounts and keeps an idempotent response stable", async () => {
     // Given
     const requests: MiniappRequestOptions[] = []
@@ -123,6 +133,33 @@ describe("miniapp order API client", () => {
     expect(requests[0]?.data).not.toHaveProperty("paidFen")
   })
 
+
+  it("starts a WeChat payment with a login code and bearer token", async () => {
+    // Given
+    const requests: MiniappRequestOptions[] = []
+    const wechatPaymentResponse = {
+      id: "payment-1", orderId: "order-1", paymentNo: "PAYMENT-1", provider: "wechat_pay", status: "pending", amountFen: 39_600,
+      miniappPayment: { timeStamp: "1", nonceStr: "nonce", package: "prepay_id=wx", signType: "RSA", paySign: "sig" },
+    }
+    const request: RequestTransport = async (options) => {
+      requests.push(options)
+      return { data: wechatPaymentResponse, statusCode: 201 }
+    }
+    const api = createMiniappApi({ baseUrl: "https://api.example.test", wechatSessionToken: "server-token", request })
+
+    // When
+    const payment = await api.createWechatPayment("order-1", "wx-code")
+
+    // Then
+    expect(payment).toEqual(wechatPaymentResponse)
+    expect(requests).toEqual([{
+      url: "https://api.example.test/wechat/payments/order-1/miniapp",
+      method: "POST",
+      header: { "Content-Type": "application/json", Authorization: "Bearer server-token" },
+      data: { code: "wx-code" },
+    }])
+  })
+
   it("rejects malformed order responses", async () => {
     // Given
     const request: RequestTransport = async () => ({
@@ -132,7 +169,7 @@ describe("miniapp order API client", () => {
     const api = createMiniappApi({ baseUrl: "https://api.example.test", request })
 
     // When / Then
-    await expect(api.getOrder("order-1")).rejects.toEqual(new ApiError(0, "status 响应格式不正确"))
+    await expect(api.getOrder("order-1")).rejects.toEqual(new ApiError(0, "服务信息暂时无法读取，请稍后再试。"))
   })
 
   it("rejects malformed payment responses", async () => {
@@ -145,7 +182,7 @@ describe("miniapp order API client", () => {
 
     // When / Then
     await expect(api.createMockPayment("order-1")).rejects.toEqual(
-      new ApiError(0, "amountFen 响应格式不正确"),
+      new ApiError(0, "服务信息暂时无法读取，请稍后再试。"),
     )
   })
 
@@ -162,4 +199,24 @@ describe("miniapp order API client", () => {
       new ApiError(403, "order does not belong to the current family"),
     )
   })
+  it("reads server payment capabilities from the public capabilities endpoint", async () => {
+    const requests: MiniappRequestOptions[] = []
+    const request = async (options: MiniappRequestOptions) => {
+      requests.push(options)
+      return {
+        statusCode: 200,
+        data: { wechatPaymentEnabled: false, wechatRefundEnabled: false, paymentReconciliationEnabled: true },
+      }
+    }
+    const api = createMiniappApi({ baseUrl: "https://api.example.test", request })
+
+    await expect(api.getCapabilities()).resolves.toEqual({
+      wechatPaymentEnabled: false,
+      wechatRefundEnabled: false,
+      paymentReconciliationEnabled: true,
+    })
+    expect(requests[0]?.url).toBe("https://api.example.test/capabilities")
+    expect(requests[0]?.method).toBe("GET")
+  })
+
 })

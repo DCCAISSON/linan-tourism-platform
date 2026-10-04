@@ -8,6 +8,7 @@ export class HealthController {
     return {
       status: "ok",
       service: "@linan/api",
+      revision: process.env["REVISION"] ?? "local",
     }
   }
 }

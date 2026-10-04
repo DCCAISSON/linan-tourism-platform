@@ -24,6 +24,7 @@ describe("Health endpoint", () => {
     await request(app.getHttpServer()).get("/health").expect(200).expect({
       status: "ok",
       service: "@linan/api",
+      revision: "local",
     })
   })
 })

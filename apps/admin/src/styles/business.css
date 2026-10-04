@@ -1,0 +1,128 @@
+.business-page {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.business-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.business-heading__eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.business-heading h2,
+.business-card h3,
+.business-followup h4 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.business-heading p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.business-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.business-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-elevated);
+}
+
+.business-card--wide {
+  grid-column: 1 / -1;
+}
+
+.business-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.business-form {
+  display: grid;
+  gap: 12px;
+}
+
+.business-followup {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.business-detail-fields,
+.business-history {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.business-detail-fields dt {
+  color: var(--text-secondary);
+  font-size: var(--font-body-sm);
+}
+
+.business-detail-fields dd,
+.business-history p {
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.business-history {
+  list-style: none;
+}
+
+.business-history li {
+  overflow-wrap: anywhere;
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--surface-secondary);
+}
+
+.business-customer-links .el-button {
+  min-height: var(--size-touch-target);
+  margin: var(--space-1) var(--space-2) var(--space-1) 0;
+}
+
+.business-customer-links a {
+  color: var(--accent-primary);
+}
+
+@media (max-width: 900px) {
+  .business-heading,
+  .business-grid {
+    display: block;
+  }
+
+  .business-heading p,
+  .business-card {
+    margin-top: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .business-page .business-form > .el-button {
+    min-height: var(--size-touch-target);
+  }
+}

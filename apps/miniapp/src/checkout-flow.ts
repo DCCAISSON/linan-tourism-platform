@@ -5,6 +5,10 @@ export type TripGate =
   | { readonly open: true }
   | { readonly open: false; readonly reason: string }
 
+export type ParticipantPricingSummary =
+  | { readonly kind: "uniform"; readonly participantCount: number; readonly unitAmountFen: number }
+  | { readonly kind: "mixed"; readonly participantCount: number }
+
 export function buildCreateOrderPayload(
   enrollmentId: string,
   payerName: string,
@@ -52,7 +56,7 @@ export function nextPageModeForOrder(order: Order): PageMode {
 
 export function orderStatusLabel(order: Order | null): string {
   if (order === null) {
-    return "待创建订单"
+    return "还未生成订单"
   }
 
   switch (order.status) {
@@ -75,6 +79,16 @@ export function canStartPayment(order: Order | null): order is Order & { readonl
 
 export function createOrderRequestKey(enrollmentId: string): string {
   return `order-${enrollmentId}`
+}
+
+export function summarizeParticipantPricing(
+  participants: readonly { readonly amountFen: number }[],
+): ParticipantPricingSummary {
+  const first = participants[0]
+  if (first === undefined || participants.some((participant) => participant.amountFen !== first.amountFen)) {
+    return { kind: "mixed", participantCount: participants.length }
+  }
+  return { kind: "uniform", participantCount: participants.length, unitAmountFen: first.amountFen }
 }
 
 function readPublishedTripGate(session: TourSession, nowIso: string): TripGate {
