@@ -54,7 +54,7 @@
           <div>
             <strong>{{ asset.title }}</strong>
             <span>{{ asset.kind === "image" ? "图片" : "视频" }} · {{ statusText(asset.status) }} · {{ Math.ceil(asset.byteSize / 1024) }}KB</span>
-            <span v-if="asset.cleanupPending">残留对象待清理</span>
+            <span v-if="asset.cleanupPending">文件清理待确认</span>
           </div>
           <a v-if="asset.status === 'draft' || asset.status === 'published'" :href="mediaContentUrl(sessionId, asset.id)" target="_blank" rel="noreferrer">查看</a>
           <button v-if="asset.status === 'draft'" type="button" @click="setStatus(asset, 'published')">发布</button>
@@ -124,7 +124,11 @@ async function uploadSelected(): Promise<void> {
     selectedFile.value = null
     message.value = "上传成功，发布后家庭端可查看。"
     await loadCollection()
-  } catch (caught) { error.value = readableMediaError(caught) }
+  } catch (caught) {
+    const uploadError = readableMediaError(caught)
+    await loadCollection()
+    error.value = error.value ? `${uploadError}；${error.value}` : uploadError
+  }
   finally { uploading.value = false }
 }
 

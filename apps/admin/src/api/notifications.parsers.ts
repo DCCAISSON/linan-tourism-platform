@@ -100,6 +100,7 @@ function parseEntry(value: unknown): NotificationChannelEntry {
   if (enabled && !url.startsWith("https://")) throw invalid("notification entry.url")
   return {
     kind: readEntryKind(record, "kind"),
+    ...(record["corpId"] === undefined ? {} : { corpId: readNullableString(record, "corpId", "notification entry") }),
     label: readString(record, "label", "notification entry"),
     url,
     enabled,

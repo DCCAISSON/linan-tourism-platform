@@ -60,13 +60,14 @@
           </div>
           <div class="field configuration-content-field">
             <label for="catalog-edit-description">修改课程介绍</label>
-            <textarea id="catalog-edit-description" v-model.trim="editingDescription" maxlength="4000" rows="3" :disabled="!editingId" />
+            <textarea id="catalog-edit-description" v-model.trim="editingDescription" maxlength="4000" rows="3" :disabled="!editingId || linkedToTemplate" />
           </div>
           <div class="field configuration-content-field">
             <label for="catalog-edit-cover">修改封面链接</label>
-            <input id="catalog-edit-cover" v-model.trim="editingCover" maxlength="2048" :disabled="!editingId" />
+            <input id="catalog-edit-cover" v-model.trim="editingCover" maxlength="2048" :disabled="!editingId || linkedToTemplate" />
           </div>
-          <button type="submit" :disabled="!editingId || submitting">{{ submitting ? "保存中..." : "保存课程内容" }}</button>
+          <p v-if="linkedToTemplate" class="state-text configuration-content-field">该课程使用共享模板，请在上方编辑模板；如需单校修改，可先解除关联。</p>
+          <button type="submit" :disabled="!editingId || submitting || linkedToTemplate">{{ submitting ? "保存中..." : "保存课程内容" }}</button>
         </fieldset>
       </form>
     </template>
@@ -76,6 +77,7 @@
         <span>编码：{{ item.code }}</span>
         <span>{{ schoolNameById(item.organizationId) }}</span>
         <span>{{ statusText(item.status) }}</span>
+        <span v-if="item.templateId">使用共享课程模板</span>
         <button type="button" class="record-action" :disabled="submitting" @click="emit('delete', item.id)">
           删除
         </button>
@@ -116,6 +118,7 @@ const coverImageUrl = ref("")
 const editingId = ref("")
 const editingDescription = ref("")
 const editingCover = ref("")
+const linkedToTemplate = computed(() => !!props.catalogItems.find(item => item.id === editingId.value)?.templateId)
 watch([editingId, () => props.catalogItems], () => {
   const item = props.catalogItems.find(item => item.id === editingId.value)
   if (!item) editingId.value = ""

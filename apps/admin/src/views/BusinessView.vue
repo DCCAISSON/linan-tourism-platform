@@ -35,7 +35,7 @@
             <el-input v-model="form.offering" maxlength="500" />
           </el-form-item>
           <el-form-item label="介绍">
-            <el-input v-model="form.content" type="textarea" :rows="5" maxlength="8000" />
+            <el-input v-model="form.content" type="textarea" :rows="5" maxlength="8000" placeholder="说明行程或入住安排、费用包含及不含项目；疗休养可补充人数、住宿、用餐及结算说明。" />
           </el-form-item>
           <el-form-item label="参考价格（元，可空）">
             <el-input v-model="priceYuan" inputmode="decimal" placeholder="不确定则留空" />
@@ -47,6 +47,7 @@
             <el-input v-model="form.bookingUrl" placeholder="未确认授权则留空" />
           </el-form-item>
           <el-checkbox v-model="form.bookingAuthorized">该入口已由业务方确认可公开</el-checkbox>
+          <p>可填写现有 PMS、OTA 或服务方预订网页；需使用 HTTPS，并在微信小程序后台配置业务域名。授权公开不代表已完成域名配置。</p>
           <el-form-item label="公开素材 HTTPS，每行一条，image 或 video 用空格分隔">
             <el-input v-model="mediaText" type="textarea" :rows="4" placeholder="每行填写一个已授权公开素材链接" />
           </el-form-item>

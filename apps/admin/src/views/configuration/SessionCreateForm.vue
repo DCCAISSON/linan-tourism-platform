@@ -24,8 +24,9 @@
         <input id="session-code" v-model.trim="code" autocomplete="off" />
       </div>
       <div class="field">
-        <label for="session-price">团期价格（元）</label>
-        <input id="session-price" v-model.trim="priceYuan" inputmode="decimal" />
+        <label for="session-price">团期单价（元/人）</label>
+        <input id="session-price" v-model.trim="priceYuan" inputmode="decimal" aria-describedby="session-price-help" />
+        <small id="session-price-help" class="state-text">学生、成人同价，按报名人数计费。</small>
       </div>
       <div class="field">
         <label for="session-capacity">容量</label>

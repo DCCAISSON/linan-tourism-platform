@@ -37,11 +37,11 @@ describe("refund applications API", () => {
     }))
   })
 
-  it("executes approved applications with a local result only at execution time", async () => {
-    const fetchMock = vi.fn(async () => Response.json({ ...application, status: "approved", refundRequestId: "refund-1", refundStatus: "succeeded" }))
+  it("submits approved applications to the execution endpoint", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ...application, status: "approved", refundRequestId: "refund-1", refundStatus: "pending" }))
     vi.stubGlobal("fetch", fetchMock)
-    const result = await executeRefundApplication("app-1", "succeeded", null)
-    expect(result.refundStatus).toBe("succeeded")
+    const result = await executeRefundApplication("app-1")
+    expect(result.refundStatus).toBe("pending")
     expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:3000/staff/refund-applications/app-1/execute", expect.objectContaining({
       body: JSON.stringify({ outcome: "succeeded", failureMessage: null }),
     }))

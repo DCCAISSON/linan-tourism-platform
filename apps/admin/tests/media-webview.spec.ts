@@ -26,7 +26,7 @@ describe("order-scoped album webview", () => {
     await nextTick()
     expect(lifecycle.read).not.toHaveBeenCalled()
     expect(document.querySelector("web-view")).toBeNull()
-    expect(document.body.textContent).toContain("活动影像链接无效")
+    expect(document.body.textContent).toContain("活动影像暂时无法打开，请返回订单后重试。")
     app.unmount()
   })
 
@@ -44,7 +44,7 @@ describe("order-scoped album webview", () => {
     await nextTick()
     expect(lifecycle.read).toHaveBeenCalledTimes(2)
     expect(document.querySelector("web-view")).toBeNull()
-    expect(document.body.textContent).toContain("已停用")
+    expect(document.body.textContent).toContain("活动影像暂未开放，请返回订单查看其他信息。")
     app.unmount()
   })
 

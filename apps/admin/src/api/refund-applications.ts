@@ -31,8 +31,8 @@ export async function reviewRefundApplication(id: string, decision: "approved" |
   return parseRefundApplication(await request(`/staff/refund-applications/${encodeURIComponent(id)}/review`, { decision, reason }))
 }
 
-export async function executeRefundApplication(id: string, outcome: "succeeded" | "failed", failureMessage: string | null): Promise<RefundApplication> {
-  return parseRefundApplication(await request(`/staff/refund-applications/${encodeURIComponent(id)}/execute`, { outcome, failureMessage }))
+export async function executeRefundApplication(id: string): Promise<RefundApplication> {
+  return parseRefundApplication(await request(`/staff/refund-applications/${encodeURIComponent(id)}/execute`, { outcome: "succeeded", failureMessage: null }))
 }
 
 async function request(path: string, body?: object): Promise<unknown> {

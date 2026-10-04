@@ -12,9 +12,11 @@
       <nav class="admin-nav" aria-label="主要菜单">
         <router-link v-if="hasPermission('workbench.read')" class="admin-nav__item" to="/home">工作台</router-link>
         <router-link v-if="hasPermission('configuration.read')" class="admin-nav__item" to="/configuration">活动配置</router-link>
+        <router-link v-if="hasPermission('configuration.read')" class="admin-nav__item" to="/contracts">团期合同</router-link>
         <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/roster">名单统计</router-link>
         <router-link v-if="hasPermission('roster.read')" class="admin-nav__item" to="/travelers">出行人员</router-link>
         <router-link v-if="hasPermission('orders.read')" class="admin-nav__item" to="/orders">订单管理</router-link>
+        <router-link v-if="hasPermission('orders.read')" class="admin-nav__item" to="/order-changes">人员变更申请</router-link>
         <router-link v-if="canOpenRefundApplications" class="admin-nav__item" to="/refund-applications">退款申请</router-link>
         <router-link v-if="hasPermission('payments.reconcile') && capabilities.paymentReconciliationEnabled" class="admin-nav__item" to="/payments/reconciliation">支付对账</router-link>
         <router-link v-if="hasPermission('transport.read')" class="admin-nav__item" to="/transport">车辆安排</router-link>
@@ -26,7 +28,7 @@
         <router-link v-if="hasPermission('health.read')" class="admin-nav__item" to="/health-access">健康授权</router-link>
         <router-link v-if="hasPermission('evaluations.read') || hasPermission('evaluations.school_report')" class="admin-nav__item" to="/evaluations">学生评价</router-link>
         <router-link v-if="hasPermission('evaluations.standard.write') || hasPermission('evaluations.standard.confirm')" class="admin-nav__item" to="/evaluation-standards">评价标准</router-link>
-        <router-link v-if="hasPermission('feedback.read')" class="admin-nav__item" to="/feedback">服务反馈</router-link>
+        <router-link v-if="hasPermission('feedback.read') || hasPermission('feedback.submit')" class="admin-nav__item" to="/feedback">服务反馈</router-link>
         <router-link v-if="hasPermission('insurance.read')" class="admin-nav__item" to="/insurance">保险工作台</router-link>
         <router-link v-if="hasPermission('media.read')" class="admin-nav__item" to="/media">影像管理</router-link>
         <router-link v-if="hasPermission('crm.read')" class="admin-nav__item" to="/crm">客户管理</router-link>

@@ -34,6 +34,7 @@ const authorizedRouteOrder: readonly { readonly permissionKey: StaffPermissionKe
   { permissionKey: "evaluations.standard.write", routeName: routeNames.evaluationStandards },
   { permissionKey: "evaluations.standard.confirm", routeName: routeNames.evaluationStandards },
   { permissionKey: "feedback.read", routeName: routeNames.feedback },
+  { permissionKey: "feedback.submit", routeName: routeNames.feedback },
   { permissionKey: "insurance.read", routeName: routeNames.insurance },
   { permissionKey: "media.read", routeName: routeNames.media },
   { permissionKey: "crm.read", routeName: routeNames.crm },

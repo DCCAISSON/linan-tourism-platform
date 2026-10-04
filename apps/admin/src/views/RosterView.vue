@@ -8,6 +8,7 @@
       <p>按名称选择团期、学校、年级和班级，查询已付款参加人员与费用。</p>
     </header>
 
+    <DateStatisticsPanel :schools="schools" />
     <form class="roster-filter" aria-labelledby="roster-filter-title" @submit.prevent="submitQuery">
       <fieldset :disabled="loading || exporting || optionsLoading">
         <legend id="roster-filter-title">筛选条件</legend>
@@ -175,6 +176,7 @@ import { getCurrentStaff } from "@/api/auth"
 import "@/styles/roster.css"
 import { formatFen } from "@/views/roster/format"
 import { useRosterFilters } from "@/views/roster/useRosterFilters"
+import DateStatisticsPanel from "@/views/roster/DateStatisticsPanel.vue"
 
 const { filters, schools, grades, classes, visibleSessions, optionsLoading, gradeLoading, classLoading, optionsError, gradeError, classError, optionsBusy, selectionError, loadOptions, loadGrades, loadClasses, sessionLabel } = useRosterFilters()
 const selectedSession = computed(() => visibleSessions.value.find(session => session.id === filters.tourSessionId))

@@ -102,6 +102,14 @@ export async function createStaffRefund(id: string, input: StaffRefundInput): Pr
   return parseRefundHistory(await request(`/staff/orders/${encodeURIComponent(id)}/refunds`, input))
 }
 
+export async function createWechatRefund(id: string, input: StaffRefundInput): Promise<RefundHistoryItem> {
+  return parseRefundHistory(await request(`/staff/orders/${encodeURIComponent(id)}/wechat-refunds`, input))
+}
+
+export async function syncWechatRefund(id: string, refundId: string): Promise<RefundHistoryItem> {
+  return parseRefundHistory(await request(`/staff/orders/${encodeURIComponent(id)}/wechat-refunds/${encodeURIComponent(refundId)}/sync`, {}))
+}
+
 export async function processStaffRefund(id: string, refundId: string, outcome: "succeeded" | "failed"): Promise<RefundHistoryItem> {
   return parseRefundHistory(await request(`/staff/orders/${encodeURIComponent(id)}/refunds/${encodeURIComponent(refundId)}/local-result`, { outcome }))
 }

@@ -7,6 +7,10 @@ const standard = { id: "std-a", tourSessionId: "session-a", title: "学校提供
 const student = { personRef: "paid:line-a", displayName: "学生甲", gradeName: "五年级", className: "一班" }
 const row = { ...student, id: "eval-a", version: 1, standardId: "std-a", organizationId: "school-a", gradeCode: "A", gradeLabel: "学校A标签", internalComment: "内部观察", excellent: false, attention: false, confirmedAt: null }
 
+test.beforeEach(async ({ page }) => {
+  await page.route(api + "/evaluations/sessions", route => route.fulfill({ json: [{ id: "session-a", code: "第一团", title: "研学活动", organizationId: "school-a" }] }))
+})
+
 test("creates a dimension standard and records optional facts without automatic grading", async ({ page }, testInfo) => {
   await installStaffAuthMock(page, permissions)
   const dimensions = [{ code: "participation", label: "参与态度", description: "记录具体学习表现" }]
@@ -51,7 +55,7 @@ test("creates a dimension standard and records optional facts without automatic 
   await page.getByRole("button", { name: "确认此标准" }).click()
   await expect(page.getByText("标准已确认，可用于本团期评级。")).toBeVisible()
   await page.getByRole("link", { name: "学生评价", exact: true }).click()
-  await page.getByLabel("团期 ID").fill("session-a")
+  await page.getByRole("combobox", { name: "团期", exact: true }).selectOption("session-a")
   await page.getByRole("button", { name: "加载评价" }).click()
   await page.getByRole("button", { name: "评价学生甲", exact: true }).click()
   await page.getByRole("combobox", { name: "评价标准", exact: true }).selectOption("std-a")
@@ -91,7 +95,7 @@ test("saves students individually, rejects incomplete confirmation and confirms 
   await page.route(api + "/evaluations/staff/sessions/session-a/confirm", async route => { stage = 3; await route.fulfill({ json: [] }) })
   page.on("dialog", dialog => dialog.accept())
   await page.goto("/evaluations")
-  await page.getByLabel("团期 ID").fill("session-a")
+  await page.getByRole("combobox", { name: "团期", exact: true }).selectOption("session-a")
   await page.getByRole("button", { name: "加载评价" }).click()
   await page.getByRole("button", { name: "评价学生甲", exact: true }).click()
   await expect(page.getByRole("combobox", { name: "等级", exact: true })).toBeDisabled()
@@ -124,7 +128,7 @@ test("shows empty and failure states and hides write actions for read-only staff
   await installStaffAuthMock(page, ["evaluations.read"])
   await page.route(api + "/evaluations/staff/sessions/session-a", route => route.fulfill({ json: { organizationId: "school-a", standards: [], students: [], evaluations: [] } }))
   await page.goto("/evaluations")
-  await page.getByLabel("团期 ID").fill("session-a")
+  await page.getByRole("combobox", { name: "团期", exact: true }).selectOption("session-a")
   await page.getByRole("button", { name: "加载评价" }).click()
   await expect(page.getByText("暂无可评价学生")).toBeVisible()
   await expect(page.getByRole("button", { name: "保存当前学生评价" })).toHaveCount(0)
@@ -165,7 +169,7 @@ test("school report-only staff can download without requesting internal evaluati
   await page.route(api + "/evaluations/school/sessions/session-a/report?organizationId=school-a&format=wordxml", route => route.fulfill({ contentType: "application/msword", body: '<?xml version="1.0"?><report>学生甲 A</report>' }))
   await page.goto("/evaluations")
   await expect(page.getByRole("link", { name: "学生评价" })).toBeVisible()
-  await page.getByLabel("团期 ID").fill("session-a")
+  await page.getByRole("combobox", { name: "团期", exact: true }).selectOption("session-a")
   await page.getByRole("button", { name: "加载评价" }).click()
   await expect(page.getByRole("heading", { name: "学校评价报告" })).toBeVisible()
   await expect(page.getByText("学校A标签", { exact: false })).toBeVisible()

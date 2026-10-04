@@ -47,6 +47,10 @@ export async function loadFeedbackDashboard(sessionId: string, filters: Feedback
   return parseFeedbackDashboard(await request(`/feedback/staff/sessions/${encodeURIComponent(sessionId)}${feedbackQuery(filters)}`))
 }
 
+export async function submitSchoolFeedback(input: { readonly tourSessionId: string; readonly rating: number; readonly content: string; readonly contactName: string; readonly idempotencyKey: string }): Promise<FeedbackItem> {
+  return parseFeedbackItem(await request("/feedback/staff/school", { ...input, orderId: null, source: "school", allowPublic: false }))
+}
+
 export async function exportFeedback(sessionId: string, filters: FeedbackFilters): Promise<Blob> {
   const response = await fetch(`${apiBaseUrl}/feedback/staff/sessions/${encodeURIComponent(sessionId)}/export.xlsx${feedbackQuery(filters)}`, { credentials: "include" })
   if (!response.ok) throw new RosterApiError(response.status, readErrorMessage(await readJson(response)) ?? `导出失败（${response.status}）`)

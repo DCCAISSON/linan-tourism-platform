@@ -1,6 +1,6 @@
 import { parseEnrollmentScope } from "./configuration.enrollment-scope"
 import { ApiError } from "./configuration.errors"
-import type { CatalogItem, Grade, NoticeContent, NoticeVersion, School, SchoolClass, TourSession } from "./configuration.types"
+import type { CatalogItem, CatalogTemplate, Grade, NoticeContent, NoticeVersion, School, SchoolClass, TourSession } from "./configuration.types"
 
 export function parseSchool(value: unknown): School {
   const record = readRecord(value, "学校")
@@ -47,9 +47,19 @@ export function parseCatalogItem(value: unknown): CatalogItem {
     title: readString(record, "title"),
     description: readString(record, "description"),
     coverImageUrl: readString(record, "coverImageUrl"),
+    templateId: readNullableString(record, "templateId"),
     status: readString(record, "status", "active"),
     policyVersion: readString(record, "policyVersion"),
   }
+}
+
+export function parseCatalogTemplate(value: unknown): CatalogTemplate {
+  const record = readRecord(value, "课程模板")
+  const version = readNumber(record, "version")
+  const id = readString(record, "id")
+  const title = readString(record, "title")
+  if (id === "" || title === "" || !Number.isSafeInteger(version) || version < 1) throw new ApiError(0, "课程模板响应格式不正确")
+  return { id, title, version, description: readString(record, "description"), coverImageUrl: readString(record, "coverImageUrl") }
 }
 
 export function parseTourSession(value: unknown): TourSession {

@@ -2,6 +2,17 @@ import { resolveAdminApiBaseUrl } from "./base-url"
 import { RosterApiError } from "./roster.errors"
 
 const apiBaseUrl = resolveAdminApiBaseUrl()
+
+export type EvaluationSession = { readonly id: string; readonly code: string; readonly title: string; readonly organizationId: string }
+
+export async function listEvaluationSessions(): Promise<readonly EvaluationSession[]> {
+  const value = await request("/evaluations/sessions")
+  if (!Array.isArray(value)) throw invalidResponse()
+  return value.map(value => {
+    const row = readRecord(value)
+    return { id: readText(row, "id"), code: readText(row, "code"), title: readText(row, "title"), organizationId: readText(row, "organizationId") }
+  })
+}
 export type EvaluationDimension = { readonly code: string; readonly label: string; readonly description: string }
 export type DimensionObservation = { readonly code: string; readonly observation: string }
 

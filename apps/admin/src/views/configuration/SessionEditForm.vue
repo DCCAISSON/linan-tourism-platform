@@ -11,8 +11,9 @@
         </select>
       </div>
       <div class="field">
-        <label for="session-edit-price">修改价格（元）</label>
-        <input id="session-edit-price" v-model.trim="editPriceYuan" inputmode="decimal" />
+        <label for="session-edit-price">修改单价（元/人）</label>
+        <input id="session-edit-price" v-model.trim="editPriceYuan" inputmode="decimal" aria-describedby="session-edit-price-help" />
+        <small id="session-edit-price-help" class="state-text">学生、成人同价；修改后用于新订单，已有订单金额不变。</small>
       </div>
       <div class="field">
         <label for="session-edit-minimum">修改最低人数参考（可选）</label>

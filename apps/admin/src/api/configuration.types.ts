@@ -30,6 +30,18 @@ export type CatalogItem = {
   readonly policyVersion: string
   readonly description: string
   readonly coverImageUrl: string
+  readonly templateId?: string | null
+}
+
+export type CatalogTemplateContent = {
+  readonly title: string
+  readonly description: string
+  readonly coverImageUrl: string
+}
+
+export type CatalogTemplate = CatalogTemplateContent & {
+  readonly id: string
+  readonly version: number
 }
 
 export type NoticeContent = {

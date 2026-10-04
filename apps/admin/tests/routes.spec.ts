@@ -62,6 +62,7 @@ describe("admin routes", () => {
     expect(routeNames).toEqual({
       business: "business",
       configuration: "configuration",
+      contracts: "contracts",
       crm: "crm",
       evaluations: "evaluations",
       evaluationStandards: "evaluation-standards",
@@ -77,6 +78,7 @@ describe("admin routes", () => {
       media: "media",
       notifications: "notifications",
       orders: "orders",
+      orderChanges: "order-changes",
       paymentReconciliation: "payment-reconciliation",
       pretrip: "pretrip",
       refundApplications: "refund-applications",
@@ -90,9 +92,11 @@ describe("admin routes", () => {
     expect(routes[2]?.children?.map(route => route.path)).toEqual([
       "home",
       "configuration",
+      "contracts",
       "roster",
       "travelers",
       "orders",
+      "order-changes",
       "refund-applications",
       "payments/reconciliation",
       "transport",
@@ -116,8 +120,10 @@ describe("admin routes", () => {
     expect(routes[2]?.children?.map(route => route.meta?.["requiredPermission"])).toEqual([
       "workbench.read",
       "configuration.read",
+      "configuration.read",
       "roster.read",
       "roster.read",
+      "orders.read",
       "orders.read",
       undefined,
       "payments.reconcile",
@@ -131,7 +137,7 @@ describe("admin routes", () => {
       "health.read",
       undefined,
       undefined,
-      "feedback.read",
+      undefined,
       "insurance.read",
       "media.read",
       "crm.read",
@@ -146,6 +152,7 @@ describe("admin routes", () => {
     expect(routes[2]?.children?.find(route => route.name === routeNames.paymentReconciliation)?.meta?.["requiredCapability"]).toBe("paymentReconciliationEnabled")
     expect(routes[2]?.children?.find(route => route.name === routeNames.evaluations)?.meta?.["requiredAnyPermission"]).toEqual(["evaluations.read", "evaluations.school_report"])
     expect(routes[2]?.children?.find(route => route.name === routeNames.evaluationStandards)?.meta?.["requiredAnyPermission"]).toEqual(["evaluations.standard.write", "evaluations.standard.confirm"])
+    expect(routes[2]?.children?.find(route => route.name === routeNames.feedback)?.meta?.["requiredAnyPermission"]).toEqual(["feedback.read", "feedback.submit"])
   })
 
   it("chooses the first route the staff account is allowed to open", () => {
@@ -162,6 +169,7 @@ describe("admin routes", () => {
     expect(firstAuthorizedRouteName(["health.read"])).toBe(routeNames.healthAccess)
     expect(firstAuthorizedRouteName(["evaluations.school_report"])).toBe(routeNames.evaluations)
     expect(firstAuthorizedRouteName(["evaluations.standard.confirm"])).toBe(routeNames.evaluationStandards)
+    expect(firstAuthorizedRouteName(["feedback.submit"])).toBe(routeNames.feedback)
     expect(firstAuthorizedRouteName([])).toBeNull()
   })
 })

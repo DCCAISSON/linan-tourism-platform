@@ -15,6 +15,7 @@ export type NotificationContentVersion = {
 }
 
 export type NotificationChannelEntry = {
+  readonly corpId?: string | null
   readonly kind: NotificationEntryKind
   readonly label: string
   readonly url: string
@@ -82,6 +83,7 @@ export type NotificationContentInput = {
 }
 
 export type NotificationEntryInput = {
+  readonly corpId?: string | null
   readonly label: string
   readonly url: string
   readonly enabled: boolean

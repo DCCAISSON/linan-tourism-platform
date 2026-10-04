@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from "vue-router"
 import AdminLayout from "@/layouts/AdminLayout.vue"
 import BusinessView from "@/views/BusinessView.vue"
 import ConfigurationView from "@/views/ConfigurationView.vue"
+import ContractsView from "@/views/ContractsView.vue"
 import CrmView from "@/views/CrmView.vue"
 import EvaluationStandardsView from "@/views/EvaluationStandardsView.vue"
 import EvaluationsView from "@/views/EvaluationsView.vue"
@@ -19,6 +20,7 @@ import MediaView from "@/views/MediaView.vue"
 import NotificationsView from "@/views/NotificationsView.vue"
 import RosterView from "@/views/RosterView.vue"
 import OrdersView from "@/views/OrdersView.vue"
+import OrderChangesView from "@/views/OrderChangesView.vue"
 import PaymentReconciliationView from "@/views/PaymentReconciliationView.vue"
 import PretripView from "@/views/PretripView.vue"
 import RefundApplicationsView from "@/views/RefundApplicationsView.vue"
@@ -31,6 +33,7 @@ import TravelersView from "@/views/TravelersView.vue"
 export const routeNames = {
   business: "business",
   configuration: "configuration",
+  contracts: "contracts",
   crm: "crm",
   evaluations: "evaluations",
   evaluationStandards: "evaluation-standards",
@@ -47,6 +50,7 @@ export const routeNames = {
   forcePasswordChange: "force-password-change",
   roster: "roster",
   orders: "orders",
+  orderChanges: "order-changes",
   paymentReconciliation: "payment-reconciliation",
   pretrip: "pretrip",
   refundApplications: "refund-applications",
@@ -98,6 +102,12 @@ export const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: "contracts",
+        name: routeNames.contracts,
+        component: ContractsView,
+        meta: { title: "团期合同", requiredPermission: "configuration.read" },
+      },
+      {
         path: "roster",
         name: routeNames.roster,
         component: RosterView,
@@ -117,6 +127,12 @@ export const routes: RouteRecordRaw[] = [
         name: routeNames.orders,
         component: OrdersView,
         meta: { title: "订单管理", requiredPermission: "orders.read" },
+      },
+      {
+        path: "order-changes",
+        name: routeNames.orderChanges,
+        component: OrderChangesView,
+        meta: { title: "人员变更申请", requiredPermission: "orders.read" },
       },
       {
         path: "refund-applications",
@@ -198,7 +214,7 @@ export const routes: RouteRecordRaw[] = [
         path: "feedback",
         name: routeNames.feedback,
         component: FeedbackView,
-        meta: { title: "服务反馈", requiredPermission: "feedback.read" },
+        meta: { title: "服务反馈", requiredAnyPermission: ["feedback.read", "feedback.submit"] },
       },
       {
         path: "insurance",

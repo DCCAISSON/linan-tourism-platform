@@ -3,7 +3,7 @@
     <header class="workbench-heading">
       <div>
         <h2 id="payment-reconciliation-title">微信支付对账</h2>
-        <p>下载微信交易账单并比对平台支付记录。这里只记录差异，不自动修改订单或退款。</p>
+        <p>下载微信交易账单并比对平台支付和退款记录。这里只记录差异，不自动修改订单或退款。</p>
       </div>
       <button type="button" :disabled="loading || billDate.length === 0" @click="runReconcile">{{ loading ? "对账中..." : "执行对账" }}</button>
     </header>
@@ -27,13 +27,16 @@
       </div>
       <div class="workbench-table-wrap">
         <table class="workbench-table" aria-label="微信支付对账差异">
-          <thead><tr><th scope="col">类型</th><th scope="col">商户单号</th><th scope="col">微信金额</th><th scope="col">平台金额</th><th scope="col">说明</th></tr></thead>
+          <thead><tr><th scope="col">类型</th><th scope="col">商户单号</th><th scope="col">商户退款单号</th><th scope="col">微信金额</th><th scope="col">平台金额</th><th scope="col">微信退款金额</th><th scope="col">平台退款金额</th><th scope="col">说明</th></tr></thead>
           <tbody>
-            <tr v-for="difference in visibleDifferences" :key="`${difference.kind}:${difference.outTradeNo}`">
+            <tr v-for="difference in visibleDifferences" :key="`${difference.kind}:${difference.outTradeNo}:${difference.outRefundNo ?? ''}`">
               <td data-label="类型">{{ differenceKindLabel[difference.kind] }}</td>
               <td data-label="商户单号">{{ difference.outTradeNo }}</td>
+              <td data-label="商户退款单号">{{ difference.outRefundNo ?? "-" }}</td>
               <td data-label="微信金额">{{ formatNullableFen(difference.wechatAmountFen) }}</td>
               <td data-label="平台金额">{{ formatNullableFen(difference.localAmountFen) }}</td>
+              <td data-label="微信退款金额">{{ formatNullableFen(difference.wechatRefundFen) }}</td>
+              <td data-label="平台退款金额">{{ formatNullableFen(difference.localRefundFen) }}</td>
               <td data-label="说明">{{ difference.summary }}</td>
             </tr>
           </tbody>
@@ -56,7 +59,7 @@ const loading = ref(false)
 const error = ref("")
 const note = ref("")
 const result = ref<PaymentReconciliation>()
-const differenceKindLabel = { wechat_only: "微信有，平台无", local_only: "平台有，微信无", amount_mismatch: "金额不一致", matched: "一致" } as const satisfies Record<BillDifference["kind"], string>
+const differenceKindLabel = { wechat_only: "微信有，平台无", local_only: "平台有，微信无", amount_mismatch: "金额不一致", refund_mismatch: "退款不一致", matched: "一致" } as const satisfies Record<BillDifference["kind"], string>
 const visibleDifferences = computed(() => result.value?.differences.filter((difference) => difference.kind !== "matched") ?? [])
 
 async function runReconcile(): Promise<void> {
@@ -78,6 +81,8 @@ function formatNullableFen(value: number | null): string { return value === null
 </script>
 
 <style scoped>
+.workbench-caption { overflow-wrap: anywhere; }
+.workbench-table td:first-child { white-space: nowrap; }
 .reconciliation-form,
 .reconciliation-confirm { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .reconciliation-form input,

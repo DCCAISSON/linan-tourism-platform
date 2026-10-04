@@ -4,10 +4,13 @@ import { RosterApiError } from "./roster.errors"
 const apiBaseUrl = resolveAdminApiBaseUrl()
 
 export type BillDifference = {
-  readonly kind: "wechat_only" | "local_only" | "amount_mismatch" | "matched"
+  readonly kind: "wechat_only" | "local_only" | "amount_mismatch" | "refund_mismatch" | "matched"
   readonly outTradeNo: string
+  readonly outRefundNo: string | null
   readonly wechatAmountFen: number | null
   readonly localAmountFen: number | null
+  readonly wechatRefundFen: number | null
+  readonly localRefundFen: number | null
   readonly summary: string
 }
 
@@ -65,12 +68,15 @@ function parseReconciliation(value: unknown): PaymentReconciliation {
 function parseDifference(value: unknown): BillDifference {
   const record = readRecord(value)
   const kind = record["kind"]
-  if (kind !== "wechat_only" && kind !== "local_only" && kind !== "amount_mismatch" && kind !== "matched") throw invalidResponse()
+  if (kind !== "wechat_only" && kind !== "local_only" && kind !== "amount_mismatch" && kind !== "refund_mismatch" && kind !== "matched") throw invalidResponse()
   return {
     kind,
     outTradeNo: readText(record, "outTradeNo"),
+    outRefundNo: readNullableText(record, "outRefundNo"),
     wechatAmountFen: readNullableCount(record, "wechatAmountFen"),
     localAmountFen: readNullableCount(record, "localAmountFen"),
+    wechatRefundFen: readNullableCount(record, "wechatRefundFen"),
+    localRefundFen: readNullableCount(record, "localRefundFen"),
     summary: readText(record, "summary"),
   }
 }

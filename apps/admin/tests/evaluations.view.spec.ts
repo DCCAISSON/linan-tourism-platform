@@ -15,6 +15,7 @@ describe("individual manual evaluations", () => {
     vi.stubGlobal("fetch", vi.fn(async (input, init?: RequestInit) => {
       const path = String(input)
       if (path.includes("/staff/auth/")) return Response.json({ actorId: "staff", displayName: "导游", kind: "administrator", forcePasswordChange: false, permissionKeys: permissions, scopes: [{ kind: "all", id: null }] })
+      if (path.endsWith("/evaluations/sessions")) return Response.json([{ id: "session", code: "第一团", title: "山水研学", organizationId: "school" }])
       if (path.endsWith("/batch")) { saved.push(JSON.parse(String(init?.body))); return Response.json([]) }
       return Response.json({ organizationId: "school", standards: [standard], students, evaluations: [] })
     }))
@@ -35,6 +36,31 @@ describe("individual manual evaluations", () => {
     button("评价学生乙").click()
     await nextTick()
     expect(control("等级").value).toBe("未评级")
+    app.unmount()
+  })
+
+  it("loads a school report by its authorized session name without asking for internal IDs", async () => {
+    // Given a school account and a single authorized named session.
+    const requests: string[] = []
+    vi.stubGlobal("fetch", vi.fn(async input => {
+      const path = String(input)
+      requests.push(path)
+      if (path.includes("/staff/auth/")) return Response.json({ actorId: "school", kind: "school", forcePasswordChange: false, permissionKeys: ["evaluations.school_report"], scopes: [{ kind: "school", id: "school-a" }] })
+      if (path.endsWith("/evaluations/sessions")) return Response.json([{ id: "private-session-id", code: "第一团", title: "本校山水研学", organizationId: "school-a" }])
+      return Response.json([{ personRef: "paid:a", displayName: "学生甲", gradeName: "五年级", className: "一班", gradeCode: "A", gradeLabel: "优秀" }])
+    }))
+    const app = mount(EvaluationsView)
+    await vi.waitFor(() => expect(document.body.textContent).toContain("本校山水研学"))
+    // When the school selects the displayed session and loads the report.
+    setValue(control("团期"), "private-session-id")
+    await nextTick()
+    button("加载评价").click()
+    // Then the selected session supplies its own organization and no IDs must be entered.
+    await vi.waitFor(() => expect(document.body.textContent).toContain("学生甲"))
+    expect(requests.some(path => path.endsWith("/evaluations/school/sessions/private-session-id?organizationId=school-a"))).toBe(true)
+    expect(document.body.textContent).not.toContain("团期 ID")
+    expect(document.body.textContent).not.toContain("学校 ID")
+    expect(requests.some(path => path.includes("/evaluations/staff/"))).toBe(false)
     app.unmount()
   })
 
@@ -85,7 +111,8 @@ function setValue(element: HTMLInputElement | HTMLSelectElement, value: string):
   element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }))
 }
 async function load(action: string): Promise<void> {
-  setValue(control("团期 ID"), "session")
+  if (action === "加载评价") await vi.waitFor(() => expect(document.body.textContent).toContain("山水研学"))
+  setValue(control(action === "加载标准" ? "团期 ID" : "团期"), "session")
   await nextTick()
   button(action).click()
   await vi.waitFor(() => expect(document.body.textContent).toContain(action === "加载标准" ? "保存标准草稿" : "学生甲"))

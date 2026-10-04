@@ -42,6 +42,7 @@
         @delete="removeClass"
         @select-grade="selectGrade"
       />
+      <CatalogTemplatePanel :schools="schools" :catalog-items="catalogItems" @changed="loadCatalogList" />
       <CatalogPanel
         :catalog-items="catalogItems"
         :error="catalogError"
@@ -78,6 +79,7 @@ import { onMounted } from "vue"
 import "@/styles/configuration.css"
 import ClassPanel from "@/views/configuration/ClassPanel.vue"
 import CatalogPanel from "@/views/configuration/CatalogPanel.vue"
+import CatalogTemplatePanel from "@/views/configuration/CatalogTemplatePanel.vue"
 import GradePanel from "@/views/configuration/GradePanel.vue"
 import SchoolPanel from "@/views/configuration/SchoolPanel.vue"
 import SessionPanel from "@/views/configuration/SessionPanel.vue"

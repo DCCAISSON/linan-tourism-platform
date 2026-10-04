@@ -3,7 +3,7 @@
     <header class="pretrip-heading">
       <p class="pretrip-heading__eyebrow">行前服务</p>
       <h2 id="pretrip-title">行前配置</h2>
-      <p>维护团期集合信息、行程提示、联系人和附件索引；告知同意版本只引用，不覆盖历史记录。</p>
+      <p>维护团期集合信息、行程提示、联系人和行前附件；告知同意版本只引用，不覆盖历史记录。</p>
     </header>
 
     <form class="pretrip-card" @submit.prevent="loadConfig">
@@ -30,17 +30,23 @@
       <label class="pretrip-field">行程须知<textarea v-model="draft.itineraryNote" rows="4" /></label>
       <div class="pretrip-actions">
         <button type="submit" :disabled="tourSessionId === '' || loading">读取配置</button>
-        <button type="button" :disabled="tourSessionId === '' || saving" @click="saveConfig">保存配置</button>
+        <button type="button" :disabled="tourSessionId === '' || saving || uploading" @click="saveConfig">保存配置</button>
       </div>
       <p v-if="message" class="pretrip-state" :class="{ 'pretrip-state--error': failed }">{{ message }}</p>
     </form>
 
     <section class="pretrip-card" aria-labelledby="pretrip-attachments-title">
       <h3 id="pretrip-attachments-title">附件</h3>
-      <p class="pretrip-state">后台只保存附件索引；家庭端下载时仍按订单归属授权并生成短期 URL。</p>
+      <p class="pretrip-state">支持PDF、PNG、JPEG、WebP及Word文件，每个不超过10MB。先保存行前配置，再上传附件；上传成功后，本团家长即可查看。</p>
+      <form class="pretrip-actions" @submit.prevent="uploadAttachment">
+        <label class="pretrip-field">选择附件<input :key="tourSessionId" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx" :disabled="uploading || saving || loadedSessionId !== tourSessionId || version === 0" @change="chooseAttachment"></label>
+        <button type="submit" :disabled="selectedFile === null || uploading || saving || loadedSessionId !== tourSessionId || version === 0">{{ uploading ? '正在上传…' : '上传附件' }}</button>
+      </form>
+      <p v-if="attachmentMessage" class="pretrip-state" :class="{ 'pretrip-state--error': attachmentFailed }" role="status">{{ attachmentMessage }}</p>
       <ul class="pretrip-list">
-        <li v-for="attachment in attachments" :key="attachment.id">{{ attachment.title }} · {{ attachment.contentType }} · {{ attachment.byteSize }} bytes</li>
+        <li v-for="attachment in attachments" :key="attachment.id">{{ attachment.title }} · {{ Math.ceil(attachment.byteSize / 1024) }} KB</li>
       </ul>
+      <p v-if="attachments.length === 0" class="pretrip-state">{{ loadedSessionId === tourSessionId ? '暂无附件' : '请先读取所选团期的配置' }}</p>
     </section>
 
     <section class="pretrip-card" aria-labelledby="pretrip-confirmations-title">
@@ -56,9 +62,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue"
+import { onMounted, reactive, ref, watch } from "vue"
 import { listTourSessions, type TourSession } from "@/api/configuration"
-import { getPretripConfig, listSchoolConfirmations, readablePretripError, savePretripConfig, type PretripAttachment, type PretripTravelMode, type SchoolPretripConfirmation } from "@/api/pretrip"
+import { getPretripConfig, listSchoolConfirmations, readablePretripError, savePretripConfig, uploadPretripAttachment, type PretripAttachment, type PretripTravelMode, type SchoolPretripConfirmation } from "@/api/pretrip"
 import "@/styles/pretrip.css"
 
 const sessions = ref<readonly TourSession[]>([])
@@ -70,9 +76,41 @@ const saving = ref(false)
 const message = ref("")
 const failed = ref(false)
 const version = ref(0)
+const loadedSessionId = ref("")
+const selectedFile = ref<File | null>(null)
+const uploading = ref(false)
+const attachmentMessage = ref("")
+const attachmentFailed = ref(false)
 const draft = reactive<{ gatheringAt: string; gatheringPlace: string; gatheringLatitude: string; gatheringLongitude: string; travelMode: PretripTravelMode; itineraryNote: string; contactName: string; contactPhone: string; serviceContact: string; noticeVersionId: string }>({ gatheringAt: "", gatheringPlace: "", gatheringLatitude: "", gatheringLongitude: "", travelMode: "group", itineraryNote: "", contactName: "", contactPhone: "", serviceContact: "", noticeVersionId: "" })
 
 onMounted(async () => { sessions.value = await listTourSessions() })
+watch(tourSessionId, () => { attachments.value = []; selectedFile.value = null; loadedSessionId.value = ""; attachmentMessage.value = "" })
+
+function chooseAttachment(event: Event): void {
+  selectedFile.value = event.target instanceof HTMLInputElement ? event.target.files?.[0] ?? null : null
+  attachmentMessage.value = ""
+}
+
+async function uploadAttachment(): Promise<void> {
+  const file = selectedFile.value
+  const sessionId = tourSessionId.value
+  if (file === null || sessionId !== loadedSessionId.value || version.value === 0) return
+  attachmentFailed.value = false
+  if (file.size === 0 || file.size > 10 * 1024 * 1024) { attachmentFailed.value = true; attachmentMessage.value = "请选择不超过10MB的文件"; return }
+  uploading.value = true
+  try {
+    const saved = await uploadPretripAttachment(sessionId, file, version.value)
+    if (sessionId !== tourSessionId.value) return
+    attachments.value = saved.attachments
+    version.value = saved.version
+    selectedFile.value = null
+    attachmentMessage.value = "附件已上传，家长可在行前信息中查看"
+  } catch (error) {
+    if (sessionId !== tourSessionId.value) return
+    attachmentFailed.value = true
+    attachmentMessage.value = readablePretripError(error)
+  } finally { uploading.value = false }
+}
 
 function clearGatheringCoordinates(): void {
   draft.gatheringLatitude = ""
@@ -82,12 +120,15 @@ function clearGatheringCoordinates(): void {
 }
 
 async function loadConfig(): Promise<void> {
+  const sessionId = tourSessionId.value
   loading.value = true
   failed.value = false
   try {
-    const config = await getPretripConfig(tourSessionId.value)
+    const config = await getPretripConfig(sessionId)
+    if (sessionId !== tourSessionId.value) return
+    loadedSessionId.value = sessionId
     version.value = config.version
-    draft.gatheringAt = config.gatheringAt === null ? "" : config.gatheringAt.slice(0, 16)
+    draft.gatheringAt = config.gatheringAt === null ? "" : new Date(new Date(config.gatheringAt).getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 16)
     draft.gatheringPlace = config.gatheringPlace
     draft.gatheringLatitude = config.gatheringLatitude === null ? "" : String(config.gatheringLatitude)
     draft.gatheringLongitude = config.gatheringLongitude === null ? "" : String(config.gatheringLongitude)
@@ -122,7 +163,7 @@ async function saveConfig(): Promise<void> {
   failed.value = false
   try {
     const saved = await savePretripConfig(tourSessionId.value, {
-      gatheringAt: draft.gatheringAt === "" ? null : new Date(draft.gatheringAt).toISOString(),
+      gatheringAt: draft.gatheringAt === "" ? null : new Date(`${draft.gatheringAt}+08:00`).toISOString(),
       gatheringPlace: draft.gatheringPlace,
       gatheringLatitude,
       gatheringLongitude,
@@ -133,9 +174,9 @@ async function saveConfig(): Promise<void> {
       serviceContact: draft.serviceContact,
       noticeVersionId: draft.noticeVersionId === "" ? null : draft.noticeVersionId,
       expectedVersion: version.value,
-      attachments: [],
     })
     version.value = saved.version
+    loadedSessionId.value = saved.tourSessionId
     attachments.value = saved.attachments
     message.value = "配置已保存"
   } catch (error) {

@@ -5,10 +5,10 @@
     </header>
     <section class="evaluation-card">
       <form class="evaluation-form" @submit.prevent="load">
-        <label class="evaluation-field">团期 ID<input v-model="sessionId" required maxlength="64" :disabled="busy" /></label>
-        <label v-if="schoolMode" class="evaluation-field">学校 ID<input v-model="reportOrganizationId" required maxlength="64" :disabled="busy" /></label>
-        <button class="evaluation-button" :disabled="busy || !sessionId.trim()">{{ busy ? '处理中…' : '加载评价' }}</button>
+        <label class="evaluation-field">团期<select v-model="sessionId" required :disabled="busy || loadingSessions"><option value="">{{ loadingSessions ? '团期加载中…' : '请选择团期' }}</option><option v-for="session in sessions" :key="session.id" :value="session.id">{{ session.title }} · {{ session.code }}</option></select></label>
+        <button class="evaluation-button" :disabled="busy || loadingSessions || !sessionId">{{ busy ? '处理中…' : '加载评价' }}</button>
       </form>
+      <p v-if="!loadingSessions && sessions.length === 0 && !error" class="evaluation-state">暂无可查看的团期，请联系工作人员确认权限或分配。</p>
       <p v-if="error" class="evaluation-error" role="alert">{{ error }}</p>
       <p v-if="message" class="evaluation-state" role="status">{{ message }}</p>
     </section>
@@ -80,13 +80,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue"
+import { computed, onMounted, reactive, ref, watch } from "vue"
 import { getCurrentStaff } from "@/api/auth"
-import { batchEvaluate, confirmEvaluationSession, downloadEvaluationReport, loadEvaluationDashboard, loadSchoolEvaluations, reviseEvaluation, type EvaluationDashboard, type EvaluationRow, type SchoolEvaluationRow } from "@/api/evaluations"
+import { batchEvaluate, confirmEvaluationSession, downloadEvaluationReport, listEvaluationSessions, loadEvaluationDashboard, loadSchoolEvaluations, reviseEvaluation, type EvaluationDashboard, type EvaluationRow, type EvaluationSession, type SchoolEvaluationRow } from "@/api/evaluations"
 import { readableRosterError } from "@/api/roster.errors"
 import "@/styles/evaluations.css"
 
 const sessionId = ref("")
+const sessions = ref<readonly EvaluationSession[]>([])
+const loadingSessions = ref(true)
 const loadedSessionId = ref("")
 const dashboard = ref<EvaluationDashboard>()
 const busy = ref(false)
@@ -97,7 +99,7 @@ const canConfirm = ref(false)
 const canExport = ref(false)
 const schoolMode = ref(false)
 const schoolRows = ref<readonly SchoolEvaluationRow[]>()
-const reportOrganizationId = ref("")
+const reportOrganizationId = computed(() => sessions.value.find(session => session.id === sessionId.value)?.organizationId ?? "")
 const loadedOrganizationId = ref("")
 const standardId = ref("")
 const selectedStudent = ref<EvaluationDashboard["students"][number]>()
@@ -109,6 +111,11 @@ const activeStandard = computed(() => confirmedStandards.value.find((row) => row
 const students = computed(() => dashboard.value?.students.map((student) => ({ ...student, evaluation: dashboard.value?.evaluations.find((row) => row.personRef === student.personRef) })) ?? [])
 const pendingStudents = computed(() => students.value.filter((student) => student.evaluation?.gradeCode == null))
 const hasPendingGrades = computed(() => students.value.some((student) => student.evaluation?.gradeCode != null && student.evaluation.confirmedAt === null))
+onMounted(async () => {
+  try { sessions.value = await listEvaluationSessions() }
+  catch (cause) { error.value = readableRosterError(cause) }
+  finally { loadingSessions.value = false }
+})
 watch(standardId, () => {
   if (!activeStandard.value) form.gradeCode = null
   dimensionFacts.value = activeStandard.value?.dimensions.map((dimension) => ({ ...dimension, observation: "" })) ?? []
@@ -145,8 +152,6 @@ async function load(): Promise<void> {
     const staff = await getCurrentStaff()
     schoolMode.value = !staff.permissionKeys.includes("evaluations.read") && staff.permissionKeys.includes("evaluations.school_report")
     if (schoolMode.value) {
-      if (!reportOrganizationId.value) reportOrganizationId.value = staff.scopes.find((scope) => scope.kind === "school" || scope.kind === "organization")?.id ?? ""
-      if (!reportOrganizationId.value) { error.value = "请输入获授权的学校 ID 后加载报告。"; return }
       schoolRows.value = await loadSchoolEvaluations(sessionId.value.trim(), reportOrganizationId.value.trim())
       loadedOrganizationId.value = reportOrganizationId.value.trim()
       loadedSessionId.value = sessionId.value.trim()
@@ -198,3 +203,8 @@ async function exportReport(format: "xlsx" | "wordxml"): Promise<void> {
   finally { busy.value = false }
 }
 </script>
+
+<style scoped>
+.evaluation-field { min-width: 0; }
+.evaluation-field select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+</style>

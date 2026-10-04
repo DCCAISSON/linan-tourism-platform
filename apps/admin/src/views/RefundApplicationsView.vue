@@ -10,7 +10,6 @@ const loading = ref(false)
 const error = ref("")
 const notice = ref("")
 const reviewReason = ref("")
-const executionFailure = ref("")
 const busyId = ref("")
 const canReview = ref(false)
 const canExecute = ref(false)
@@ -73,15 +72,14 @@ async function review(item: RefundApplication, decision: "approved" | "rejected"
   }
 }
 
-async function execute(item: RefundApplication, outcome: "succeeded" | "failed"): Promise<void> {
+async function execute(item: RefundApplication): Promise<void> {
   if (!canExecute.value || busyId.value.length > 0) return
   busyId.value = item.id
   notice.value = ""
   try {
-    await executeRefundApplication(item.id, outcome, outcome === "failed" ? executionFailure.value : null)
-    executionFailure.value = ""
+    await executeRefundApplication(item.id)
     await load()
-    notice.value = outcome === "succeeded" ? "退款执行成功" : "已登记退款失败"
+    notice.value = "已提交微信退款，到账结果以微信通知为准"
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : "执行失败"
   } finally {
@@ -138,10 +136,8 @@ function formatFen(value: number): string {
             </div>
             <span v-else-if="row.status === 'submitted'">等待审核人员处理</span>
             <div v-else-if="row.status === 'approved' && row.refundRequestId === null && canExecute">
-              <el-input v-model="executionFailure" placeholder="失败时填写原因" size="small" />
               <div class="refund-action-row">
-                <el-button size="small" type="primary" :loading="busyId === row.id" @click="execute(row, 'succeeded')">执行成功</el-button>
-                <el-button size="small" :loading="busyId === row.id" @click="execute(row, 'failed')">执行失败</el-button>
+                <el-button size="small" type="primary" :loading="busyId === row.id" @click="execute(row)">执行微信退款</el-button>
               </div>
             </div>
             <span v-else-if="row.status === 'approved' && row.refundRequestId === null">审核通过，等待退款执行人员处理</span>

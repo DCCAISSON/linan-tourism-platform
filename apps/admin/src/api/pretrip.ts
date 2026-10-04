@@ -19,6 +19,14 @@ export async function savePretripConfig(tourSessionId: string, payload: PretripC
   }))
 }
 
+export async function uploadPretripAttachment(tourSessionId: string, file: File, expectedVersion: number): Promise<PretripConfig> {
+  const body = new FormData()
+  body.append("file", file)
+  body.append("title", file.name)
+  body.append("expectedVersion", String(expectedVersion))
+  return parsePretripConfig(await requestJson(`/pretrip/staff/sessions/${encodeURIComponent(tourSessionId)}/attachments`, { method: "POST", body }))
+}
+
 export async function listSchoolConfirmations(tourSessionId: string): Promise<readonly SchoolPretripConfirmation[]> {
   return parseSchoolConfirmations(await requestJson(`/pretrip/staff/sessions/${encodeURIComponent(tourSessionId)}/school-confirmations`, { method: "GET" }))
 }

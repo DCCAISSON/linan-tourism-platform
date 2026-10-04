@@ -2,6 +2,7 @@ import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError, readableApiError } from "./configuration.errors"
 import {
   parseCatalogItem,
+  parseCatalogTemplate,
   parseClass,
   parseGrade,
   parseNoticeVersion,
@@ -11,6 +12,8 @@ import {
 import type {
   EnrollmentScope,
   CatalogItem,
+  CatalogTemplate,
+  CatalogTemplateContent,
   CatalogContentPayload,
   CatalogItemPayload,
   ClassPayload,
@@ -31,6 +34,8 @@ export { ApiError, readableApiError }
 export type {
   EnrollmentScope,
   CatalogItem,
+  CatalogTemplate,
+  CatalogTemplateContent,
   CatalogContentPayload,
   CatalogItemPayload,
   ClassPayload,
@@ -83,6 +88,26 @@ export async function createCatalogItem(payload: CatalogItemPayload): Promise<Ca
 
 export async function updateCatalogContent(id: string, payload: CatalogContentPayload): Promise<CatalogItem> {
   return await patchResource(`/catalog-items/${encodeURIComponent(id)}`, payload, parseCatalogItem)
+}
+
+export async function listCatalogTemplates(): Promise<readonly CatalogTemplate[]> {
+  return readCollection("/catalog-templates", "课程模板", parseCatalogTemplate)
+}
+
+export async function createCatalogTemplate(payload: CatalogTemplateContent): Promise<CatalogTemplate> {
+  return createResource("/catalog-templates", payload, parseCatalogTemplate)
+}
+
+export async function updateCatalogTemplate(id: string, payload: CatalogTemplateContent & { readonly expectedVersion: number }): Promise<CatalogTemplate> {
+  return patchResource(`/catalog-templates/${encodeURIComponent(id)}`, payload, parseCatalogTemplate)
+}
+
+export async function addTemplateSchool(id: string, payload: { readonly organizationId: string; readonly code: string }): Promise<CatalogItem> {
+  return createResource(`/catalog-templates/${encodeURIComponent(id)}/schools`, payload, parseCatalogItem)
+}
+
+export async function linkCatalogTemplate(id: string, templateId: string | null): Promise<CatalogItem> {
+  return parseCatalogItem(await request(`/catalog-items/${encodeURIComponent(id)}/template`, jsonRequest("PUT", { templateId })))
 }
 
 export async function listTourSessions(): Promise<readonly TourSession[]> {
