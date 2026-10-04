@@ -1,3 +1,5 @@
+import { clearServiceConsent } from "./service-consent"
+
 const WECHAT_SESSION_TOKEN_KEY = "linan_wechat_session_token" as const
 const DRAFT_IDENTITY_KEY = "linan_enrollment_draft_identity" as const
 const PHONE_VERIFICATION_KEY = "linan_wechat_phone_verification" as const
@@ -45,6 +47,7 @@ export function logoutWechatSession(): void {
         || key === "linan_enrollment_draft_latest:guest") uni.removeStorageSync(key)
     }
   } finally {
+    clearServiceConsent()
     clearWechatSessionToken()
     uni.removeStorageSync(DRAFT_IDENTITY_KEY)
   }

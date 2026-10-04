@@ -11,6 +11,10 @@ function readConsent(): "accepted" | "declined" | undefined {
 
 export function hasServiceConsent(): boolean { return readConsent() === "accepted" }
 export function hasSeenServiceConsent(): boolean { return hasServiceConsent() || browsingThisLaunch }
+export function clearServiceConsent(): void {
+  uni.removeStorageSync(SERVICE_CONSENT_KEY)
+  browsingThisLaunch = false
+}
 export function acceptServiceConsent(): void {
   uni.setStorageSync(SERVICE_CONSENT_KEY, { version: SERVICE_CONSENT_VERSION, choice: "accepted" })
   browsingThisLaunch = false
