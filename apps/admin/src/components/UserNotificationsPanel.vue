@@ -27,7 +27,7 @@
         <p>接收订阅：{{ detail.targets.length }} 条</p><p>跳转页面：{{ detail.task.payloadSnapshot.page ?? '小程序首页' }}</p>
         <p class="notifications-notice">“接口已受理”不代表送达或已读。结果未知的目标不会自动重发。</p>
         <div class="user-subscribers"><p v-for="target in detail.targets" :key="target.id">订阅编号 {{ target.subscriptionId }} · {{ statusLabels[target.status] }}</p></div>
-        <p v-if="detail.attempts.length === 0" class="notifications-empty">尚无发送尝试。</p><p v-for="attempt in detail.attempts" :key="attempt.id">{{ attempt.targetId }} · {{ statusLabels[attempt.status] }}{{ attempt.errorCode ? `（${attempt.errorCode}）` : '' }}</p>
+        <p v-if="detail.attempts.length === 0" class="notifications-empty">尚无发送尝试。</p><p v-for="attempt in detail.attempts" :key="attempt.id">{{ attempt.targetId }} · {{ statusLabels[attempt.status] }}{{ attempt.errorCode ? `（${attempt.errorCode}）` : '' }}<br />{{ userNotificationAttemptGuidance(attempt) }}</p>
         <template v-if="canSend && detail.task.status === 'pending'">
           <button v-if="confirmationId !== detail.task.id" type="button" :disabled="busy" @click="prepareSend">核对任务并准备发送</button>
           <div v-else class="notifications-notice"><p>即将发送任务 {{ confirmationId }}，共 {{ detail.targets.length }} 条订阅，请核对上方消息内容。</p><label class="notifications-check"><input v-model="confirmed" type="checkbox" :disabled="busy" />我已核对本任务内容和接收范围，确认实际发送</label><button type="button" :disabled="busy || !confirmed" @click="sendTask">确认发送此任务</button><button type="button" :disabled="busy" @click="clearConfirmation">取消发送</button></div>
@@ -40,6 +40,7 @@
 import { computed, onMounted, ref } from "vue"
 import { getCurrentStaff } from "@/api/auth"
 import type { StaffAccess } from "@/api/auth"
+import { userNotificationAttemptGuidance } from "@/api/notifications.policy"
 import { createUserMessageTask, getUserMessageTask, getUserMessageTasks, getUserMessageTemplates, previewUserMessages, sendUserMessageTask } from "@/api/user-notifications"
 import type { UserMessageDetail, UserMessagePreview, UserMessageTask, UserMessageTemplate } from "@/api/user-notifications"
 const access = ref<StaffAccess | null>(null), busy = ref(false), loaded = ref(false)

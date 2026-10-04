@@ -65,6 +65,7 @@ const visibleDifferences = computed(() => result.value?.differences.filter((diff
 async function runReconcile(): Promise<void> {
   loading.value = true
   error.value = ""
+  result.value = undefined
   try { result.value = await reconcileWechatBill(billDate.value) }
   catch (cause) { error.value = readableRosterError(cause) }
   finally { loading.value = false }

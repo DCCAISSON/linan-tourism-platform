@@ -1,3 +1,4 @@
+import { BadGatewayException } from "@nestjs/common"
 import { Test } from "@nestjs/testing"
 import { describe, expect, it, vi } from "vitest"
 import { PaymentEntity, WechatBillReconciliationEntity, WechatTransactionEntity } from "../../domain/entities/index.js"
@@ -17,13 +18,15 @@ async function fixture(payments: PaymentEntity[], refunds: WechatTransactionEnti
     delete: vi.fn(),
   }
   const transaction = vi.fn(async (work: (value: typeof manager) => Promise<unknown>) => work(manager))
+  const getDataSource = vi.fn(async () => ({ manager, transaction }))
   const request = vi.fn<(path: string) => Promise<Record<string, unknown>>>()
+  const downloadBill = vi.fn(async () => ({ content: Buffer.from("bill") }))
   const module = await Test.createTestingModule({ providers: [
     WechatReconciliationService,
-    { provide: ConfigurationDatabaseService, useValue: { getDataSource: async () => ({ manager, transaction }) } },
-    { provide: WechatPayClient, useValue: { request, downloadBill: async () => ({ content: Buffer.from("bill") }) } },
+    { provide: ConfigurationDatabaseService, useValue: { getDataSource } },
+    { provide: WechatPayClient, useValue: { request, downloadBill } },
   ] }).compile()
-  return { service: module.get(WechatReconciliationService), request, transaction, save }
+  return { service: module.get(WechatReconciliationService), request, downloadBill, getDataSource, transaction, save }
 }
 
 function payment(paymentNo: string, status: PaymentEntity["status"] = "succeeded") {
@@ -31,6 +34,18 @@ function payment(paymentNo: string, status: PaymentEntity["status"] = "succeeded
 }
 
 describe("微信账单按官方业务日期选择本地记录", () => {
+  it("微信未生成账单时保留失败且不读取交易或写入对账记录", async () => {
+    const { service, downloadBill, request, getDataSource, transaction, save } = await fixture([payment("paid")])
+    const failure = new BadGatewayException({ code: "wechat_bill_not_available" })
+    downloadBill.mockRejectedValue(failure)
+
+    await expect(service.reconcile("2026-10-03")).rejects.toBe(failure)
+    expect(request).not.toHaveBeenCalled()
+    expect(getDataSource).not.toHaveBeenCalled()
+    expect(transaction).not.toHaveBeenCalled()
+    expect(save).not.toHaveBeenCalled()
+  })
+
   it("按北京时间筛选成功支付，排除前后日和未支付订单", async () => {
     const { service, request } = await fixture([
       payment("before"), payment("start"), payment("end"), payment("after"), payment("pending", "pending"), payment("failed", "failed"),

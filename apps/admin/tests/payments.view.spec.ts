@@ -5,6 +5,46 @@ import PaymentReconciliationView from "@/views/PaymentReconciliationView.vue"
 const apps: ReturnType<typeof createApp>[] = []
 afterEach(() => { apps.splice(0).forEach(app => app.unmount()); document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
+it.each([
+  ["wechat_bill_not_available", "微信未生成该日账单，请在微信商户平台核实当日收款和退款；仅报名未付款不会产生支付账单。"],
+  ["wechat_request_rejected", "微信支付请求被拒绝"],
+])("clears the previous result before a new date fails with %s", async (code, message) => {
+  // Given
+  const previous = { billDate: "2026-10-02", contentHash: "previous-hash", differenceCount: 0, confirmedNote: null, differences: [] }
+  const response = Promise.withResolvers<Response>()
+  const request = vi.fn().mockResolvedValueOnce(Response.json(previous)).mockReturnValueOnce(response.promise)
+  vi.stubGlobal("fetch", request)
+  const host = document.createElement("div")
+  document.body.append(host)
+  const app = createApp(PaymentReconciliationView)
+  app.mount(host)
+  apps.push(app)
+  const date = host.querySelector('input[type="date"]')
+  if (!(date instanceof HTMLInputElement)) throw new Error("bill date input missing")
+  date.value = previous.billDate
+  date.dispatchEvent(new Event("input", { bubbles: true }))
+  await nextTick()
+  host.querySelector("button")?.click()
+  await vi.waitFor(() => expect(host.textContent).toContain("0 条差异"))
+  expect(host.querySelector(".reconciliation-confirm")).not.toBeNull()
+  date.value = "2026-10-03"
+  date.dispatchEvent(new Event("input", { bubbles: true }))
+  await nextTick()
+  // When
+  host.querySelector("button")?.click()
+  await nextTick()
+  // Then
+  expect(host.querySelector("#reconcile-result-title")).toBeNull()
+  expect(host.querySelector(".reconciliation-confirm")).toBeNull()
+  expect(host.textContent).not.toContain("0 条差异")
+  response.resolve(Response.json({ code, message }, { status: 502 }))
+  await vi.waitFor(() => expect(host.querySelector('[role="alert"]')?.textContent).toBe(message))
+  expect(host.querySelector("#reconcile-result-title")).toBeNull()
+  expect(host.querySelector(".reconciliation-confirm")).toBeNull()
+  expect(host.textContent).not.toContain("previous-hash")
+  expect(request.mock.calls[1]?.[1]?.body).toBe(JSON.stringify({ date: "2026-10-03" }))
+})
+
 it("renders separate refunds under one payment and preserves them when confirmation reorders rows", async () => {
   // Given
   const refund = { kind: "refund_mismatch", outTradeNo: "PAY-1", outRefundNo: "REF-1", wechatAmountFen: null, localAmountFen: null, wechatRefundFen: 0, localRefundFen: null, summary: "退款待核实" }

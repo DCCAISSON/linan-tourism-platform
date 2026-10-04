@@ -30,7 +30,15 @@ export class WechatPayClient {
 
   async downloadBill(date: string): Promise<{ readonly content: Buffer; readonly hashType: string; readonly hash: string }> {
     const config = this.config()
-    const response = await this.request(`/v3/bill/tradebill?bill_date=${encodeURIComponent(date)}&bill_type=ALL`)
+    let response: Record<string, unknown>
+    try {
+      response = await this.request(`/v3/bill/tradebill?bill_date=${encodeURIComponent(date)}&bill_type=ALL`)
+    } catch (error) {
+      if (error instanceof WechatPayRequestError && error.providerCode === "NO_STATEMENT_EXIST") {
+        throw new BadGatewayException({ code: "wechat_bill_not_available", message: "微信未生成该日账单，请在微信商户平台核实当日收款和退款；仅报名未付款不会产生支付账单。" })
+      }
+      throw error
+    }
     const url = new URL(textValue(response, "download_url"))
     if (url.origin !== config.apiOrigin || !url.pathname.startsWith("/v3/billdownload/file")) throw new BadRequestException("微信账单下载地址不受信任")
     const request = { method: "GET" as const, path: `${url.pathname}${url.search}`, body: "" }
