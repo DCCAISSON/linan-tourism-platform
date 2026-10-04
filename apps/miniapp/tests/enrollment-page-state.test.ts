@@ -6,26 +6,32 @@ import { useEnrollmentPage } from "../src/pages/index/useEnrollmentPage"
 import { ApiError } from "../src/api"
 
 vi.mock("vue", async (importOriginal) => ({ ...await importOriginal<typeof import("vue")>(), onMounted: () => undefined }))
-vi.mock("@dcloudio/uni-app", () => ({ onLoad: () => undefined }))
+vi.mock("@dcloudio/uni-app", () => ({ onLoad: () => undefined, onShow: () => undefined, onHide: () => undefined, onUnload: () => undefined }))
 const apiCalls = vi.hoisted(() => ({
   listGrades: vi.fn<(schoolId: string) => Promise<readonly Grade[]>>(),
   listClasses: vi.fn<(gradeId: string) => Promise<readonly SchoolClass[]>>(),
   listEnrollmentMembers: vi.fn<() => Promise<readonly SavedEnrollmentMember[]>>(),
+  updateEnrollmentMember: vi.fn(async (memberId: string, payload: { readonly displayName: string }) => ({ id: memberId, code: memberId, displayName: payload.displayName })),
   submitEnrollment: vi.fn(async () => ({ id: "enrollment-one", status: "submitted" })),
   createOrder: vi.fn<(payload: CreateOrderPayload) => Promise<Order>>(),
+  getOrder: vi.fn<(orderId: string) => Promise<Order>>(),
 }))
+const serviceConsent = vi.hoisted(() => ({ hasServiceConsent: vi.fn(() => true) }))
 beforeEach(() => {
   vi.resetAllMocks()
+  serviceConsent.hasServiceConsent.mockReturnValue(true)
   apiCalls.listGrades.mockResolvedValue([])
   apiCalls.listClasses.mockResolvedValue([])
   apiCalls.submitEnrollment.mockResolvedValue({ id: "enrollment-one", status: "submitted" })
   apiCalls.listEnrollmentMembers.mockResolvedValue([])
+  apiCalls.updateEnrollmentMember.mockImplementation(async (memberId, payload) => ({ id: memberId, code: memberId, displayName: payload.displayName }))
   apiCalls.createOrder.mockResolvedValue({ id: "order-one", code: "ORDER", enrollmentId: "enrollment-one", status: "pending_payment", amountFen: 100, paidFen: 0, payerName: "家长", participantCount: 1 })
 })
 vi.mock("../src/api", async (importOriginal) => ({
   ...await importOriginal<typeof import("../src/api")>(),
   createMiniappApi: () => ({ ...apiCalls, checkEnrollmentAvailability: async () => undefined }),
 }))
+vi.mock("../src/service-consent", () => serviceConsent)
 const scopes: EffectScope[] = []
 afterEach(() => { for (const scope of scopes) scope.stop(); scopes.length = 0 })
 function pageState() {
@@ -49,6 +55,39 @@ function session(id: string, noticeVersion = "v1"): TourSession {
 }
 
 describe("enrollment draft recovery", () => {
+  it("returns to editing and clears the checkout when the order was cancelled from its detail page", async () => {
+    const page = pageState()
+    const order: Order = { id: "cancelled-order", code: "ORDER", enrollmentId: "old-enrollment", status: "pending_payment", amountFen: 100, paidFen: 0, payerName: "家长", participantCount: 1 }
+    page.order.value = order
+    page.pageMode.value = "paymentPending"
+    page.submissionCode.value = "old-enrollment"
+    apiCalls.getOrder.mockResolvedValue({ ...order, status: "cancelled" })
+    await page.refreshOrder()
+    expect(page.order.value).toBeNull()
+    expect(page.submissionCode.value).toBe("")
+    expect(page.pageMode.value).toBe("editing")
+    expect(page.errorMessage.value).toBe("原订单已取消，可重新核对信息并报名。")
+  })
+  it("opens identity login before privacy when a guest starts reviewing enrollment", () => {
+    const page = pageState()
+    page.authenticated.value = false
+    serviceConsent.hasServiceConsent.mockReturnValue(false)
+    page.enterReview()
+    expect(page.loginPromptVisible.value).toBe(true)
+    expect(page.serviceConsentVisible.value).toBe(false)
+    expect(page.pageMode.value).toBe("editing")
+  })
+
+  it("keeps the draft visible when common consent is still required", () => {
+    const page = pageState()
+    serviceConsent.hasServiceConsent.mockReturnValue(false)
+
+    page.enterReview()
+
+    expect(page.serviceConsentVisible.value).toBe(true)
+    expect(page.pageMode.value).toBe("editing")
+  })
+
   it("keeps guest form input and waits for consent before opening review", async () => {
     const page = pageState()
     vi.stubGlobal("uni", { pageScrollTo: vi.fn() })
@@ -118,6 +157,16 @@ describe("enrollment draft recovery", () => {
 
 
 describe("enrollment submission and common participant scope", () => {
+  it("edits the saved participant name and keeps the selected member in the draft", async () => {
+    const page = pageState()
+    page.draft.familyMembers = [{ id: "saved", remoteMemberId: "saved", fromCommonList: true, code: "saved", displayName: "旧姓名", selected: true }]
+
+    await page.updateSavedMemberName("saved", "新姓名")
+
+    expect(apiCalls.updateEnrollmentMember).toHaveBeenCalledWith("saved", { displayName: "新姓名" })
+    expect(page.draft.familyMembers[0]).toMatchObject({ displayName: "新姓名", selected: true })
+  })
+
   it("keeps one local participant when a refreshed common list includes the same uploaded member", async () => {
     // Given: saving the member succeeded before the session expired.
     const page = pageState()
@@ -315,7 +364,7 @@ describe("enrollment option requests", () => {
     await page.onSchoolChange({ detail: { value: 1 } })
     await page.onGradeChange({ detail: { value: 1 } })
     page.onClassChange({ detail: { value: 1 } })
-    page.onSessionChange({ detail: { value: 0 } })
+    await page.onSessionChange({ detail: { value: 0 } })
     // Then
     expect(page.draft).toMatchObject({ selectedSchoolId: "school-b", selectedGradeId: "school-b-g2", selectedClassId: "school-b-g2-c2", selectedTourSessionId: "session-school-b" })
     expect(page.classIndex.value).toBe(1)
@@ -334,12 +383,14 @@ describe("enrollment action login prompt", () => {
       { id: "selected-saved", code: "selected-saved", displayName: "本次已选成员", fromCommonList: true, remoteMemberId: "selected-saved", selected: true },
       { id: "local", code: "local", displayName: "本次成员", selected: true },
     ]
+    page.phoneVerified.value = true
     apiCalls.listEnrollmentMembers.mockRejectedValue(new ApiError(401, "登录已过期，请重新登录"))
     // When
     await page.completeLogin()
     await nextTick()
     // Then
     expect(page.authenticated.value).toBe(false)
+    expect(page.phoneVerified.value).toBe(false)
     expect(page.draft.familyMembers.map((member) => member.displayName)).toEqual(["本次已选成员", "本次成员"])
     expect(page.draft.familyMembers[0]?.id).not.toBe("selected-saved")
     expect(page.draft.familyMembers[0]?.remoteMemberId).toBeUndefined()
@@ -349,6 +400,15 @@ describe("enrollment action login prompt", () => {
     expect(page.loginPromptVisible.value).toBe(false)
     expect(page.loginRequested.value).toBe(true)
     expect(page.errorMessage.value).toBe("登录已过期，请重新登录")
+  })
+
+  it("clears an earlier phone verification after ordinary WeChat login returns no verification", async () => {
+    const page = pageState()
+    page.phoneVerified.value = true
+
+    await page.completeLogin({ token: "ordinary", familyCode: "family", expiresAt: "2026-10-02T00:00:00.000Z" })
+
+    expect(page.phoneVerified.value).toBe(false)
   })
 
   it("removes unselected historical members after a submission 401 while retaining the chosen draft", async () => {

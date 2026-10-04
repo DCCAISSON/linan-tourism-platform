@@ -85,7 +85,7 @@ async function requestJson(
     : { url: `${baseUrl}${path}`, method, header, data }
   const response = await request(options)
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    const message = readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`
+    const message = readErrorMessage(response.data) ?? "服务暂时无法响应，请稍后再试。"
     throw new ApiError(response.statusCode, message)
   }
   return response.data
@@ -96,7 +96,7 @@ export function parseRefundApplication(value: unknown): RefundApplication {
   const status = readStatus(record)
   const refundStatus = record["refundStatus"]
   if (refundStatus !== null && refundStatus !== "pending" && refundStatus !== "succeeded" && refundStatus !== "failed") {
-    throw new ApiError(0, "refundStatus 响应格式不正确")
+    throw new ApiError(0, "退款信息暂时无法读取，请稍后再试。")
   }
   return {
     id: readString(record, "id"),
@@ -114,6 +114,17 @@ export function parseRefundApplication(value: unknown): RefundApplication {
   }
 }
 
+export function activeRefundApplicationLineIds(applications: readonly RefundApplication[]): ReadonlySet<string> {
+  const lineIds = new Set<string>()
+  for (const application of applications) {
+    const blocksNewApplication = application.status === "submitted"
+      || (application.status === "approved" && application.refundRequestId === null)
+    if (!blocksNewApplication) continue
+    for (const line of application.lines) lineIds.add(line.lineId)
+  }
+  return lineIds
+}
+
 function parseLine(value: unknown): RefundApplication["lines"][number] {
   const record = readRecord(value)
   return { lineId: readString(record, "lineId"), displayName: readString(record, "displayName"), amountFen: readNonNegativeInteger(record, "amountFen") }
@@ -122,13 +133,13 @@ function parseLine(value: unknown): RefundApplication["lines"][number] {
 function readStatus(record: Record<string, unknown>): RefundApplicationStatus {
   const status = readString(record, "status")
   if (status === "submitted" || status === "approved" || status === "rejected" || status === "cancelled") return status
-  throw new ApiError(0, "status 响应格式不正确")
+  throw new ApiError(0, "退款信息暂时无法读取，请稍后再试。")
 }
 
 function readNullableString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key]
   if (value === null || typeof value === "string") return value
-  throw new ApiError(0, `${key} 响应格式不正确`)
+  throw new ApiError(0, "退款信息暂时无法读取，请稍后再试。")
 }
 
 function readErrorMessage(value: unknown): string | null {

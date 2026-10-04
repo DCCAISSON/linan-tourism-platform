@@ -5,7 +5,7 @@ import type { CatalogItem, OrderDetail, OrderHistoryItem, OrderParticipant, Refu
 function readParticipantKind(record: Record<string, unknown>): "student" | "adult" {
   const value = readString(record, "participantKind")
   if (value === "student" || value === "adult") return value
-  throw new ApiError(0, "participantKind 响应格式不正确")
+  throw new ApiError(0, "订单信息暂时无法读取，请稍后再试。")
 }
 
 export function parseCatalogItem(value: unknown): CatalogItem {
@@ -67,7 +67,7 @@ function readParticipantRefundStatus(record: Record<string, unknown>): OrderPart
   const status = readString(record, "refundStatus")
   switch (status) {
     case "none": case "pending": case "refunded": case "failed": return status
-    default: throw new ApiError(0, "refundStatus 响应格式不正确")
+    default: throw new ApiError(0, "订单信息暂时无法读取，请稍后再试。")
   }
 }
 
@@ -78,7 +78,7 @@ function parseRefundSummary(value: unknown): RefundSummary {
     case "none": case "partial": case "full":
       return { status, refundedFen: readNonNegativeInteger(record, "refundedFen"),
         pendingFen: readNonNegativeInteger(record, "pendingFen"), failedCount: readNonNegativeInteger(record, "failedCount") }
-    default: throw new ApiError(0, "status 响应格式不正确")
+    default: throw new ApiError(0, "订单信息暂时无法读取，请稍后再试。")
   }
 }
 
@@ -96,14 +96,14 @@ function parseRefundHistoryItem(value: unknown): RefundHistoryItem {
           return { lineId: readString(item, "lineId"), displayName: readString(item, "displayName"), amountFen: readNonNegativeInteger(item, "amountFen") }
         }),
       }
-    default: throw new ApiError(0, "status 响应格式不正确")
+    default: throw new ApiError(0, "订单信息暂时无法读取，请稍后再试。")
   }
 }
 
 function readText(record: Record<string, unknown>, field: string): string {
   const value = record[field]
   if (typeof value === "string") return value
-  throw new ApiError(0, `${field} 响应格式不正确`)
+  throw new ApiError(0, "订单信息暂时无法读取，请稍后再试。")
 }
 
 function readNullableText(record: Record<string, unknown>, field: string): string | null {

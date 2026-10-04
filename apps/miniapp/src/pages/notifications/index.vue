@@ -1,216 +1,151 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue"
-import { onLoad } from "@dcloudio/uni-app"
-import { createNotificationApi, requestNotificationSubscription } from "../../notification-api"
-import type { FamilyNotificationAuthorization, FamilyNotificationOverview, NotificationChannel, NotificationRelation } from "../../notification-types"
+import { computed, ref } from "vue"
+import { onShow } from "@dcloudio/uni-app"
+import { createUserNotificationApi, requestUserSubscriptions, type UserNotificationTemplate, type SubscriptionChoice } from "../../user-notification-api"
+import { getEnrollmentDraftOwner, getWechatSessionToken } from "../../wechat-token"
+import { hasCompletedLocalProfile } from "../../profile-display"
 import { ApiError } from "../../api-error"
+import { readableError } from "../index/page-helpers"
+import DiscoveryState from "../../components/DiscoveryState.vue"
 
-const api = createNotificationApi()
-const orderId = ref("")
-const overview = ref<FamilyNotificationOverview | null>(null)
-const state = ref<"loading" | "ready" | "error">("loading")
-const saving = ref(false)
+const api = createUserNotificationApi()
+const templates = ref<readonly UserNotificationTemplate[]>([])
+const selectedIds = ref<readonly string[]>([])
+const state = ref<"loading" | "ready" | "empty" | "error">("loading")
+const authenticated = ref(false)
+const busy = ref(false)
 const error = ref("")
 const message = ref("")
-const subscribing = ref(false)
-const subscriptionMessages = reactive<Record<string, string>>({})
-const form = reactive<{ receiverName: string; relation: NotificationRelation; channel: NotificationChannel }>({ receiverName: "", relation: "guardian", channel: "wechat_subscribe" })
-const activeAuthorizations = computed(() => overview.value?.authorizations.filter(item => item.active) ?? [])
-const historyAuthorizations = computed(() => overview.value?.authorizations.filter(item => !item.active) ?? [])
-const entries = computed(() => overview.value?.entries.filter(item => item.enabled && item.url.startsWith("https://")) ?? [])
-const subscribeTemplates = computed(() => overview.value?.subscribeTemplates ?? [])
+const pendingChoices = ref<readonly SubscriptionChoice[]>([])
+const selected = computed(() => templates.value.filter((item) => item.enabled && item.subscription?.status !== "active" && selectedIds.value.includes(item.id)))
+const statusLabels = { active: "已订阅", rejected: "未订阅", withdrawn: "已停止接收", consumed: "可再次订阅" } as const
+let generation = 0
+let ownerToken: string | undefined
 
-onLoad((query) => { orderId.value = query?.["orderId"] ?? ""; void load() })
-
+onShow(() => { void load() })
 async function load(): Promise<void> {
-  state.value = "loading"
-  error.value = ""
+  const current = ++generation
+  const token = getWechatSessionToken()
+  if (ownerToken !== token) {
+    pendingChoices.value = []; templates.value = []; selectedIds.value = []; message.value = ""
+    ownerToken = token
+  }
+  authenticated.value = token !== undefined && hasCompletedLocalProfile(getEnrollmentDraftOwner())
+  if (!authenticated.value) { templates.value = []; pendingChoices.value = []; state.value = "empty"; return }
+  state.value = "loading"; error.value = ""
   try {
-    if (orderId.value === "") throw new Error("缺少订单信息，无法读取通知授权。")
-    overview.value = await api.getOverview(orderId.value)
-    state.value = "ready"
+    const rows = await api.overview()
+    if (current !== generation || token !== getWechatSessionToken()) return
+    templates.value = rows
+    selectedIds.value = rows.filter((item) => item.enabled && item.subscription?.status !== "active").slice(0, 3).map((item) => item.id)
+    state.value = rows.length === 0 ? "empty" : "ready"
   } catch (cause) {
+    if (current === generation && cause instanceof ApiError && cause.statusCode === 401 && getWechatSessionToken() === undefined) {
+      authenticated.value = false; templates.value = []; pendingChoices.value = []; state.value = "empty"; return
+    }
+    if (current !== generation || token !== getWechatSessionToken()) return
+    error.value = readableError(cause, "消息订阅加载失败，请重试。")
     state.value = "error"
-    error.value = readableError(cause, "通知授权加载失败，请重试。")
   }
 }
-
-async function authorize(): Promise<void> {
-  if (form.receiverName === "") return
-  saving.value = true
-  error.value = ""
-  message.value = ""
+function toggle(id: string): void {
+  if (busy.value || pendingChoices.value.length > 0 || !templates.value.some((item) => item.id === id && item.enabled && item.subscription?.status !== "active")) return
+  if (selectedIds.value.includes(id)) selectedIds.value = selectedIds.value.filter((item) => item !== id)
+  else if (selectedIds.value.length < 3) selectedIds.value = [...selectedIds.value, id]
+  else message.value = "每次最多选择3类通知。"
+}
+async function subscribe(): Promise<void> {
+  if (busy.value || (selected.value.length === 0 && pendingChoices.value.length === 0)) return
+  busy.value = true; error.value = ""; message.value = ""
+  const token = getWechatSessionToken()
   try {
-    const code = form.channel === "wechat_subscribe" ? await new Promise<string>((resolve, reject) => uni.login({
-      provider: "weixin", success: (result) => result.code ? resolve(result.code) : reject(new ApiError(0, "微信身份核验失败，请重新登录。")),
-      fail: () => reject(new ApiError(0, "微信身份核验失败，请重新登录。")),
-    })) : undefined
-    await api.authorize(orderId.value, { receiverName: form.receiverName, relation: form.relation, channel: form.channel, idempotencyKey: newIdempotencyKey(), ...(code === undefined ? {} : { code }) })
-    form.receiverName = ""
-    message.value = form.channel === "wechat_subscribe" ? "业务接收人授权已保存，请另行点击下方通知完成微信订阅。" : "人工联系授权已保存。"
-    await load()
+    if (pendingChoices.value.length === 0) pendingChoices.value = await requestUserSubscriptions(selected.value)
+    if (token !== getWechatSessionToken()) { pendingChoices.value = []; throw new Error("登录状态已变化，请重新进入消息订阅。") }
+    const code = await new Promise<string>((resolve, reject) => uni.login({ provider: "weixin", success: (result) => result.code ? resolve(result.code) : reject(new Error("微信身份核验失败，请重试。")), fail: reject }))
+    if (token !== getWechatSessionToken()) { pendingChoices.value = []; return }
+    const rows = await api.subscribe(code, pendingChoices.value)
+    if (token !== getWechatSessionToken()) { pendingChoices.value = []; return }
+    const accepted = pendingChoices.value.filter((item) => item.result === "accept").length
+    templates.value = rows
+    pendingChoices.value = []
+    message.value = accepted > 0 ? `已订阅${accepted}类提醒，后续提醒可通过微信接收。` : "本次未同意订阅，你仍可正常浏览和报名。"
   } catch (cause) {
-    error.value = readableError(cause, "授权保存失败，请重试。")
-  } finally {
-    saving.value = false
+    if (cause instanceof ApiError && cause.statusCode === 401 && getWechatSessionToken() === undefined) {
+      authenticated.value = false; pendingChoices.value = []; templates.value = []
+    }
+    error.value = readableError(cause, "订阅未保存，请重试。")
   }
+  finally { busy.value = false }
 }
-
-async function subscribe(templateId: string): Promise<void> {
-  if (subscribing.value || saving.value) return
-  subscribing.value = true
-  subscriptionMessages[templateId] = ""
+async function withdraw(item: UserNotificationTemplate): Promise<void> {
+  if (busy.value || pendingChoices.value.length > 0 || item.subscription === null) return
+  busy.value = true; error.value = ""; message.value = ""
+  const token = getWechatSessionToken()
   try {
-    const result = await requestNotificationSubscription(templateId, subscribeTemplates.value)
-    subscriptionMessages[templateId] = result === "accept" ? "已同意本次微信订阅，实际发送以微信结果为准。"
-      : result === "reject" ? "未同意本次微信订阅。"
-      : "本次微信订阅未成功，请联系工作人员。"
+    const rows = await api.withdraw(item.subscription.id, item.subscription.version)
+    if (token !== getWechatSessionToken()) return
+    templates.value = rows
+    message.value = "已停止这类消息，之后可随时重新订阅。"
   } catch (cause) {
-    subscriptionMessages[templateId] = readableError(cause, "未完成微信订阅，请重试。")
-  } finally {
-    subscribing.value = false
+    if (cause instanceof ApiError && cause.statusCode === 401 && getWechatSessionToken() === undefined) {
+      authenticated.value = false; templates.value = []
+    }
+    error.value = readableError(cause, "停止接收失败，请重试。")
   }
+  finally { busy.value = false }
 }
-
-async function withdraw(item: FamilyNotificationAuthorization): Promise<void> {
-  saving.value = true
-  error.value = ""
-  message.value = ""
-  try {
-    await api.withdraw(orderId.value, item.id, item.version)
-    message.value = "授权已撤回，后续通知任务不会再向该记录发送。"
-    await load()
-  } catch (cause) {
-    error.value = readableError(cause, "撤回失败，请刷新后重试。")
-  } finally {
-    saving.value = false
-  }
-}
-
-function copyEntry(url: string): void {
-  uni.setClipboardData({ data: url, success: () => uni.showToast({ title: "入口已复制", icon: "success" }) })
-}
-
-function readableError(cause: unknown, fallback: string): string {
-  if (cause instanceof ApiError || cause instanceof Error) return cause.message
-  return fallback
-}
-function selectRelation(event: { readonly detail: { readonly value: number | string } }): void {
-  const index = typeof event.detail.value === "number" ? event.detail.value : Number.parseInt(event.detail.value, 10)
-  form.relation = index === 1 ? "traveler" : index === 2 ? "emergency_contact" : index === 3 ? "other" : "guardian"
-}
-function selectChannel(event: { readonly detail: { readonly value: number | string } }): void {
-  const index = typeof event.detail.value === "number" ? event.detail.value : Number.parseInt(event.detail.value, 10)
-  form.channel = index === 1 ? "manual" : "wechat_subscribe"
-}
-function newIdempotencyKey(): string { return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `recipient-${Date.now()}` }
-function relationLabel(relation: NotificationRelation): string { return { guardian: "监护人", traveler: "出行人", emergency_contact: "紧急联系人", other: "其他" }[relation] }
-function channelLabel(channel: NotificationChannel): string { return channel === "wechat_subscribe" ? "微信订阅消息" : "人工联系" }
-function entryLabel(kind: "enterprise_wechat" | "official_account" | "customer_service"): string { return { enterprise_wechat: "企业微信", official_account: "微信公众号", customer_service: "客服" }[kind] }
+function login(): void { uni.navigateTo({ url: "/pages/login/index?returnTo=%2Fpages%2Fnotifications%2Findex" }) }
+function settings(): void { uni.openSetting({ withSubscriptions: true }) }
 </script>
 
 <template>
-  <view class="notification-page">
-    <view class="notification-hero">
-      <text class="notification-kicker">家庭通知</text>
-      <text class="notification-title">接收人授权与服务入口</text>
-      <text class="notification-intro">本页只显示当前家庭、当前订单的授权。付款人不会自动成为通知接收人。</text>
+  <view class="discovery-page subscription-page">
+    <text class="page-heading">消息提醒</text>
+    <text class="page-subtitle">新活动和后续提醒，可通过微信接收。</text>
+    <view v-if="!authenticated" class="info-card subscription-intro">
+      <text class="card-title">登录后选择需要的提醒</text>
+      <text class="body-secondary">不用报名，也不用填写姓名。</text>
+      <button class="button-primary action-gap" @tap="login">登录后订阅</button>
     </view>
-
-    <view v-if="state === 'loading'" class="notification-state" aria-live="polite">
-      <view class="notification-skeleton notification-skeleton--title" />
-      <view class="notification-skeleton" />
-      <view class="notification-skeleton" />
-    </view>
-    <view v-else-if="state === 'error'" class="notification-state notification-state--error">
-      <text>{{ error }}</text>
-      <button class="notification-button notification-button--secondary" @tap="load">重新加载</button>
-    </view>
-
-    <template v-else-if="overview">
-      <text v-if="message" class="notification-feedback">{{ message }}</text>
-      <text v-if="error" class="notification-feedback notification-feedback--error">{{ error }}</text>
-
-      <view class="notification-card">
-        <text class="notification-card-title">已授权接收人</text>
-        <text class="notification-card-copy">授权记录属于当前家庭。撤回后，后续任务不得继续发送。</text>
-        <view v-if="activeAuthorizations.length === 0" class="notification-empty">
-          <text>当前订单尚无有效接收人授权。</text>
-          <text>请填写真实接收人姓名和关系，不要使用付款人信息代填。</text>
-        </view>
-        <view v-for="item in activeAuthorizations" :key="item.id" class="notification-recipient">
-          <view>
-            <text class="notification-recipient-name">{{ item.receiverName }}</text>
-            <text class="notification-meta">{{ relationLabel(item.relation) }} · {{ channelLabel(item.channel) }}</text>
+    <template v-else>
+      <DiscoveryState :state="state" :message="error" empty-title="暂时没有可订阅的提醒" @retry="load" />
+      <view v-if="state === 'ready'" class="info-card subscription-options">
+        <text class="card-title">选择提醒内容</text>
+        <text class="body-secondary">一次最多选3类；已订阅的提醒无需重复选择。</text>
+        <view v-for="item in templates" :key="item.id" class="subscription-option">
+          <view class="subscription-select" role="checkbox" :aria-checked="item.subscription?.status !== 'active' && selectedIds.includes(item.id)" :aria-disabled="busy || !item.enabled || item.subscription?.status === 'active' || pendingChoices.length > 0" @tap="item.enabled && toggle(item.id)">
+            <checkbox color="#08776A" :checked="item.subscription?.status !== 'active' && selectedIds.includes(item.id)" :disabled="busy || !item.enabled || item.subscription?.status === 'active' || pendingChoices.length > 0" @tap.stop="item.enabled && toggle(item.id)" />
+            <view class="subscription-copy">
+              <text class="subscription-name">{{ item.title }}</text>
+              <text class="body-secondary">{{ item.enabled ? (item.subscription ? statusLabels[item.subscription.status] : '未订阅') : '暂未开放' }}</text>
+            </view>
           </view>
-          <button class="notification-button notification-button--danger" :disabled="saving" @tap="withdraw(item)">撤回</button>
+          <button v-if="item.subscription?.status === 'active'" class="subscription-stop" :disabled="busy || pendingChoices.length > 0" @tap="withdraw(item)">停止接收</button>
         </view>
+        <text v-if="message" class="subscription-message" role="status">{{ message }}</text>
+        <text v-if="error" class="subscription-error" role="alert">{{ error }}</text>
+        <button class="button-primary action-gap" :disabled="busy || (selected.length === 0 && pendingChoices.length === 0)" @tap="subscribe">{{ busy ? '正在处理…' : pendingChoices.length > 0 ? '重试保存订阅' : '订阅所选消息' }}</button>
+        <text class="subscription-help">每类提醒同意后可接收一条消息；消息发送后可再次订阅。</text>
       </view>
-
-      <form class="notification-card" @submit.prevent="authorize">
-        <text class="notification-card-title">新增接收人授权</text>
-        <label class="notification-field"><text>接收人姓名</text><input v-model.trim="form.receiverName" maxlength="80" required placeholder="请填写实际接收人" /></label>
-        <label class="notification-field"><text>与出行人的关系</text><picker :range="['监护人', '出行人', '紧急联系人', '其他']" @change="selectRelation"><view class="notification-picker">{{ relationLabel(form.relation) }}</view></picker></label>
-        <label class="notification-field"><text>允许渠道</text><picker :range="['微信订阅消息', '人工联系']" @change="selectChannel"><view class="notification-picker">{{ channelLabel(form.channel) }}</view></picker></label>
-        <text class="notification-help">微信通知只发送给当前登录微信。填写他人姓名不会改变接收微信，请由实际接收人登录后授权。保存业务授权后，还需单独同意微信订阅。</text>
-        <text v-if="form.channel === 'wechat_subscribe' && subscribeTemplates.length === 0" class="notification-help">微信订阅通知暂未开放，请选择人工联系。</text>
-        <button class="notification-button" form-type="submit" :disabled="saving || subscribing || form.receiverName === '' || (form.channel === 'wechat_subscribe' && subscribeTemplates.length === 0)">{{ saving ? "保存中..." : "确认业务授权" }}</button>
-      </form>
-
-      <view class="notification-card">
-        <text class="notification-card-title">微信通知订阅</text>
-        <text class="notification-card-copy">请先保存接收人业务授权，再点击需要的通知。微信会单独询问是否同意订阅；业务授权记录不代表已订阅或已收到通知。</text>
-        <text v-if="subscribeTemplates.length === 0" class="notification-help">当前团期的微信通知暂未开放，可选择人工联系。</text>
-        <view v-for="item in subscribeTemplates" :key="item.templateId" class="notification-entry">
-          <view><text class="notification-recipient-name">{{ item.title }}</text><text v-if="subscriptionMessages[item.templateId]" class="notification-meta">{{ subscriptionMessages[item.templateId] }}</text></view>
-          <button class="notification-button notification-button--secondary" :disabled="saving || subscribing || !activeAuthorizations.some(authorization => authorization.channel === 'wechat_subscribe')" @tap="subscribe(item.templateId)">订阅通知</button>
-        </view>
-      </view>
-
-      <view class="notification-card">
-        <text class="notification-card-title">服务入口</text>
-        <text class="notification-card-copy">联系工作人员，了解报名及出行安排。</text>
-        <view v-if="entries.length === 0" class="notification-empty"><text>在线联系暂未开放。</text></view>
-        <view v-for="entry in entries" :key="entry.kind" class="notification-entry">
-          <view><text class="notification-recipient-name">{{ entry.label }}</text><text class="notification-meta">{{ entryLabel(entry.kind) }}</text></view>
-          <button class="notification-button notification-button--secondary" @tap="copyEntry(entry.url)">复制入口</button>
-        </view>
-      </view>
-
-      <view v-if="historyAuthorizations.length" class="notification-card notification-card--quiet">
-        <text class="notification-card-title">已撤回记录</text>
-        <view v-for="item in historyAuthorizations" :key="item.id" class="notification-history"><text>{{ item.receiverName }} · {{ relationLabel(item.relation) }}</text><text class="notification-meta">已撤回，不再发送</text></view>
-      </view>
+      <button class="button-secondary action-gap" @tap="settings">微信通知设置</button>
     </template>
   </view>
 </template>
 
-<style scoped>
-.notification-page { min-height: 100vh; box-sizing: border-box; padding: var(--space-4); padding-bottom: calc(var(--space-10) + env(safe-area-inset-bottom)); background: var(--surface-primary); color: var(--text-primary); }
-.notification-hero { display: grid; gap: var(--space-2); padding: var(--space-5); border-radius: var(--radius-banner); background: var(--brand-mist); }
-.notification-kicker { color: var(--accent-secondary); font-size: var(--font-body-sm); font-weight: 600; }
-.notification-title { font-size: var(--font-h1); font-weight: 700; line-height: 1.3; }
-.notification-intro, .notification-card-copy, .notification-help { color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.6; }
-.notification-card, .notification-state { display: grid; gap: var(--space-4); margin-top: var(--space-4); padding: var(--space-4); border-radius: var(--radius-card); background: var(--surface-elevated); }
-.notification-card--quiet { background: var(--surface-secondary); }
-.notification-card-title { font-size: var(--font-h3); font-weight: 600; }
-.notification-recipient, .notification-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); align-items: center; padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
-.notification-recipient-name, .notification-history text { display: block; overflow-wrap: anywhere; font-size: var(--font-body); font-weight: 600; }
-.notification-meta { display: block; margin-top: var(--space-1); color: var(--text-secondary); font-size: var(--font-caption); line-height: 1.5; }
-.notification-field { display: grid; gap: var(--space-2); color: var(--text-secondary); font-size: var(--font-body-sm); }
-.notification-field input, .notification-picker { min-height: var(--size-touch-target); box-sizing: border-box; padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-control); color: var(--text-primary); background: var(--surface-primary); font-size: var(--font-body); }
-.notification-button { min-height: var(--size-touch-target); margin: 0; padding: 0 var(--space-4); border-radius: var(--radius-control); color: var(--on-accent); background: var(--accent-primary); font-size: var(--font-body); line-height: var(--size-touch-target); }
-.notification-button::after { border: 0; }
-.notification-button[disabled] { color: var(--text-tertiary); background: var(--surface-secondary); }
-.notification-button--secondary { border: 1px solid var(--accent-primary); color: var(--accent-primary); background: var(--surface-elevated); }
-.notification-button--danger { border: 1px solid var(--status-error); color: var(--status-error); background: var(--surface-elevated); }
-.notification-empty, .notification-state { color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.6; }
-.notification-empty { display: grid; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-control); background: var(--surface-secondary); }
-.notification-state--error, .notification-feedback--error { color: var(--status-error); }
-.notification-feedback { display: block; margin-top: var(--space-4); color: var(--status-success); font-size: var(--font-body-sm); }
-.notification-history { display: grid; gap: var(--space-1); padding-top: var(--space-3); border-top: 1px solid var(--border-default); }
-.notification-skeleton { height: 16px; border-radius: var(--radius-control); background: var(--surface-secondary); opacity: .8; }
-.notification-skeleton--title { width: 56%; height: 24px; }
-@media (min-width: 768px) { .notification-page { max-width: 760px; margin: 0 auto; padding: var(--space-7); } }
-@media (prefers-reduced-motion: reduce) { .notification-button { transition: none; } }
+<style>
+@import "../../styles/discovery.css";
+.subscription-page { max-width: 760px; margin: 0 auto; }
+.subscription-intro .card-title, .subscription-options > .card-title { margin-top: 0; }
+.subscription-option { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
+.subscription-option:first-of-type { margin-top: var(--space-2); }
+.subscription-select { display: flex; align-items: center; flex: 1; min-width: 0; min-height: var(--size-touch-target); gap: var(--space-2); }
+.subscription-copy { flex: 1; min-width: 0; }
+.subscription-name { display: block; color: var(--text-primary); font-size: var(--font-body); font-weight: 600; overflow-wrap: anywhere; }
+.subscription-stop { flex: 0 0 auto; padding: 0 var(--space-2); margin: 0; min-height: var(--size-touch-target); line-height: var(--size-touch-target); background: var(--surface-secondary); color: var(--text-secondary); font-size: var(--font-body-sm); }
+.subscription-stop::after { border: 0; }
+.subscription-stop:active { transform: scale(0.98); }
+.subscription-help { display: block; margin-top: var(--space-3); font-size: var(--font-body-sm); line-height: 1.6; color: var(--text-secondary); }
+.subscription-message, .subscription-error { display: block; margin-top: var(--space-3); font-size: var(--font-body-sm); line-height: 1.6; }
+.subscription-message { color: var(--status-success); }
+.subscription-error { color: var(--status-error); }
 </style>

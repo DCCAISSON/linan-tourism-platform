@@ -23,10 +23,16 @@ const api = {
   listSchools: vi.fn(async () => []),
   listOrders: vi.fn(async (): Promise<readonly unknown[]> => []),
   loginWithWechatCode: vi.fn(async () => undefined),
+  loginWithWechatPhone: vi.fn(async () => ({ token: "logged-in-token", familyCode: "family-a", expiresAt: "2026-10-03T00:00:00.000Z", phoneVerified: true })),
+  logoutWechat: vi.fn(async () => undefined),
 }
 const navigateTo = vi.fn()
 const login = vi.fn()
 const emit = vi.fn()
+const showModal = vi.fn()
+const switchTab = vi.fn()
+const showToast = vi.fn()
+const logoutSession = vi.fn(() => { token = undefined })
 
 function setupSfc<T>(relativePath: string): T {
   const filename = new URL(`../src/${relativePath}`, import.meta.url)
@@ -35,12 +41,14 @@ function setupSfc<T>(relativePath: string): T {
   const compiled = compileScript(descriptor, { id: relativePath })
   const code = transpileModule(compiled.content, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
   const exports: Record<string, unknown> = {}
-  const uni = { navigateTo, login, switchTab: vi.fn() }
+  const uni = { navigateTo, login, showToast, switchTab, showModal }
   runInNewContext(code, { exports, uni, Error, require: (name: string) => {
     if (name === "vue") return vue
     if (name === "@dcloudio/uni-app") return { onShow: (callback: () => void) => { onShow = callback } }
     if (name.endsWith("/api")) return { ApiError, createMiniappApi: () => api }
-    if (name.endsWith("wechat-token")) return { getWechatSessionToken: () => token, clearWechatSessionToken: () => { token = undefined } }
+    if (name.endsWith("user-notification-api")) return { createUserNotificationApi: () => ({ overview: async () => [] }) }
+    if (name.endsWith("wechat-token")) return { logoutWechatSession: logoutSession, getEnrollmentDraftOwner: () => "family:family-a", getWechatSessionToken: () => token, clearWechatSessionToken: () => { token = undefined } }
+    if (name.endsWith("profile-display")) return { hasCompletedLocalProfile: () => true, loadLocalProfile: () => null }
     if (name.endsWith("page-helpers")) return { readableError: (cause: unknown, fallback: string) => cause instanceof Error ? cause.message : fallback }
     return {}
   } })
@@ -51,9 +59,77 @@ function setupSfc<T>(relativePath: string): T {
 beforeEach(() => {
   vi.clearAllMocks()
   token = undefined
+  api.logoutWechat.mockResolvedValue(undefined)
   api.listEnrollmentMembers.mockResolvedValue([])
   api.listOrders.mockResolvedValue([])
-  api.loginWithWechatCode.mockResolvedValue(undefined)
+  api.loginWithWechatCode.mockImplementation(async () => { token = "logged-in-token" })
+  api.loginWithWechatPhone.mockImplementation(async () => {
+    token = "logged-in-token"
+    return { token, familyCode: "family-a", expiresAt: "2026-10-03T00:00:00.000Z", phoneVerified: true }
+  })
+})
+
+describe("settings logout", () => {
+  type Settings = { readonly authenticated: vue.Ref<boolean>; readonly loggingOut: vue.Ref<boolean>; readonly logout: () => void }
+  function confirmLogout(confirm = true): Promise<void> {
+    const options: unknown = showModal.mock.calls.at(-1)?.[0]
+    if (typeof options !== "object" || options === null || !("success" in options) || typeof options.success !== "function") throw new Error("Logout confirmation missing")
+    return options.success({ confirm })
+  }
+  it("keeps the current session when logout is cancelled", async () => {
+    token = "session-a"
+    const page = setupSfc<Settings>("pages/settings/index.vue")
+    onShow()
+    page.logout()
+    await confirmLogout(false)
+    expect(token).toBe("session-a")
+    expect(page.authenticated.value).toBe(true)
+    expect(api.logoutWechat).not.toHaveBeenCalled()
+    expect(logoutSession).not.toHaveBeenCalled()
+  })
+  it("waits for confirmation, revokes the session and returns to the guest profile", async () => {
+    token = "session-a"
+    const page = setupSfc<Settings>("pages/settings/index.vue")
+    onShow()
+    page.logout()
+    expect(api.logoutWechat).not.toHaveBeenCalled()
+    expect(logoutSession).not.toHaveBeenCalled()
+    await confirmLogout()
+    expect(api.logoutWechat).toHaveBeenCalledOnce()
+    expect(token).toBeUndefined()
+    expect(page.authenticated.value).toBe(false)
+    expect(switchTab).toHaveBeenCalledWith({ url: "/pages/family/index" })
+  })
+  it("still clears local login when the server cannot be reached", async () => {
+    token = "session-a"
+    api.logoutWechat.mockRejectedValueOnce(new Error("offline"))
+    const page = setupSfc<Settings>("pages/settings/index.vue")
+    onShow()
+    page.logout()
+    await confirmLogout()
+    expect(token).toBeUndefined()
+    expect(page.authenticated.value).toBe(false)
+    expect(page.loggingOut.value).toBe(false)
+    expect(showToast).toHaveBeenCalledWith({ title: "已退出本机，登录状态暂未同步", icon: "none" })
+  })
+  it("does not clear a new login when an earlier logout finishes", async () => {
+    token = "session-a"
+    let finish: (() => void) | undefined
+    api.logoutWechat.mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve(undefined) }))
+    const page = setupSfc<Settings>("pages/settings/index.vue")
+    onShow()
+    page.logout()
+    const pending = confirmLogout()
+    expect(token).toBeUndefined()
+    expect(logoutSession).toHaveBeenCalledOnce()
+    expect(switchTab).toHaveBeenCalledWith({ url: "/pages/family/index" })
+    token = "session-b"
+    finish?.()
+    await pending
+    expect(token).toBe("session-b")
+    expect(logoutSession).toHaveBeenCalledOnce()
+    expect(page.loggingOut.value).toBe(false)
+  })
 })
 
 describe.each(["family", "orders"])("%s private page", (pageName) => {
@@ -81,7 +157,7 @@ describe.each(["family", "orders"])("%s private page", (pageName) => {
     expect(rows.value).toEqual([])
     expect(token).toBeUndefined()
     expect(page.authenticated.value).toBe(false)
-    expect(page.error.value).toContain("登录已过期")
+    expect(page.error.value).toContain(pageName === "family" ? "登录已失效，请重新登录后查看。" : "登录已过期，请重新登录后查看。")
     expect(navigateTo).not.toHaveBeenCalled()
     await page.load()
     expect(request).toHaveBeenCalledTimes(1)
@@ -125,34 +201,47 @@ describe.each(["family", "orders"])("%s private page", (pageName) => {
   })
 })
 
-describe("explicit WeChat identity consent", () => {
-  type Consent = { accepted: vue.Ref<boolean>; busy: vue.Ref<boolean>; error: vue.Ref<string>; login: () => Promise<void> }
+describe("explicit WeChat phone authorization", () => {
+  type Consent = { accepted: vue.Ref<boolean>; busy: vue.Ref<boolean>; error: vue.Ref<string>; loginWithWechatPhone: (event: { detail?: { code?: unknown } }) => Promise<void> }
   it("never invokes WeChat login until consent is checked", async () => {
     const consent = setupSfc<Consent>("components/WechatConsent.vue")
     expect(consent.accepted.value).toBe(false)
-    await consent.login()
+    await consent.loginWithWechatPhone({ detail: { code: "phone-code" } })
     expect(login).not.toHaveBeenCalled()
     consent.accepted.value = true
     login.mockImplementationOnce((options: UniApp.LoginOptions) => options.success?.({ code: "wechat-code", errMsg: "login:ok", authResult: "" }))
-    await consent.login()
-    expect(api.loginWithWechatCode).toHaveBeenCalledWith("wechat-code")
+    await consent.loginWithWechatPhone({ detail: { code: "phone-code" } })
+    expect(api.loginWithWechatPhone).toHaveBeenCalledWith("wechat-code", "phone-code")
     expect(emit).toHaveBeenCalledWith("authenticated")
   })
   it("recovers from cancelled login and failed network without emitting success", async () => {
     const consent = setupSfc<Consent>("components/WechatConsent.vue")
     consent.accepted.value = true
     login.mockImplementationOnce((options: UniApp.LoginOptions) => options.fail?.({ errMsg: "login:fail cancel" }))
-    await consent.login()
+    await consent.loginWithWechatPhone({ detail: { code: "phone-code" } })
     expect(consent.busy.value).toBe(false)
-    expect(consent.error.value).toContain("微信登录失败")
+    expect(consent.error.value).toContain("微信手机号登录失败，请重新授权。")
     expect(emit).not.toHaveBeenCalled()
     login.mockImplementation((options: UniApp.LoginOptions) => options.success?.({ code: "wechat-code", errMsg: "login:ok", authResult: "" }))
-    api.loginWithWechatCode.mockRejectedValueOnce(new Error("网络连接失败"))
-    await consent.login()
+    api.loginWithWechatPhone.mockRejectedValueOnce(new Error("网络连接失败"))
+    await consent.loginWithWechatPhone({ detail: { code: "phone-code" } })
     expect(consent.error.value).toBe("网络连接失败")
     expect(emit).not.toHaveBeenCalled()
-    await consent.login()
+    await consent.loginWithWechatPhone({ detail: { code: "phone-code" } })
     expect(consent.error.value).toBe("")
     expect(emit).toHaveBeenCalledWith("authenticated")
+  })
+  it("does not emit login events when a delayed phone response is discarded after account change", async () => {
+    const consent = setupSfc<Consent>("components/WechatConsent.vue")
+    consent.accepted.value = true
+    login.mockImplementationOnce((options: UniApp.LoginOptions) => options.success?.({ code: "wechat-code", errMsg: "login:ok", authResult: "" }))
+    api.loginWithWechatPhone.mockImplementationOnce(async () => {
+      token = "new-account-token"
+      throw new ApiError(409, "登录状态已变化，请重新确认手机号。")
+    })
+    await consent.loginWithWechatPhone({ detail: { code: "phone-code" } })
+    expect(token).toBe("new-account-token")
+    expect(emit).not.toHaveBeenCalledWith("identified", expect.anything(), expect.anything())
+    expect(emit).not.toHaveBeenCalledWith("authenticated")
   })
 })

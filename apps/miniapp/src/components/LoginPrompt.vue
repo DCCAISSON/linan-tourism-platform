@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import FunctionalIcon from "./FunctionalIcon.vue"
-withDefaults(defineProps<{ readonly message?: string }>(), { message: "登录后，继续为您办理报名" })
+withDefaults(defineProps<{ readonly message?: string }>(), { message: "登录后继续报名" })
 defineEmits<{ cancel: []; confirm: [] }>()
 </script>
 <template>
@@ -8,9 +8,9 @@ defineEmits<{ cancel: []; confirm: [] }>()
     <view class="login-prompt" role="dialog" aria-modal="true" aria-label="登录提示">
       <view class="login-prompt-icon"><FunctionalIcon name="people" /></view>
       <text class="login-prompt-title">{{ message }}</text>
-      <text class="login-prompt-copy">微信登录后，查看报名和参加人。</text>
+      <text class="login-prompt-copy">登录后即可查看报名和参加人。</text>
       <view class="login-prompt-actions">
-        <button class="button-secondary login-prompt-cancel" @tap="$emit('cancel')">再逛会</button>
+        <button class="button-secondary login-prompt-cancel" @tap="$emit('cancel')">再看看</button>
         <button class="button-primary login-prompt-confirm" @tap="$emit('confirm')">去登录</button>
       </view>
     </view>

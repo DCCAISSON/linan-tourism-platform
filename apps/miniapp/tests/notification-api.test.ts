@@ -44,7 +44,7 @@ describe("miniapp notification API", () => {
   it("rejects non-HTTPS enabled entries", async () => {
     const api = createNotificationApi({ request: async () => ({ statusCode: 200, data: { ...overview, entries: [{ ...overview.entries[0], url: "http://unsafe.example.test" }] } }) })
 
-    await expect(api.getOverview("order-1")).rejects.toEqual(new ApiError(0, "notification entry.url response format is invalid"))
+    await expect(api.getOverview("order-1")).rejects.toEqual(new ApiError(0, "消息提醒暂时无法加载，请稍后再试。"))
   })
 
   it("loads configured templates from the scoped overview and rejects malformed IDs", async () => {
@@ -65,7 +65,7 @@ describe("miniapp notification API", () => {
   it("does not open platform consent for an unconfigured or forged template", async () => {
     const requestSubscribeMessage = vi.fn()
     vi.stubGlobal("uni", { requestSubscribeMessage })
-    await expect(requestNotificationSubscription("forged", [])).rejects.toThrow("通知模板暂未开放")
+    await expect(requestNotificationSubscription("forged", [])).rejects.toThrow("该消息提醒暂未开放")
     expect(requestSubscribeMessage).not.toHaveBeenCalled()
   })
 

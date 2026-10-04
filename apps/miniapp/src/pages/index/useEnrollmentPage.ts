@@ -1,11 +1,12 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from "vue"
-import { onLoad } from "@dcloudio/uni-app"
+import { onLoad, onShow } from "@dcloudio/uni-app"
+import { createContractApi, type OrderContract } from "../../contract-api"
 import {
   ApiError, createMiniappApi, type Grade,
   type Order,
-  type ServiceCapabilities, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatMiniappPayment,
+  type ServiceCapabilities, type SavedEnrollmentMember, type School, type SchoolClass, type TourSession, type WechatLoginResponse, type WechatMiniappPayment,
 } from "../../api"
-import { getWechatSessionToken } from "../../wechat-token"
+import { getWechatSessionPhoneVerified, getWechatSessionToken, getEnrollmentDraftOwner } from "../../wechat-token"
 import { activeEnrollmentOptions, enrollmentGrades, enrollmentClasses } from "../../activity-catalog"
 import {
   buildCreateOrderPayload, canStartPayment, createOrderRequestKey,
@@ -22,8 +23,10 @@ import {
   type ContactFieldName, type MemberFieldName,
 } from "../../enrollment-validation"
 import { readableError, readPickerIndex, readStateTone, stateLabel } from "./page-helpers"
-import { canUseWechatPayment, paymentCapabilitiesClosed, paymentUnavailableNotice } from "../../payment-policy"
+import { canUseWechatPayment, paymentCapabilitiesClosed, paymentUnavailableNotice, wechatPaymentFailureMessage } from "../../payment-policy"
 import { useEnrollmentHealth } from "./useEnrollmentHealth"
+import { useEnrollmentDraft } from "./useEnrollmentDraft"
+import { hasServiceConsent } from "../../service-consent"
 
 export type PickerChangeEvent = {
   readonly detail: {
@@ -37,9 +40,17 @@ export function scrollToEnrollmentAnchor(anchor: string): void {
 
 export function useEnrollmentPage() {
   let api = createMiniappApi()
+  function currentSessionPhoneVerified(): boolean {
+    return getWechatSessionToken() === undefined
+      ? import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true"
+      : getWechatSessionPhoneVerified()
+  }
   const authenticated = ref(import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || getWechatSessionToken() !== undefined)
+  const phoneVerified = ref(currentSessionPhoneVerified())
   const loginRequested = ref(false)
   const loginPromptVisible = ref(false)
+  const serviceConsentVisible = ref(false)
+  let serviceConsentAction: "review" | "submit" | undefined
   let reviewAfterLogin = false
   const validationShown = ref(false)
   const loadState = ref<LoadState>("loading")
@@ -48,6 +59,9 @@ export function useEnrollmentPage() {
   const submissionCode = ref("")
   const currentTimeIso = ref(new Date().toISOString())
   const order = ref<Order | null>(null)
+  const contract = ref<OrderContract | null>(null)
+  const contractState = ref<"idle" | "loading" | "ready" | "error">("idle")
+  const contractPending = computed(() => contract.value?.status === "pending_parent_signature")
   const health = useEnrollmentHealth()
   const payment = ref<WechatMiniappPayment | null>(null)
   const paymentCapabilities = ref<ServiceCapabilities>(paymentCapabilitiesClosed)
@@ -59,7 +73,6 @@ export function useEnrollmentPage() {
   const classError = ref("")
   let gradeRequest = 0
   let classRequest = 0
-  onLoad((query) => { wantedSessionId.value = query?.["sessionId"] ?? "" })
   const draft = reactive({
     ...createEmptyDraft(),
     familyMembers: [] as FamilyMember[],
@@ -69,6 +82,21 @@ export function useEnrollmentPage() {
     grades: [] as Grade[],
     classes: [] as SchoolClass[],
     sessions: [] as TourSession[],
+  })
+  const persistedDraft = useEnrollmentDraft(draft, message => { errorMessage.value = message }, () => {
+    savedMembers.value = []
+    const token = getWechatSessionToken()
+    authenticated.value = import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || token !== undefined
+    phoneVerified.value = currentSessionPhoneVerified()
+    api = createMiniappApi()
+    order.value = null
+    health.captureHealth([])
+    resetCheckout()
+    pageMode.value = "editing"
+  })
+  onLoad((query) => {
+    wantedSessionId.value = query?.["sessionId"] ?? ""
+    persistedDraft.restore(wantedSessionId.value, true)
   })
 
   const schoolNames = computed(() => optionNames(catalog.schools))
@@ -95,19 +123,43 @@ export function useEnrollmentPage() {
     return readEnrollmentReadiness(draft)
   })
   const canReview = computed(() => loadState.value === "ready" && pageMode.value === "editing")
-  const canSubmit = computed(() => authenticated.value && pageMode.value === "review" && readiness.value.ready)
-  const wechatPaymentAvailable = computed(() => canUseWechatPayment({ capabilities: paymentCapabilities.value, buildWechatPaymentEnabled }))
-  const canRetryPayment = computed(() => health.healthState.value !== "saving" && wechatPaymentAvailable.value && canStartPayment(order.value) && pageMode.value === "paymentPending")
+  const canSubmit = computed(() => authenticated.value && phoneVerified.value && pageMode.value === "review" && readiness.value.ready)
+  const wechatPaymentAvailable = computed(() => canUseWechatPayment({ capabilities: paymentCapabilities.value }))
+  const canRetryPayment = computed(() => contractState.value === "ready" && !contractPending.value && health.healthState.value !== "saving" && wechatPaymentAvailable.value && canStartPayment(order.value) && pageMode.value === "paymentPending")
   const loadStateLabel = computed(() => stateLabel(loadState.value, pageMode.value))
   const stateTone = computed(() => readStateTone(loadState.value, pageMode.value))
   const orderLabel = computed(() => orderStatusLabel(order.value))
-  const buildWechatPaymentEnabled = import.meta.env["VITE_WECHAT_PAY_ENABLED"] === "true"
-
   onMounted(() => {
     void loadCatalog()
   })
+  onShow(() => { if (order.value) void refreshOrder() })
+
+  async function refreshContract(): Promise<boolean> {
+    const current = order.value, owner = getEnrollmentDraftOwner(), token = getWechatSessionToken()
+    if (!current || contractState.value === "loading") return false
+    if (contractState.value === "error") errorMessage.value = ""
+    contractState.value = "loading"
+    try {
+      const result = await createContractApi().getContract(current.id)
+      if (owner !== getEnrollmentDraftOwner() || token !== getWechatSessionToken() || order.value?.id !== current.id) return false
+      contract.value = result; contractState.value = "ready"
+      return result?.status !== "pending_parent_signature"
+    } catch (cause) {
+      if (owner !== getEnrollmentDraftOwner() || token !== getWechatSessionToken() || order.value?.id !== current.id) return false
+      contractState.value = "error"
+      errorMessage.value = readableError(cause, "合同加载失败，请重试后继续办理。")
+      return false
+    }
+  }
+
+  function openContract(): void {
+    if (order.value) uni.navigateTo({ url: `/pages/orders/contract?orderId=${encodeURIComponent(order.value.id)}` })
+  }
 
   async function loadCatalog(): Promise<void> {
+    persistedDraft.pause()
+    const loadingOwner = getEnrollmentDraftOwner()
+    const loadingToken = getWechatSessionToken()
     gradeRequest++
     classRequest++
     gradeState.value = "idle"
@@ -127,35 +179,44 @@ export function useEnrollmentPage() {
         api.getCapabilities(),
       ])
       const options = activeEnrollmentOptions(activities, sessions, schools)
+      if (loadingOwner !== getEnrollmentDraftOwner()) return
       savedMembers.value = members
       paymentCapabilities.value = capabilities
       catalog.schools = [...options.schools]
       catalog.sessions = [...options.sessions]
       catalog.grades = []
       catalog.classes = []
-      draft.selectedSchoolId = ""
-      draft.selectedGradeId = ""
-      draft.selectedClassId = ""
-      draft.selectedTourSessionId = ""
       currentTimeIso.value = new Date().toISOString()
       loadState.value = catalog.schools.length === 0 || catalog.sessions.length === 0 ? "empty" : "ready"
       const wantedSession = options.sessions.find((session) => session.id === wantedSessionId.value)
       const schoolIndex = options.schools.findIndex((school) => school.id === wantedSession?.organizationId)
-      if (schoolIndex >= 0) await onSchoolChange({ detail: { value: schoolIndex } })
+      if (draft.selectedSchoolId) {
+        await retryGrades()
+        if (draft.selectedGradeId) await retryClasses()
+      } else if (schoolIndex >= 0) await onSchoolChange({ detail: { value: schoolIndex } })
     } catch (error) {
-      if (authenticated.value && error instanceof ApiError && error.statusCode === 401) {
+      const sessionExpired = loadingToken !== undefined && getWechatSessionToken() === undefined
+      if (authenticated.value && error instanceof ApiError && error.statusCode === 401
+        && (loadingToken === getWechatSessionToken() || sessionExpired)) {
+        persistedDraft.syncOwner()
         authenticated.value = false
+        phoneVerified.value = false
         await loadCatalog()
         return
       }
+      if (loadingOwner !== getEnrollmentDraftOwner()) return
       loadState.value = "error"
-      errorMessage.value = readableError(error, "目录加载失败，请稍后重试")
+      errorMessage.value = readableError(error, "报名信息加载失败，请稍后重试")
+    } finally {
+      persistedDraft.resume()
     }
   }
 
   async function onSchoolChange(event: PickerChangeEvent): Promise<void> {
     const school = catalog.schools[readPickerIndex(event)]
     if (school === undefined) return
+    persistedDraft.save()
+    persistedDraft.pause()
     classRequest++
     classState.value = "idle"
     classError.value = ""
@@ -186,7 +247,7 @@ export function useEnrollmentPage() {
     catalog.classes = []
     resetCheckout()
     errorMessage.value = ""
-
+    persistedDraft.restore(draft.selectedTourSessionId)
     await retryGrades()
   }
 
@@ -249,14 +310,15 @@ export function useEnrollmentPage() {
   }
 
   async function onSessionChange(event: PickerChangeEvent): Promise<void> {
+    persistedDraft.save()
+    persistedDraft.pause()
     currentTimeIso.value = new Date().toISOString()
     draft.selectedTourSessionId = availableSessions.value[readPickerIndex(event)]?.id ?? draft.selectedTourSessionId
+    persistedDraft.restore(draft.selectedTourSessionId)
     gradeRequest++
     classRequest++
-    catalog.grades = [...enrollmentGrades(catalog.grades, selectedSession.value)]
-    catalog.classes = [...enrollmentClasses(catalog.classes, selectedSession.value)]
-    if (!catalog.grades.some(item => item.id === draft.selectedGradeId)) draft.selectedGradeId = ""
-    if (!catalog.classes.some(item => item.id === draft.selectedClassId)) draft.selectedClassId = ""
+    catalog.grades = []
+    catalog.classes = []
     classState.value = "idle"
     classError.value = ""
     resetCheckout()
@@ -291,6 +353,15 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
   }
 
+  async function updateSavedMemberName(memberId: string, displayName: string): Promise<void> {
+    const member = draft.familyMembers.find((item) => item.remoteMemberId === memberId)
+    if (member === undefined) return
+    const updated = await api.updateEnrollmentMember(memberId, { displayName: displayName.trim() })
+    member.displayName = updated.displayName
+    savedMembers.value = savedMembers.value.map((item) => item.id === memberId ? { ...item, displayName: updated.displayName } : item)
+    resetCheckout()
+  }
+
   function clearHistoricalMembers(): void {
     savedMembers.value = []
     draft.familyMembers = draft.familyMembers.filter((member) => !member.fromCommonList || member.selected)
@@ -306,8 +377,18 @@ export function useEnrollmentPage() {
     }
   }
 
-  async function completeLogin(): Promise<void> {
+  function adoptLoginDraft(response?: WechatLoginResponse, verifiedPhone?: string): void {
+    persistedDraft.syncOwner(true)
+    phoneVerified.value = response?.phoneVerified === true && getWechatSessionPhoneVerified()
+    if (phoneVerified.value && typeof verifiedPhone === "string" && verifiedPhone.length > 0) draft.contactPhone = verifiedPhone
+  }
+
+  async function completeLogin(response?: WechatLoginResponse): Promise<void> {
+    persistedDraft.syncOwner(true)
+    const loginOwner = getEnrollmentDraftOwner()
+    const loginToken = getWechatSessionToken()
     authenticated.value = true
+    phoneVerified.value = response === undefined ? currentSessionPhoneVerified() : response.phoneVerified === true && getWechatSessionPhoneVerified()
     loginRequested.value = false
     loginPromptVisible.value = false
     api = createMiniappApi()
@@ -316,15 +397,20 @@ export function useEnrollmentPage() {
       return
     }
     try {
-      savedMembers.value = await api.listEnrollmentMembers()
+      const members = await api.listEnrollmentMembers()
+      if (loginOwner !== getEnrollmentDraftOwner()) return
+      savedMembers.value = members
       const available = savedMembers.value.filter((member) => member.schoolId === draft.selectedSchoolId)
       for (const member of available) {
         if (draft.familyMembers.some((existing) => existing.remoteMemberId === member.id)) continue
         draft.familyMembers.push({ id: member.id, code: member.code, displayName: member.displayName, participantKind: member.participantKind ?? "student", identityNumber: member.identityNumberMasked ?? "", phone: member.phoneMasked ?? "", remoteMemberId: member.id, fromCommonList: true, selected: false })
       }
     } catch (error) {
+      const sessionExpired = error instanceof ApiError && error.statusCode === 401 && loginToken !== undefined && getWechatSessionToken() === undefined
+      if ((loginOwner !== getEnrollmentDraftOwner() || loginToken !== getWechatSessionToken()) && !sessionExpired) return
       if (error instanceof ApiError && error.statusCode === 401) {
         authenticated.value = false
+        phoneVerified.value = false
         clearHistoricalMembers()
         reviewAfterLogin = false
         loginRequested.value = true
@@ -352,6 +438,19 @@ export function useEnrollmentPage() {
     reviewAfterLogin = false
   }
 
+  function completeServiceConsent(): void {
+    const action = serviceConsentAction
+    serviceConsentAction = undefined
+    serviceConsentVisible.value = false
+    if (action === "review") enterReview()
+    if (action === "submit") void submitEnrollment()
+  }
+
+  function cancelServiceConsent(): void {
+    serviceConsentAction = undefined
+    serviceConsentVisible.value = false
+  }
+
   watch(draft, () => { errorMessage.value = "" })
   watch(() => [draft.selectedTourSessionId, selectedSession.value?.activeNotice?.id, selectedSession.value?.activeNotice?.version], () => {
     draft.agreementAccepted = false
@@ -375,6 +474,16 @@ export function useEnrollmentPage() {
   }), resetCheckout)
 
   function enterReview(): void {
+    if (!authenticated.value) {
+      reviewAfterLogin = true
+      requestLogin()
+      return
+    }
+    if (!hasServiceConsent()) {
+      serviceConsentAction = "review"
+      serviceConsentVisible.value = true
+      return
+    }
     validationShown.value = true
     currentTimeIso.value = new Date().toISOString()
     if (!selectedTripGate.value.open) {
@@ -385,13 +494,15 @@ export function useEnrollmentPage() {
     const target = readFirstEnrollmentInvalidTarget(draft)
     if (target !== undefined) {
       errorMessage.value = target.reason
-      scrollToEnrollmentAnchor(target.anchor)
+      void nextTick(() => scrollToEnrollmentAnchor(target.anchor))
       return
     }
     errorMessage.value = ""
-    if (!authenticated.value) {
+    if (!phoneVerified.value) {
       reviewAfterLogin = true
-      requestLogin()
+      loginRequested.value = true
+      errorMessage.value = "请先完成微信手机号授权，再核对报名信息。"
+      void nextTick(() => scrollToEnrollmentAnchor("enrollment-login-field"))
       return
     }
     pageMode.value = "review"
@@ -402,8 +513,37 @@ export function useEnrollmentPage() {
     errorMessage.value = ""
   }
 
+  function clearCurrentDraft(): void {
+    if (pageMode.value !== "editing") return
+    const clearingOwner = getEnrollmentDraftOwner()
+    const clearingSession = draft.selectedTourSessionId
+    uni.showModal({
+      title: "清除本次草稿？",
+      content: "将清除本设备上本次报名已填写的信息，不会删除其他团期的草稿、常用参加人或已提交订单。",
+      confirmText: "清除草稿",
+      success: result => {
+        if (!result.confirm || clearingOwner !== getEnrollmentDraftOwner() || clearingSession !== draft.selectedTourSessionId || pageMode.value !== "editing") return
+        if (!persistedDraft.reset()) return
+        classRequest++
+        catalog.classes = []
+        classState.value = "idle"
+        classError.value = ""
+        validationShown.value = false
+        errorMessage.value = ""
+        resetCheckout()
+      },
+      fail: () => { errorMessage.value = "未能打开清除确认，请重试" },
+    })
+  }
+
   async function submitEnrollment(): Promise<void> {
+    if (!hasServiceConsent()) {
+      serviceConsentAction = "submit"
+      serviceConsentVisible.value = true
+      return
+    }
     if (!canSubmit.value) return
+    const submittingOwner = getEnrollmentDraftOwner(), submittingToken = getWechatSessionToken()
     pageMode.value = "submitting"
     errorMessage.value = ""
     try {
@@ -422,23 +562,27 @@ export function useEnrollmentPage() {
         const payload = buildEnrollmentPayload(submittedDraft, catalog, memberIds)
         const submission = await api.submitEnrollment(payload)
         submissionCode.value = submission.id
+        persistedDraft.clear()
         health.captureHealth(submittedDraft.familyMembers)
       }
       const createdOrder = await api.createOrder(
         buildCreateOrderPayload(submissionCode.value, draft.contactName, createOrderRequestKey(submissionCode.value)),
       )
+      if (submittingOwner !== getEnrollmentDraftOwner() || submittingToken !== getWechatSessionToken()) return
       order.value = createdOrder
       pageMode.value = nextPageModeForOrder(createdOrder)
       const healthSaved = await health.saveHealth(createdOrder.id, draft.familyMembers)
-      if (health.healthNeedsLogin.value) authenticated.value = false
+      if (health.healthNeedsLogin.value) { authenticated.value = false; phoneVerified.value = false }
+      const contractReady = await refreshContract()
       if (!healthSaved) return
-      if (wechatPaymentAvailable.value && canStartPayment(createdOrder)) {
+      if (contractReady && wechatPaymentAvailable.value && canStartPayment(createdOrder)) {
         await startPayment()
       }
     } catch (error) {
       pageMode.value = "review"
       if (error instanceof ApiError && error.statusCode === 401) {
         authenticated.value = false
+        phoneVerified.value = false
         clearHistoricalMembers()
         pageMode.value = "editing"
         reviewAfterLogin = true
@@ -454,7 +598,7 @@ export function useEnrollmentPage() {
     if (currentOrder === null || health.healthState.value === "saving") return
     if (!authenticated.value) { requestLogin(); return }
     await health.saveHealth(currentOrder.id, draft.familyMembers)
-    if (health.healthNeedsLogin.value) authenticated.value = false
+    if (health.healthNeedsLogin.value) { authenticated.value = false; phoneVerified.value = false }
   }
 
   function openHealthOrder(): void {
@@ -464,20 +608,25 @@ export function useEnrollmentPage() {
 
   async function startPayment(): Promise<void> {
     const currentOrder = order.value
+    const owner = getEnrollmentDraftOwner(), token = getWechatSessionToken()
     if (!canStartPayment(currentOrder) || health.healthState.value === "saving") return
     errorMessage.value = ""
     pageMode.value = "paymentPending"
     try {
+      if (!await refreshContract()) return
       if (!wechatPaymentAvailable.value) {
         errorMessage.value = paymentUnavailableNotice
         return
       }
-      const wechatPayment = await api.createWechatPayment(currentOrder.id, await loginForWechatPayment())
+      const code = await loginForWechatPayment()
+      if (owner !== getEnrollmentDraftOwner() || token !== getWechatSessionToken() || currentOrder.id !== order.value?.id) return
+      const wechatPayment = await api.createWechatPayment(currentOrder.id, code)
+      if (owner !== getEnrollmentDraftOwner() || token !== getWechatSessionToken() || currentOrder.id !== order.value?.id) return
       await requestWechatPayment(wechatPayment.miniappPayment)
       payment.value = wechatPayment
       await refreshOrder()
     } catch (error) {
-      errorMessage.value = readableError(error, "微信支付发起失败，请稍后重试")
+      errorMessage.value = wechatPaymentFailureMessage(error)
     }
   }
 
@@ -485,7 +634,7 @@ async function loginForWechatPayment(): Promise<string> {
   return await new Promise((resolve, reject) => {
     uni.login({ provider: "weixin", success: (result) => {
       if (typeof result.code === "string" && result.code.length > 0) resolve(result.code)
-      else reject(new Error("微信登录未返回 code"))
+      else reject(new Error("暂时无法确认微信身份，请重试"))
     }, fail: reject })
   })
 }
@@ -499,12 +648,23 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
   async function refreshOrder(): Promise<void> {
     const currentOrder = order.value
     if (currentOrder === null) return
+    const owner = getEnrollmentDraftOwner(), token = getWechatSessionToken()
     errorMessage.value = ""
     try {
       const refreshed = await api.getOrder(currentOrder.id)
+      if (owner !== getEnrollmentDraftOwner() || token !== getWechatSessionToken() || order.value?.id !== currentOrder.id) return
+      if (refreshed.status === "cancelled") {
+        order.value = null
+        resetCheckout()
+        pageMode.value = "editing"
+        errorMessage.value = "原订单已取消，可重新核对信息并报名。"
+        return
+      }
       order.value = refreshed
       pageMode.value = nextPageModeForOrder(refreshed)
+      await refreshContract()
     } catch (error) {
+      if (owner !== getEnrollmentDraftOwner() || token !== getWechatSessionToken() || order.value?.id !== currentOrder.id) return
       errorMessage.value = readableError(error, "订单状态刷新失败，请重试")
     }
   }
@@ -515,6 +675,8 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     submissionCode.value = ""
     order.value = null
     payment.value = null
+    contract.value = null
+    contractState.value = "idle"
     health.resetHealth()
   }
 
@@ -527,12 +689,15 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
   }
 
   return {
+    contract, contractState, contractPending, refreshContract, openContract,
+    draftStatus: persistedDraft.status, clearCurrentDraft,
     healthState: health.healthState, healthNeedsLogin: health.healthNeedsLogin, healthMessage: health.healthMessage,
     retryHealthNotes, openHealthOrder,
     loginPromptVisible, confirmLogin,
     schoolIndex, gradeIndex, classIndex, sessionIndex,
     gradeState, classState, gradeError, classError, retryGrades, retryClasses,
-    authenticated, completeLogin, loginRequested, requestLogin, cancelLogin, removeMember, validationShown,
+    authenticated, phoneVerified, adoptLoginDraft, completeLogin, loginRequested, requestLogin, cancelLogin, removeMember, validationShown,
+    serviceConsentVisible, completeServiceConsent, cancelServiceConsent,
     addMember,
     availableSessions,
     backToEdit,
@@ -575,5 +740,6 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     wechatPaymentAvailable,
     submitEnrollment,
     toggleMember,
+    updateSavedMemberName,
   }
 }

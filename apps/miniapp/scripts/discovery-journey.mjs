@@ -1,4 +1,4 @@
-import { assertIncludes, assertNoHorizontalOverflow, componentWithText, required, screenshot, waitForRoute } from "./e2e-ui.mjs"
+import { assertIncludes, assertNoHorizontalOverflow, componentWithText, required, screenshot, waitForComponentWithText, waitForRoute } from "./e2e-ui.mjs"
 
 export async function runDiscoveryBefore(program, fixture) {
   await program.reLaunch("/pages/index/index")
@@ -63,7 +63,7 @@ export async function runDiscoveryBefore(program, fixture) {
   await page.waitFor(300)
   assertIncludes(await (await required(page, ".family-guest-card")).text(), "登录后查看常用参加人", "guest can browse my page")
   await (await required(page, ".family-orders-entry")).tap()
-  let prompt = await componentWithText(page, "再逛会")
+  let prompt = await waitForComponentWithText(page, "再逛会")
   await (await required(prompt, ".login-prompt-cancel")).tap()
   if ((await program.currentPage()).path !== "pages/family/index") throw new Error("Cancelling login navigated away from my page")
   await screenshot(program, "07-family-guest.png")
@@ -72,12 +72,12 @@ export async function runDiscoveryBefore(program, fixture) {
   await page.waitFor(300)
   if (fixture.requests.some(entry => ["/wechat/miniapp/login", "/enrollment/members", "/orders"].includes(entry.path))) throw new Error("Guest browsing requested private data or logged in")
   await (await required(page, ".orders-login-entry")).tap()
-  prompt = await componentWithText(page, "再逛会")
+  prompt = await waitForComponentWithText(page, "再逛会")
   await screenshot(program, "07-orders-login-prompt.png")
   await (await required(prompt, ".login-prompt-cancel")).tap()
   if ((await program.currentPage()).path !== "pages/orders/index") throw new Error("Cancelling login navigated away from orders")
   await (await required(page, ".orders-login-entry")).tap()
-  prompt = await componentWithText(page, "再逛会")
+  prompt = await waitForComponentWithText(page, "再逛会")
   await (await required(prompt, ".login-prompt-confirm")).tap()
   page = await waitForRoute(program, "pages/login/index")
   const consent = await componentWithText(page, "登录，继续您的行程")

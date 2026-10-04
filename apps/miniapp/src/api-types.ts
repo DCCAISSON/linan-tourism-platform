@@ -89,6 +89,10 @@ export type EnrollmentMemberPayload = {
   readonly phone?: string
 }
 
+export type EnrollmentMemberPatch = {
+  readonly displayName: string
+}
+
 export type EnrollmentMember = {
   readonly id: string
   readonly code: string
@@ -208,7 +212,10 @@ export type WechatLoginResponse = {
   readonly token: string
   readonly familyCode: string
   readonly expiresAt: string
+  readonly phoneVerified?: boolean
 }
+
+export type SmsSendResponse = { readonly ok: true; readonly retryAfterSeconds: number }
 
 export type ServiceCapabilities = {
   readonly wechatPaymentEnabled: boolean
@@ -249,6 +256,7 @@ export type RequestTransport = (
 ) => Promise<MiniappRequestResult>
 
 export type MiniappApi = {
+  readonly logoutWechat: () => Promise<void>
   readonly listCatalogItems: () => Promise<readonly CatalogItem[]>
   readonly listEnrollmentMembers: () => Promise<readonly SavedEnrollmentMember[]>
   readonly listOrders: () => Promise<readonly OrderHistoryItem[]>
@@ -260,6 +268,10 @@ export type MiniappApi = {
   readonly createEnrollmentMember: (
     payload: EnrollmentMemberPayload,
   ) => Promise<EnrollmentMember>
+  readonly updateEnrollmentMember: (
+    memberId: string,
+    payload: EnrollmentMemberPatch,
+  ) => Promise<EnrollmentMember>
   readonly checkEnrollmentAvailability: (
     tourSessionId: string,
     atIso: string,
@@ -269,8 +281,12 @@ export type MiniappApi = {
   ) => Promise<EnrollmentSubmission>
   readonly createOrder: (payload: CreateOrderPayload) => Promise<Order>
   readonly getOrder: (orderId: string) => Promise<Order>
+  readonly cancelOrder: (orderId: string) => Promise<Order>
   readonly createMockPayment: (orderId: string) => Promise<MockPayment>
   readonly loginWithWechatCode: (code: string, familyCode?: string) => Promise<WechatLoginResponse>
+  readonly loginWithWechatPhone: (loginCode: string, phoneCode: string) => Promise<WechatLoginResponse>
+  readonly sendSmsLoginCode: (phone: string) => Promise<SmsSendResponse>
+  readonly loginWithSmsCode: (loginCode: string, phone: string, code: string) => Promise<WechatLoginResponse>
   readonly bindWechatCode: (code: string, familyCode: string) => Promise<WechatLoginResponse>
   readonly createWechatPayment: (orderId: string, code: string) => Promise<WechatMiniappPayment>
   readonly getCapabilities: () => Promise<ServiceCapabilities>

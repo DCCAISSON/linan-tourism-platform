@@ -13,7 +13,7 @@ defineEmits<{
   <view class="state-panel" :class="`state-panel--${kind}`" aria-live="polite">
     <template v-if="kind === 'loading'">
       <text class="state-panel__title">正在加载可报名信息</text>
-      <text class="state-panel__body">系统正在读取学校、年级、班级和团期。</text>
+      <text class="state-panel__body">正在准备学校、年级、班级和团期信息。</text>
     </template>
 
     <template v-else-if="kind === 'empty'">

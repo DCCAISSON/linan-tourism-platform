@@ -48,15 +48,15 @@ describe("album API", () => {
   })
 
   it("rejects draft assets before rendering them for families", () => {
-    expect(() => parseAlbumCollection({ assets: [{ ...asset, status: "draft" }], providers: [] })).toThrow(new ApiError(0, "media status 响应格式不正确"))
+    expect(() => parseAlbumCollection({ assets: [{ ...asset, status: "draft" }], providers: [] })).toThrow(new ApiError(0, "活动影像暂时无法读取，请稍后再试。"))
   })
 
   it("rejects non-HTTPS provider URLs", () => {
-    expect(() => parseAlbumCollection({ assets: [], providers: [{ ...provider, url: "http://album.example.test/a" }] })).toThrow(new ApiError(0, "provider url 响应格式不正确"))
+    expect(() => parseAlbumCollection({ assets: [], providers: [{ ...provider, url: "http://album.example.test/a" }] })).toThrow(new ApiError(0, "活动影像暂时无法读取，请稍后再试。"))
   })
 
   it.each(["https://user:pass@album.example.test/a", "https://127.0.0.1/a", "https://", "javascript:alert(1)"])("rejects unsafe provider URL %s before opening a webview", url => {
-    expect(() => parseAlbumCollection({ assets: [], providers: [{ ...provider, url }] })).toThrow(new ApiError(0, "provider url 响应格式不正确"))
+    expect(() => parseAlbumCollection({ assets: [], providers: [{ ...provider, url }] })).toThrow(new ApiError(0, "活动影像暂时无法读取，请稍后再试。"))
   })
 
   it("builds encoded content URLs without accepting object keys from the client", () => {

@@ -24,14 +24,23 @@ export async function componentWithText(page, text) {
   for (const component of components) if ((await component.text()).includes(text)) return component
   throw new Error(`Component with text was not rendered: ${text}`)
 }
-export async function waitForRoute(program, route) {
-  const deadline = Date.now() + 5_000
+export async function waitForComponentWithText(page, text, timeout = 5_000) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    const components = await page.$$("[u-i]")
+    for (const component of components) if ((await component.text()).includes(text)) return component
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error(`Component with text was not rendered within ${timeout}ms: ${text}`)
+}
+export async function waitForRoute(program, route, timeout = 5_000) {
+  const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
     const page = await program.currentPage()
     if (page.path === route) return page
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
-  throw new Error(`Navigation did not reach ${route}`)
+  throw new Error(`Navigation did not reach ${route} within ${timeout}ms`)
 }
 export async function assertNoHorizontalOverflow(program, page) {
   const size = await page.size()

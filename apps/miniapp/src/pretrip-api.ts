@@ -40,7 +40,42 @@ export function createPretripApi(options: PretripApiOptions = {}) {
   return {
     getPretrip: async (orderId: string) => parseFamilyPretrip(await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}/pretrip`, "GET", familyIdentityHeader, wechatSessionToken)),
     createAttachmentUrl: async (orderId: string, attachmentId: string) => parseAttachmentUrl(await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}/pretrip/attachments/${encodeURIComponent(attachmentId)}/url`, "POST", familyIdentityHeader, wechatSessionToken)),
+    openAttachment: async (orderId: string, attachment: PretripAttachment): Promise<void> => {
+      const path = `/orders/${encodeURIComponent(orderId)}/pretrip/attachments/${encodeURIComponent(attachment.id)}`
+      const link = parseAttachmentUrl(await requestJson(request, baseUrl, `${path}/url`, "POST", familyIdentityHeader, wechatSessionToken))
+      if (!link.url.startsWith(`${path}/download?`)) throw new ApiError(0, "附件暂时无法打开，请稍后重试")
+      const filePath = await downloadAttachment(`${baseUrl}${link.url}`, identityHeaders(familyIdentityHeader, wechatSessionToken))
+      await previewAttachment(filePath, attachment.contentType)
+    },
   }
+}
+
+export function formatPretripGatheringTime(iso: string | null): string {
+  if (iso === null) return "时间待通知"
+  const timestamp = Date.parse(iso)
+  if (!Number.isFinite(timestamp)) return "时间待通知"
+  return new Date(timestamp + 8 * 60 * 60 * 1000).toISOString().slice(0, 16).replace("T", " ")
+}
+
+async function downloadAttachment(url: string, header: Record<string, string>): Promise<string> {
+  return new Promise((resolve, reject) => uni.downloadFile({
+    url, header,
+    success: (result) => {
+      if (result.statusCode !== 200 || result.tempFilePath.length === 0) reject(new ApiError(result.statusCode, result.statusCode === 410 ? "附件链接已失效，请重新打开" : "附件下载失败，请重试"))
+      else resolve(result.tempFilePath)
+    },
+    fail: () => reject(new ApiError(0, "附件下载失败，请检查网络后重试")),
+  }))
+}
+
+async function previewAttachment(filePath: string, contentType: string): Promise<void> {
+  const image = contentType === "image/png" || contentType === "image/jpeg" || contentType === "image/webp"
+  if (image) {
+    return new Promise((resolve, reject) => uni.previewImage({ urls: [filePath], success: () => resolve(), fail: () => reject(new ApiError(0, "图片未能打开，请重试")) }))
+  }
+  const fileType = contentType === "application/pdf" ? "pdf" : contentType === "application/msword" ? "doc" : contentType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ? "docx" : null
+  if (fileType === null) throw new ApiError(0, "暂不支持打开此类附件，请联系行前联系人")
+  return new Promise((resolve, reject) => uni.openDocument({ filePath, fileType, showMenu: true, success: () => resolve(), fail: () => reject(new ApiError(0, "文件未能打开，请重试")) }))
 }
 
 function resolveApiBaseUrl(baseUrl?: string): string {
@@ -53,12 +88,16 @@ async function requestWithUni(options: MiniappRequestOptions): Promise<MiniappRe
 }
 
 async function requestJson(request: RequestTransport, baseUrl: string, path: string, method: MiniappRequestOptions["method"], familyIdentityHeader: string | undefined, wechatSessionToken: string | undefined): Promise<unknown> {
+  const response = await request({ url: `${baseUrl}${path}`, method, header: identityHeaders(familyIdentityHeader, wechatSessionToken) })
+  if (response.statusCode < 200 || response.statusCode >= 300) throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? "服务暂时无法响应，请稍后再试。")
+  return response.data
+}
+
+function identityHeaders(familyIdentityHeader: string | undefined, wechatSessionToken: string | undefined): Record<string, string> {
   const header: Record<string, string> = {}
   if (familyIdentityHeader !== undefined && familyIdentityHeader.length > 0) header[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
   if (wechatSessionToken !== undefined) header["Authorization"] = `Bearer ${wechatSessionToken}`
-  const response = await request({ url: `${baseUrl}${path}`, method, header })
-  if (response.statusCode < 200 || response.statusCode >= 300) throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `request failed (${response.statusCode})`)
-  return response.data
+  return header
 }
 
 function parseFamilyPretrip(value: unknown): FamilyPretrip {
@@ -124,7 +163,7 @@ function readTravelMode(record: Record<string, unknown>, key: string): "group" |
 function readTransportStatus(record: Record<string, unknown>, key: string): FamilyPretrip["transportStatus"] { const value = record[key]; if (value === "unconfirmed" || value === "current" || value === "stale") return value; throw invalid(`pretrip.${key}`) }
 function readVehicleStatus(record: Record<string, unknown>, key: string): FamilyPretripPerson["vehicleStatus"] { const value = record[key]; if (value === "unconfirmed" || value === "stale" || value === "unassigned" || value === "assigned") return value; throw invalid(`pretrip.person.${key}`) }
 function readErrorMessage(value: unknown): string | undefined { if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined; const message = Object.fromEntries(Object.entries(value))["message"]; return typeof message === "string" ? message : undefined }
-function invalid(field: string): ApiError { return new ApiError(0, `${field} response format is invalid`) }
+function invalid(_field: string): ApiError { return new ApiError(0, "行前信息暂时无法读取，请稍后再试。") }
 
 function readCoordinates(record: Record<string, unknown>): { readonly gatheringLatitude: number | null; readonly gatheringLongitude: number | null } {
   const latitude = record["gatheringLatitude"]

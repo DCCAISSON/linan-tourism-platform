@@ -1,47 +1,36 @@
 ﻿<script setup lang="ts">
 import { ref } from "vue"
-import { formatDateLabel, formatFen, type FamilyMember } from "../../enrollment-flow"
-import { memberFieldAnchor } from "../../enrollment-validation"
+import { formatDateLabel, formatFen } from "../../enrollment-flow"
+import EnrollmentMembersSection from "./EnrollmentMembersSection.vue"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
 const noticeExpanded = ref(false)
 const props = defineProps<{
   readonly page: ReturnType<typeof useEnrollmentPage>
 }>()
+const page = props.page
 
 const {
   schoolIndex, gradeIndex, classIndex, sessionIndex,
   gradeState, classState, gradeError, classError, retryGrades, retryClasses,
-  addMember,
-  removeMember,
   availableSessions,
   catalog,
   classNames,
   contactFieldError,
   draft,
   gradeNames,
-  memberFieldError,
   onClassChange,
   onGradeChange,
   onSchoolChange,
   onSessionChange,
+  phoneVerified,
   schoolNames,
   selectedClass,
   selectedGrade,
-  selectedMembers,
   selectedSchool,
   selectedSession,
   sessionNames,
-  toggleMember,
-} = props.page
-
-function updateHealthNotes(member: FamilyMember, event: unknown): void {
-  if (typeof event !== "object" || event === null || !("detail" in event)) return
-  const detail = event.detail
-  if (typeof detail === "object" && detail !== null && "value" in detail && typeof detail.value === "string") {
-    member.healthNotes = detail.value
-  }
-}
+} = page
 </script>
 
 <template>
@@ -85,75 +74,7 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
     <text v-else-if="classState === 'empty'" class="required-note">该年级暂无可选班级，请联系活动工作人员。</text>
   </view>
 
-  <view id="enrollment-members-field" class="section">
-    <view class="section__header">
-      <view>
-        <text class="section__title">参与成员</text>
-        <text class="section__hint">已选择 {{ selectedMembers.length }} 人，可多人报名。</text>
-        <text class="required-note"><text class="required-mark">*</text>为必填项。学生联系电话统一使用下方家长手机。</text>
-      </view>
-      <button class="text-button" @tap="addMember">添加</button>
-    </view>
-
-    <view v-if="draft.familyMembers.length === 0" class="empty-line">
-      <text>尚未添加参与成员。请添加学生或成人参与人后继续报名。</text>
-    </view>
-
-    <view v-for="member in draft.familyMembers" :key="member.id" class="member-row">
-      <view v-if="member.remoteMemberId !== undefined" class="member-row__fields">
-        <text class="section__title">{{ member.displayName }}</text>
-        <text class="section__hint">{{ member.participantKind === "adult" ? "成人" : "学生" }} · {{ member.fromCommonList ? "常用参加人" : "本次参加人" }}</text>
-        <text class="section__hint">证件：{{ member.identityNumber || "已保存" }}</text>
-        <text v-if="!member.fromCommonList" class="section__hint">如需修改这名参加人的资料，请删除后重新添加。</text>
-        <button v-if="!member.fromCommonList" class="text-button" @tap="removeMember(member.id)">删除本次参加人</button>
-      </view>
-      <view v-else class="member-row__fields">
-        <view class="kind-toggle">
-          <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': (member.participantKind ?? 'student') === 'student' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'student'">学生</button>
-          <button class="kind-toggle__button" :class="{ 'kind-toggle__button--on': member.participantKind === 'adult' }" :disabled="member.remoteMemberId !== undefined" @tap="member.participantKind = 'adult'">成人</button>
-        </view>
-        <view :id="memberFieldAnchor(member.id, 'displayName')" class="field-anchor">
-          <view class="input-label"><text class="required-mark">*</text>姓名</view>
-          <input v-model="member.displayName" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="120" placeholder="请输入姓名" placeholder-class="input-placeholder" />
-          <text v-if="memberFieldError(member, 'displayName').length > 0" class="field-error">{{ memberFieldError(member, 'displayName') }}</text>
-        </view>
-        <view :id="memberFieldAnchor(member.id, 'identityNumber')" class="field-anchor">
-          <view class="input-label"><text class="required-mark">*</text>证件号码</view>
-          <input v-model="member.identityNumber" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="18" placeholder="请输入18位身份证号码" placeholder-class="input-placeholder" />
-          <text v-if="memberFieldError(member, 'identityNumber').length > 0" class="field-error">{{ memberFieldError(member, 'identityNumber') }}</text>
-        </view>
-        <view v-if="member.participantKind === 'adult'" :id="memberFieldAnchor(member.id, 'phone')" class="field-anchor">
-          <view class="input-label">本人手机（选填，与家长不同时填写）</view>
-          <input v-model="member.phone" :disabled="member.remoteMemberId !== undefined" class="text-input" maxlength="11" type="number" placeholder="请输入11位手机号码" placeholder-class="input-placeholder" />
-          <text v-if="memberFieldError(member, 'phone').length > 0" class="field-error">{{ memberFieldError(member, 'phone') }}</text>
-        </view>
-        <text v-if="member.participantKind === 'adult'" class="member-row__hint">成人参与人无需选择年级和班级</text>
-        <checkbox-group @change="member.saveAsCommon = $event.detail.value.includes('save-common')">
-          <label class="consent-button save-common-button" :class="{ 'consent-button--on': member.saveAsCommon }">
-            <checkbox class="choice-control" value="save-common" :checked="member.saveAsCommon" color="var(--accent-primary)" />
-            <text>保存为常用参加人，方便下次报名</text>
-          </label>
-        </checkbox-group>
-        <button class="text-button" @tap="removeMember(member.id)">删除本次参加人</button>
-      </view>
-      <button v-if="member.fromCommonList" class="toggle-button" :class="{ 'toggle-button--on': member.selected }" @tap="toggleMember(member.id)">
-        {{ member.selected ? "取消选择" : "选择" }}
-      </button>
-      <view v-if="member.selected" class="member-health" :data-member-id="member.id">
-        <text class="health-label">健康补充（选填）</text>
-        <text class="health-hint">如有过敏、身体不适或需特别照顾的事项，可在这里说明；不填写也可报名。</text>
-        <textarea :value="member.healthNotes ?? ''" class="health-notes-input" :maxlength="2000" placeholder="请填写本次出行需留意的事项" placeholder-class="input-placeholder" @input="updateHealthNotes(member, $event)" />
-        <text class="health-count">{{ member.healthNotes?.length ?? 0 }}/2000</text>
-        <checkbox-group @change="member.healthConsent = $event.detail.value.includes('health-consent')">
-          <label class="consent-button health-consent-choice" :class="{ 'consent-button--on': member.healthConsent }">
-            <checkbox class="choice-control" value="health-consent" :checked="member.healthConsent === true" color="var(--accent-primary)" />
-            <text>同意保存健康备注，仅供本次活动有健康信息权限的工作人员查看。</text>
-          </label>
-        </checkbox-group>
-        <text class="health-hint">可在订单的“健康信息与授权”中撤回。不勾选时，备注不会随报名提交。</text>
-      </view>
-    </view>
-  </view>
+  <EnrollmentMembersSection :page="page" />
 
   <view class="section">
     <text class="section__title">家长联系人</text>
@@ -167,11 +88,13 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
       <view class="input-label input-label--block"><text class="required-mark">*</text>家长手机</view>
       <input v-model="draft.contactPhone" class="text-input text-input--block" maxlength="11" type="number" placeholder="请输入11位手机号码" placeholder-class="input-placeholder" />
       <text class="required-note">用于报名确认和行前联系，学生联系电话也使用此号码。</text>
+      <text v-if="phoneVerified" class="verified-note">请填写本次出行的联系手机号。</text>
+      <text v-else class="required-note">手动填写号码不等同于已核验；请在下方完成手机号核验后再核对报名信息。</text>
       <text v-if="contactFieldError('contactPhone').length > 0" class="field-error">{{ contactFieldError('contactPhone') }}</text>
     </view>
   </view>
 
-  <view class="section emergency-contact-section">
+  <view id="enrollment-emergency-field" class="section emergency-contact-section">
     <text class="section__title">紧急联系人</text>
     <text class="section__hint">用于出行期间的紧急联系，请选择一位联系人。</text>
     <radio-group @change="draft.emergencySameAsParent = $event.detail.value === 'parent'">
@@ -210,7 +133,7 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
     </picker>
     <view v-if="selectedSession" class="trip-detail">
       <text class="trip-line">日期：{{ formatDateLabel(selectedSession.startsAt) }} 至 {{ formatDateLabel(selectedSession.endsAt) }}</text>
-      <text class="trip-line">学校单价：{{ formatFen(selectedSession.priceFen) }}，人数上限：{{ selectedSession.capacity }} 人</text>
+      <text class="trip-line">{{ formatFen(selectedSession.priceFen) }} / 人 · 学生、成人同价</text>
       <text class="trip-line">报名：{{ formatDateLabel(selectedSession.enrollmentOpensAt) }} 至 {{ formatDateLabel(selectedSession.enrollmentClosesAt) }}</text>
     </view>
   </view>
@@ -219,7 +142,7 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
     <text class="section__title">报名须知</text>
     <view v-if="selectedSession?.activeNotice">
       <text class="section__hint">{{ selectedSession.activeNotice.title }} · {{ selectedSession.activeNotice.version }}</text>
-      <button class="text-button" @tap="noticeExpanded = !noticeExpanded">{{ noticeExpanded ? "收起告知书" : "查看完整告知书" }}</button>
+      <button class="text-button" @tap="noticeExpanded = !noticeExpanded">{{ noticeExpanded ? "收起完整内容" : "查看完整内容" }}</button>
       <view v-if="noticeExpanded" class="trip-detail">
         <text class="trip-line">目的地：{{ selectedSession.activeNotice.contentJson.destination }}</text>
         <text class="trip-line">集合地点：{{ selectedSession.activeNotice.contentJson.departurePlace }}</text>
@@ -237,7 +160,7 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
     <checkbox-group v-if="selectedSession?.activeNotice" @change="draft.agreementAccepted = $event.detail.value.includes('agreement')">
       <label class="consent-button enrollment-agreement-button" :class="{ 'consent-button--on': draft.agreementAccepted }">
         <checkbox class="choice-control" value="agreement" :checked="draft.agreementAccepted" color="var(--accent-primary)" />
-        <text>我已阅读并同意《{{ selectedSession.activeNotice.title }}》（{{ selectedSession.activeNotice.version }}）</text>
+        <text>我已阅读并同意《{{ selectedSession.activeNotice.title }}》</text>
       </label>
     </checkbox-group>
   </view>
@@ -252,8 +175,7 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
   background: var(--surface-elevated);
 }
 
-.section__header,
-.member-row {
+.section__header {
   display: flex;
   align-items: center;
 }
@@ -375,6 +297,7 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
   font-size: 12px;
   line-height: 1.4;
 }
+.verified-note { display: block; margin-top: 8px; color: var(--status-success); font-size: 12px; line-height: 1.4; }
 
 .text-input {
   display: block;
@@ -385,82 +308,10 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
 }
 
 .text-input--block,
-.member-row,
 .trip-detail {
   margin-top: 12px;
 }
 
-.member-row {
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.member-health {
-  flex: 1 0 100%;
-  box-sizing: border-box;
-  min-width: 0;
-  margin-top: var(--space-2);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border-subtle);
-}
-.health-label { display: block; color: var(--text-primary); font-size: var(--font-body); font-weight: 600; }
-.health-hint { display: block; margin-top: var(--space-2); color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.5; }
-.health-notes-input {
-  box-sizing: border-box;
-  width: 100%;
-  height: calc(var(--space-10) * 2);
-  margin-top: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-control);
-  color: var(--text-primary);
-  background: var(--surface-primary);
-  font-size: var(--font-body);
-  line-height: 1.5;
-}
-.health-count { display: block; margin-top: var(--space-1); text-align: right; color: var(--text-tertiary); font-size: var(--font-caption); }
-.health-consent-choice { font-size: var(--font-body-sm); }
-
-.member-row__fields {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.member-row__fields .text-input + .input-label {
-  margin-top: 8px;
-}
-.kind-toggle {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.kind-toggle__button {
-  min-height: 36px;
-  margin: 0;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  background: var(--surface-primary);
-  font-size: 14px;
-  line-height: 36px;
-}
-
-.kind-toggle__button--on {
-  color: var(--accent-primary);
-  border-color: var(--accent-primary);
-  background: var(--accent-soft);
-}
-
-.member-row__hint {
-  display: block;
-  margin-top: 8px;
-  color: var(--text-tertiary);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.toggle-button,
 .text-button,
 .consent-button {
   min-height: 44px;
@@ -470,14 +321,6 @@ function updateHealthNotes(member: FamilyMember, event: unknown): void {
   line-height: 44px;
 }
 
-.toggle-button {
-  flex: 0 0 88px;
-  min-width: 0;
-  color: var(--text-secondary);
-  background: var(--surface-secondary);
-}
-
-.toggle-button--on,
 .consent-button--on {
   color: var(--accent-primary);
   border-color: var(--accent-primary);

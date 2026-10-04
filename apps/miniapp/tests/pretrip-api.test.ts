@@ -63,7 +63,7 @@ describe("miniapp pretrip API", () => {
   it("rejects vehicle payloads on stale rows instead of guessing current cars", async () => {
     const api = createPretripApi({ request: async () => ({ statusCode: 200, data: { ...validPretrip, persons: [{ ...validPretrip.persons[0], vehicle: { sequence: "1" } }] } }) })
 
-    await expect(api.getPretrip("order-1")).rejects.toEqual(new ApiError(0, "pretrip.vehicle.sequence response format is invalid"))
+    await expect(api.getPretrip("order-1")).rejects.toEqual(new ApiError(0, "行前信息暂时无法读取，请稍后再试。"))
   })
 })
 

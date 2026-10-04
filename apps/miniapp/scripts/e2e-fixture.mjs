@@ -55,7 +55,11 @@ const businessProduct = {
 }
 
 export function createFixtureServer(baseUrl) {
-  const fixture = { catalogBlocked: true, emptyCatalog: false, failCatalog: false, orderPaid: false, orderCreated: false, memberCount: 0, members: [], requests: [] }
+  const fixture = {
+    catalogBlocked: true, emptyCatalog: false, failCatalog: false, paymentEnabled: false,
+    orderPaid: false, orderCreated: false, memberCount: 0, members: [], requests: [],
+    refundApplicationStatus: "rejected", refundApplicationRequestId: null, refundApplicationRefundStatus: null,
+  }
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", baseUrl)
     const body = await readJsonBody(request)
@@ -66,7 +70,7 @@ export function createFixtureServer(baseUrl) {
       return json(response, 200, { token: "fixture-session-token", familyCode: "family-e2e", expiresAt: "2027-01-01T00:00:00.000Z" })
     }
 
-    if (request.method === "GET" && url.pathname === "/capabilities") return json(response, 200, { wechatPaymentEnabled: false, wechatRefundEnabled: false, paymentReconciliationEnabled: false })
+    if (request.method === "GET" && url.pathname === "/capabilities") return json(response, 200, { wechatPaymentEnabled: fixture.paymentEnabled, wechatRefundEnabled: false, paymentReconciliationEnabled: false })
     if (request.method === "GET" && url.pathname === "/schools") {
       while (fixture.catalogBlocked) await delay(50)
       const schools = fixture.emptyCatalog ? [] : [school]
@@ -94,6 +98,13 @@ export function createFixtureServer(baseUrl) {
       }
       fixture.members.push(member)
       return json(response, 201, member)
+    }
+    const memberUpdateMatch = /^\/enrollment\/members\/([^/]+)\/update$/u.exec(url.pathname)
+    if (request.method === "POST" && memberUpdateMatch !== null) {
+      const member = fixture.members.find((item) => item.id === decodeURIComponent(memberUpdateMatch[1]))
+      if (member === undefined) return json(response, 404, { message: "Participant not found" })
+      member.displayName = body.displayName
+      return json(response, 200, member)
     }
     if (request.method === "POST" && url.pathname === "/enrollments") {
       fixture.enrollmentBody = body
@@ -146,7 +157,7 @@ export function createFixtureServer(baseUrl) {
     if (request.method === "GET" && url.pathname === "/orders/order-e2e/refund-applications") return json(response, 200, [{
       id: "refund-application-e2e",
       orderId: "order-e2e",
-      status: "rejected",
+      status: fixture.refundApplicationStatus,
       reason: "行程时间冲突",
       amountFen: 12_800,
       lines: [{ lineId: "line-0", displayName: "张同学", amountFen: 12_800 }],
@@ -154,8 +165,8 @@ export function createFixtureServer(baseUrl) {
       updatedAt: "2026-09-22T02:00:00.000Z",
       reviewReason: "工作人员已按当前规则完成审核",
       reviewedAt: "2026-09-22T02:00:00.000Z",
-      refundRequestId: null,
-      refundStatus: null,
+      refundRequestId: fixture.refundApplicationRequestId,
+      refundStatus: fixture.refundApplicationRefundStatus,
     }])
     if (request.method === "GET" && url.pathname === "/orders/order-e2e/media") return json(response, 200, {
       assets: [],

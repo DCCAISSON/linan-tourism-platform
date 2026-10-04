@@ -12,13 +12,14 @@ import {
   readErrorMessage,
 } from "./api-parsers"
 import { ApiError } from "./api-error"
-import { clearWechatSessionToken, getWechatSessionToken, saveWechatSessionToken } from "./wechat-token"
+import { clearWechatSessionToken, getWechatSessionToken, saveEnrollmentDraftIdentity, saveWechatSessionPhoneVerified, saveWechatSessionToken } from "./wechat-token"
 import { parseCatalogItem, parseOrderDetail, parseOrderHistoryItem, parseSavedEnrollmentMember } from "./family-center-parsers"
 import {
   DEV_FAMILY_IDENTITY_HEADER,
   FALLBACK_API_BASE_URL,
   type CreateOrderPayload,
   type EnrollmentMemberPayload,
+  type EnrollmentMemberPatch,
   type EnrollmentPayload,
   type MiniappApi,
   type MiniappApiOptions,
@@ -26,6 +27,7 @@ import {
   type MiniappRequestResult,
   type RequestTransport,
   type ServiceCapabilities,
+  type SmsSendResponse,
   type WechatLoginResponse,
   type WechatMiniappPayment,
 } from "./api-types"
@@ -44,6 +46,7 @@ export type {
   CreateOrderPayload,
   EnrollmentAvailability,
   EnrollmentMember,
+  EnrollmentMemberPatch,
   EnrollmentMemberPayload,
   EnrollmentPayload,
   EnrollmentSubmission,
@@ -61,6 +64,7 @@ export type {
   School,
   SchoolClass,
   ServiceCapabilities,
+  SmsSendResponse,
   TourSession,
 } from "./api-types"
 
@@ -85,6 +89,7 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
   const request = options.request ?? requestWithUni
 
   return {
+    logoutWechat: async () => { await requestJson(request, baseUrl, "/wechat/miniapp/logout", "POST", familyIdentityHeader, wechatSessionToken) },
     listCatalogItems: async () => readCollection(await requestJson(request, baseUrl, "/catalog-items", "GET", familyIdentityHeader, wechatSessionToken), parseCatalogItem),
     listEnrollmentMembers: async () => readCollection(await requestJson(request, baseUrl, "/enrollment/members", "GET", familyIdentityHeader, wechatSessionToken), parseSavedEnrollmentMember),
     listOrders: async () => readCollection(await requestJson(request, baseUrl, "/orders", "GET", familyIdentityHeader, wechatSessionToken), parseOrderHistoryItem),
@@ -105,6 +110,18 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
     createEnrollmentMember: async (payload: EnrollmentMemberPayload) =>
       parseEnrollmentMember(
         await requestJson(request, baseUrl, "/enrollment/members", "POST", familyIdentityHeader, wechatSessionToken, payload),
+      ),
+    updateEnrollmentMember: async (memberId: string, payload: EnrollmentMemberPatch) =>
+      parseEnrollmentMember(
+        await requestJson(
+          request,
+          baseUrl,
+          `/enrollment/members/${encodeURIComponent(memberId)}/update`,
+          "POST",
+          familyIdentityHeader,
+          wechatSessionToken,
+          payload,
+        ),
       ),
     checkEnrollmentAvailability: async (tourSessionId: string, atIso: string) =>
       parseEnrollmentAvailability(
@@ -133,6 +150,8 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
       parseOrder(
         await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}`, "GET", familyIdentityHeader, wechatSessionToken),
       ),
+    cancelOrder: async (orderId: string) =>
+      parseOrder(await requestJson(request, baseUrl, `/orders/${encodeURIComponent(orderId)}/cancel`, "POST", familyIdentityHeader, wechatSessionToken, {})),
     createMockPayment: async (orderId: string) =>
       parseMockPayment(
         await requestJson(
@@ -146,14 +165,21 @@ export function createMiniappApi(options: MiniappApiOptions = {}): MiniappApi {
         ),
       ),
     loginWithWechatCode: async (code: string, familyCode?: string) => {
-      const response = parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/login", "POST", familyIdentityHeader, wechatSessionToken, familyCode === undefined ? { code } : { code, familyCode }))
-      saveWechatSessionToken(response.token)
-      return response
+      const sessionAtStart = getWechatSessionToken()
+      return await saveWechatLogin(parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/login", "POST", familyIdentityHeader, wechatSessionToken, familyCode === undefined ? { code } : { code, familyCode })), sessionAtStart)
+    },
+    loginWithWechatPhone: async (loginCode: string, phoneCode: string) => {
+      const sessionAtStart = getWechatSessionToken()
+      return await saveWechatLogin(parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/phone-login", "POST", familyIdentityHeader, wechatSessionToken, { loginCode, phoneCode })), sessionAtStart)
+    },
+    sendSmsLoginCode: async (phone: string) => parseSmsSend(await requestJson(request, baseUrl, "/wechat/miniapp/sms/send", "POST", familyIdentityHeader, wechatSessionToken, { phone })),
+    loginWithSmsCode: async (loginCode: string, phone: string, code: string) => {
+      const sessionAtStart = getWechatSessionToken()
+      return await saveWechatLogin(parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/sms-login", "POST", familyIdentityHeader, wechatSessionToken, { loginCode, phone, code })), sessionAtStart)
     },
     bindWechatCode: async (code: string, familyCode: string) => {
-      const response = parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/bind", "POST", familyIdentityHeader, wechatSessionToken, { code, familyCode }))
-      saveWechatSessionToken(response.token)
-      return response
+      const sessionAtStart = getWechatSessionToken()
+      return await saveWechatLogin(parseWechatLogin(await requestJson(request, baseUrl, "/wechat/miniapp/bind", "POST", familyIdentityHeader, wechatSessionToken, { code, familyCode })), sessionAtStart)
     },
     createWechatPayment: async (orderId: string, code: string) =>
       parseWechatPayment(await requestJson(request, baseUrl, `/wechat/payments/${encodeURIComponent(orderId)}/miniapp`, "POST", familyIdentityHeader, wechatSessionToken, { code })),
@@ -204,7 +230,7 @@ async function requestJson(
       if (sessionToken === getWechatSessionToken()) clearWechatSessionToken()
       throw new ApiError(401, "登录状态已失效，请重新登录")
     }
-    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
+    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? "服务暂时无法响应，请稍后再试。")
   }
 
   return response.data
@@ -237,13 +263,30 @@ function parseServiceCapabilities(value: unknown): ServiceCapabilities {
 
 function parseWechatLogin(value: unknown): WechatLoginResponse {
   const record = readRecord(value)
-  return { token: readText(record, "token"), familyCode: readText(record, "familyCode"), expiresAt: readText(record, "expiresAt") }
+  const phoneVerified = readOptionalBoolean(record, "phoneVerified")
+  return phoneVerified === undefined
+    ? { token: readText(record, "token"), familyCode: readText(record, "familyCode"), expiresAt: readText(record, "expiresAt") }
+    : { token: readText(record, "token"), familyCode: readText(record, "familyCode"), expiresAt: readText(record, "expiresAt"), phoneVerified }
+}
+
+function parseSmsSend(value: unknown): SmsSendResponse {
+  const record = readRecord(value)
+  if (record["ok"] !== true) throw new ApiError(0, "invalid SMS send response")
+  return { ok: true, retryAfterSeconds: readCount(record, "retryAfterSeconds") }
+}
+
+async function saveWechatLogin(response: WechatLoginResponse, sessionAtStart: string | undefined): Promise<WechatLoginResponse> {
+  if (getWechatSessionToken() !== sessionAtStart) throw new ApiError(409, "登录状态已变化，请重新确认手机号。")
+  saveWechatSessionToken(response.token)
+  saveEnrollmentDraftIdentity(response.token, response.familyCode)
+  saveWechatSessionPhoneVerified(response.token, response.phoneVerified === true)
+  return response
 }
 
 function parseWechatPayment(value: unknown): WechatMiniappPayment {
   const record = readRecord(value)
   const miniappPayment = readRecord(record["miniappPayment"])
-  if (readText(record, "provider") !== "wechat_pay" || readText(miniappPayment, "signType") !== "RSA") throw new ApiError(0, "invalid wechat payment response")
+  if (readText(record, "provider") !== "wechat_pay" || readText(miniappPayment, "signType") !== "RSA") throw new ApiError(0, "支付信息暂时无法读取，请稍后再试。")
   return {
     id: readText(record, "id"), orderId: readText(record, "orderId"), paymentNo: readText(record, "paymentNo"),
     provider: "wechat_pay", status: readPaymentStatus(record), amountFen: readCount(record, "amountFen"),
@@ -254,7 +297,7 @@ function parseWechatPayment(value: unknown): WechatMiniappPayment {
 function readPaymentStatus(record: Record<string, unknown>): WechatMiniappPayment["status"] {
   const status = readText(record, "status")
   if (status === "pending" || status === "succeeded" || status === "failed" || status === "refunded") return status
-  throw new ApiError(0, "invalid wechat payment response")
+  throw new ApiError(0, "支付信息暂时无法读取，请稍后再试。")
 }
 
 function readRecord(value: unknown): Record<string, unknown> {
@@ -265,6 +308,10 @@ function readText(record: Record<string, unknown>, key: string): string {
   const value = record[key]
   if (typeof value === "string") return value
   throw new ApiError(0, "invalid response")
+}
+function readOptionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+  const value = record[key]
+  return typeof value === "boolean" ? value : undefined
 }
 function readBoolean(record: Record<string, unknown>, key: string): boolean {
   const value = record[key]

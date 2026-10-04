@@ -16,7 +16,7 @@ const categories = [
   { value: "wellness", label: "疗休养" },
   { value: "homestay", label: "民宿" },
 ] as const
-const currentTitle = computed(() => categories.find((item) => item.value === selectedCategory.value)?.label ?? "业务")
+const currentTitle = computed(() => categories.find((item) => item.value === selectedCategory.value)?.label ?? "服务")
 
 onShow(() => { void load() })
 
@@ -28,7 +28,7 @@ async function load(): Promise<void> {
     state.value = products.value.length > 0 ? "ready" : "empty"
   } catch (cause) {
     state.value = "error"
-    error.value = readableError(cause, "业务内容加载失败，请重试")
+    error.value = readableError(cause, "服务资料加载失败，请稍后再试")
   }
 }
 
@@ -42,29 +42,35 @@ function openProduct(id: string): void {
 }
 
 function priceText(value: number | null): string {
-  return value === null ? "价格待确认" : `参考 ${formatFen(value)}`
+  return value === null ? "价格待确认" : `参考价 ${formatFen(value)}`
 }
 </script>
 
 <template>
   <view class="discovery-page business-page">
     <text class="page-heading">临安文旅服务</text>
-    <text class="page-subtitle">查看旅游、疗休养和民宿基础资料，提交咨询后由工作人员跟进。</text>
-    <view class="business-tabs">
+    <text class="page-subtitle">查看旅游、疗休养和民宿服务资料；如有需要，可提交咨询。</text>
+    <text class="section-heading">按类型浏览</text>
+    <view class="business-tabs" role="tablist" aria-label="服务类型">
       <button
         v-for="category in categories"
         :key="category.value"
         class="button-secondary"
         :class="{ 'business-tabs--selected': selectedCategory === category.value }"
+        :aria-selected="selectedCategory === category.value"
         @tap="switchCategory(category.value)"
       >
         {{ category.label }}
       </button>
     </view>
-    <DiscoveryState :state="state" :message="error" :empty-title="`暂无已发布${currentTitle}内容`" @retry="load" />
+    <DiscoveryState :state="state" :message="error" :empty-title="`暂时没有${currentTitle}服务资料`" @retry="load" />
     <view v-if="state === 'ready'">
       <view v-for="product in products" :key="product.id" class="info-card business-card">
         <image v-if="product.media[0]?.kind === 'image'" class="business-cover" :src="product.media[0].url" mode="aspectFill" />
+        <view v-else class="business-cover business-cover--empty">
+          <text class="caption">{{ currentTitle }}</text>
+          <text class="business-cover-title">{{ product.title }}</text>
+        </view>
         <view class="row-between">
           <text class="caption">{{ currentTitle }}</text>
           <text class="badge">{{ priceText(product.referencePriceFen) }}</text>
@@ -72,18 +78,22 @@ function priceText(value: number | null): string {
         <text class="card-title">{{ product.title }}</text>
         <text class="body-secondary">{{ product.offering }}</text>
         <text class="detail-line">{{ product.content }}</text>
-        <button class="button-primary action-gap" @tap="openProduct(product.id)">查看并咨询</button>
+        <button class="button-primary action-gap" @tap="openProduct(product.id)">查看详情并咨询</button>
       </view>
     </view>
-    <text class="test-notice">本页只提供资料和咨询回执，不代表已预订、已付款或实时库存。</text>
+    <text class="test-notice">提交咨询后，工作人员将联系您确认行程、费用及预订安排。</text>
   </view>
 </template>
 
 <style>
 @import "../../styles/discovery.css";
-.business-tabs { display: flex; gap: var(--space-2); margin: var(--space-4) 0; }
+.business-page { max-width: 760px; margin: 0 auto; }
+.business-tabs { display: flex; gap: var(--space-2); margin: 0 0 var(--space-4); }
 .business-tabs button { flex: 1; min-width: 0; font-size: var(--font-body-sm); }
 .business-tabs--selected { color: var(--on-accent); background: var(--accent-primary); }
-.business-card { gap: var(--space-3); }
+.business-card { display: flex; flex-direction: column; gap: var(--space-3); }
 .business-cover { width: 100%; height: 320rpx; border-radius: var(--radius-card); background: var(--surface-secondary); }
+.business-cover--empty { box-sizing: border-box; display: flex; flex-direction: column; justify-content: end; gap: var(--space-2); padding: var(--space-5); background: var(--brand-mist); }
+.business-cover-title { color: var(--brand-ink); font-size: var(--font-h2); font-weight: 600; line-height: 1.4; }
+@media (min-width: 768px) { .business-cover { height: 240px; } }
 </style>

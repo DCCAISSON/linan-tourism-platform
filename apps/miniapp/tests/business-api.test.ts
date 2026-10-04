@@ -67,6 +67,6 @@ describe("miniapp business API client", () => {
       request: async () => ({ statusCode: 200, data: [{ ...product, media: [{ kind: "image", url: "cos://private/key.jpg" }] }] }),
     })
 
-    await expect(api.listProducts("wellness")).rejects.toThrow("业务内容响应格式不正确")
+    await expect(api.listProducts("wellness")).rejects.toThrow("服务资料暂时无法读取，请稍后再试。")
   })
 })

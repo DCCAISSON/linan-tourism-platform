@@ -73,7 +73,7 @@ async function requestJson(request: BusinessRequestTransport, baseUrl: string, p
     ? { url: `${baseUrl}${path}`, method, header: {} }
     : { url: `${baseUrl}${path}`, method, header: { "Content-Type": "application/json" }, data })
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
+    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? "服务暂时无法响应，请稍后再试。")
   }
   return response.data
 }
@@ -160,5 +160,5 @@ function readCategory(value: unknown): BusinessCategory {
 }
 
 function invalidResponse(): ApiError {
-  return new ApiError(0, "业务内容响应格式不正确")
+  return new ApiError(0, "服务资料暂时无法读取，请稍后再试。")
 }

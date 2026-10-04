@@ -4,7 +4,10 @@ import { createEmptyDraft, type EnrollmentDraft } from "../src/enrollment-flow"
 import { memberFieldAnchor, readFirstEnrollmentInvalidTarget } from "../src/enrollment-validation"
 import { scrollToEnrollmentAnchor } from "../src/pages/index/useEnrollmentPage"
 
-const enrollmentFormTemplate = readFileSync(new URL("../src/pages/index/EnrollmentForm.vue", import.meta.url), "utf8")
+const enrollmentFormTemplate = [
+  readFileSync(new URL("../src/pages/index/EnrollmentForm.vue", import.meta.url), "utf8"),
+  readFileSync(new URL("../src/pages/index/EnrollmentMembersSection.vue", import.meta.url), "utf8"),
+].join("\n")
 
 function validDraft(): EnrollmentDraft {
   return {
@@ -140,6 +143,13 @@ afterEach(() => {
 })
 
 describe("enrollment invalid field anchors", () => {
+  it("renders selectable cards and saved-member editing without redundant counts", () => {
+    expect(enrollmentFormTemplate).not.toContain("member-count-badge__number")
+    expect(enrollmentFormTemplate).toContain("member-card--selected")
+    expect(enrollmentFormTemplate).toContain("member-choice__check")
+    expect(enrollmentFormTemplate).toContain("编辑姓名")
+  })
+
   it.each(["7", "张3", "Alice7", "---"])("rejects an invalid parent name %s before submission", (name) => {
     expect(readFirstEnrollmentInvalidTarget({ ...validDraft(), contactName: name })?.anchor).toBe("enrollment-contact-name-field")
   })

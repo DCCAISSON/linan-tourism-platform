@@ -71,7 +71,7 @@ async function requestJson(request: RequestTransport, baseUrl: string, path: str
     data,
   })
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
+    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? "服务暂时无法响应，请稍后再试。")
   }
   return response.data
 }
@@ -85,6 +85,6 @@ function buildHeaders(familyIdentityHeader: string | undefined, wechatSessionTok
 
 function parseResult(value: unknown): ServiceFeedbackResult {
   const record = readRecord(value)
-  if (record["status"] !== "submitted" || record["public"] !== false) throw new ApiError(0, "反馈响应格式不正确")
+  if (record["status"] !== "submitted" || record["public"] !== false) throw new ApiError(0, "暂时无法确认提交结果，请稍后查看。")
   return { id: readString(record, "id"), status: "submitted", public: false }
 }

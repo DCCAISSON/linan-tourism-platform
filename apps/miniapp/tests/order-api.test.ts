@@ -27,6 +27,16 @@ const paymentResponse = {
 }
 
 describe("miniapp order API client", () => {
+  it("cancels through the authenticated order endpoint and reads the server status", async () => {
+    const requests: MiniappRequestOptions[] = []
+    const request: RequestTransport = async (options) => {
+      requests.push(options)
+      return { data: { ...orderResponse, status: "cancelled" }, statusCode: 200 }
+    }
+    const api = createMiniappApi({ baseUrl: "https://api.example.test", request, wechatSessionToken: "session-fixture" })
+    expect(await api.cancelOrder("order/1")).toMatchObject({ status: "cancelled", paidFen: 0 })
+    expect(requests).toEqual([expect.objectContaining({ url: "https://api.example.test/orders/order%2F1/cancel", method: "POST", header: expect.objectContaining({ Authorization: "Bearer session-fixture" }) })])
+  })
   it("creates an order without client-controlled amounts and keeps an idempotent response stable", async () => {
     // Given
     const requests: MiniappRequestOptions[] = []
@@ -159,7 +169,7 @@ describe("miniapp order API client", () => {
     const api = createMiniappApi({ baseUrl: "https://api.example.test", request })
 
     // When / Then
-    await expect(api.getOrder("order-1")).rejects.toEqual(new ApiError(0, "status 响应格式不正确"))
+    await expect(api.getOrder("order-1")).rejects.toEqual(new ApiError(0, "服务信息暂时无法读取，请稍后再试。"))
   })
 
   it("rejects malformed payment responses", async () => {
@@ -172,7 +182,7 @@ describe("miniapp order API client", () => {
 
     // When / Then
     await expect(api.createMockPayment("order-1")).rejects.toEqual(
-      new ApiError(0, "amountFen 响应格式不正确"),
+      new ApiError(0, "服务信息暂时无法读取，请稍后再试。"),
     )
   })
 

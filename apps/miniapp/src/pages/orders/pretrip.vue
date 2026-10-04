@@ -2,7 +2,9 @@
 import { computed, ref } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
 import DiscoveryState from "../../components/DiscoveryState.vue"
-import { createPretripApi, type FamilyPretrip } from "../../pretrip-api"
+import ConsultationEntry from "../../components/ConsultationEntry.vue"
+import TripServiceEntry from "../../components/TripServiceEntry.vue"
+import { createPretripApi, formatPretripGatheringTime, type FamilyPretrip, type PretripAttachment } from "../../pretrip-api"
 import { type LoadState } from "../../enrollment-flow"
 import { readableError } from "../index/page-helpers"
 
@@ -12,6 +14,7 @@ const pretrip = ref<FamilyPretrip | null>(null)
 const state = ref<LoadState>("loading")
 const error = ref("")
 const mapError = ref("")
+const openingAttachmentId = ref<string | null>(null)
 const mapLocation = computed(() => {
   const config = pretrip.value?.config
   if (!config || config.gatheringLatitude === null || config.gatheringLongitude === null) return null
@@ -34,14 +37,14 @@ async function load(): Promise<void> {
   }
 }
 
-async function openAttachment(attachmentId: string): Promise<void> {
+async function openAttachment(attachment: PretripAttachment): Promise<void> {
+  if (openingAttachmentId.value !== null) return
+  openingAttachmentId.value = attachment.id
   try {
-    const link = await api.createAttachmentUrl(orderId.value, attachmentId)
-    uni.showModal({ title: "附件链接", content: `链接有效至 ${link.expiresAt}
-${link.url}`, showCancel: false })
+    await api.openAttachment(orderId.value, attachment)
   } catch (cause) {
-    uni.showToast({ title: readableError(cause, "附件链接生成失败"), icon: "none" })
-  }
+    uni.showToast({ title: readableError(cause, "附件暂时无法打开"), icon: "none" })
+  } finally { openingAttachmentId.value = null }
 }
 
 function openGatheringLocation(): void {
@@ -60,12 +63,12 @@ function openGatheringLocation(): void {
 
 <template>
   <view class="discovery-page">
-    <text class="page-heading">行前服务</text>
+    <text class="page-heading">行前信息</text>
     <DiscoveryState :state="state" :message="error" @retry="load" />
     <view v-if="state === 'ready' && pretrip">
       <view class="info-card">
         <text class="card-title">集合信息</text>
-        <text v-if="pretrip.config" class="detail-line">{{ pretrip.config.gatheringAt ?? '时间待通知' }} · {{ pretrip.config.gatheringPlace }}</text>
+        <text v-if="pretrip.config" class="detail-line">{{ formatPretripGatheringTime(pretrip.config.gatheringAt) }}（北京时间） · {{ pretrip.config.gatheringPlace }}</text>
         <button v-if="mapLocation" class="button-secondary action-gap gathering-map-button" @tap="openGatheringLocation">打开集合地点地图</button>
         <text v-if="mapError" class="detail-line gathering-map-error">{{ mapError }}</text>
         <text v-if="pretrip.config" class="detail-line">联系人：{{ pretrip.config.contactName }} {{ pretrip.config.contactPhone }}</text>
@@ -76,11 +79,12 @@ function openGatheringLocation(): void {
       <view class="info-card">
         <text class="card-title">车辆信息</text>
         <text class="detail-line">{{ statusText[pretrip.transportStatus] }}</text>
-        <text v-if="pretrip.transportStatus === 'stale'" class="test-notice">车辆安排已过期，待运营重新确认；页面不会显示旧车辆。</text>
+        <text v-if="pretrip.transportStatus === 'stale'" class="test-notice">车辆安排待重新确认，请稍后查看。</text>
         <view v-for="person in pretrip.persons" :key="person.orderLineId" class="participant-snapshot">
           <text class="card-title">{{ person.displayName }}</text>
           <text v-if="person.vehicle" class="detail-line">{{ person.vehicle.sequence }}号车 {{ person.vehicle.plateNumber || '车牌待补' }}</text>
           <text v-if="person.vehicle" class="detail-line">导游：{{ person.vehicle.guideName ?? '待补' }} {{ person.vehicle.guidePhone ?? '' }}</text>
+          <text v-if="person.vehicle" class="detail-line">司机：{{ person.vehicle.driverName ?? '待补' }} {{ person.vehicle.driverPhone ?? '' }}</text>
           <text v-if="person.vehicle" class="detail-line teacher-contact">随车教师：{{ person.vehicle.teacherName ?? '待补' }} {{ person.vehicle.teacherPhone ?? '' }}</text>
           <text v-if="!person.vehicle" class="detail-line">{{ person.vehicleStatus === 'stale' ? '待重排' : '暂无已确认车辆' }}</text>
         </view>
@@ -89,8 +93,10 @@ function openGatheringLocation(): void {
 
       <view v-if="pretrip.config?.attachments.length" class="info-card">
         <text class="card-title">附件</text>
-        <button v-for="attachment in pretrip.config.attachments" :key="attachment.id" class="button-secondary action-gap" @tap="openAttachment(attachment.id)">{{ attachment.title }}</button>
+        <button v-for="attachment in pretrip.config.attachments" :key="attachment.id" class="button-secondary action-gap" :disabled="openingAttachmentId !== null" :loading="openingAttachmentId === attachment.id" @tap="openAttachment(attachment)">{{ attachment.title }}</button>
       </view>
+      <TripServiceEntry :order-id="orderId" />
+      <ConsultationEntry :context="{ source: 'pretrip', id: orderId }" />
     </view>
   </view>
 </template>

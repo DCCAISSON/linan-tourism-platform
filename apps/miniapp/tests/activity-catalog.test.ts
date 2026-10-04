@@ -1,6 +1,6 @@
 import { DOMAIN_POLICY_VERSION } from "@linan/contracts"
 import { describe, expect, it } from "vitest"
-import { activeEnrollmentOptions, activityTrips } from "../src/activity-catalog"
+import { activeEnrollmentOptions, activitySessionChoices, activityTrips } from "../src/activity-catalog"
 import { parseTourSession } from "../src/api-parsers"
 import type { CatalogItem, School, TourSession } from "../src/api"
 
@@ -35,10 +35,10 @@ const publishedSession: TourSession = {
 describe("activity catalog", () => {
   it.each([
     { minimumParticipants: null, occupiedCapacity: 5, label: null },
-    { minimumParticipants: 10, occupiedCapacity: 0, label: "已付款有效人数 0 / 最低人数 10" },
-    { minimumParticipants: 10, occupiedCapacity: 10, label: "已付款有效人数 10 / 最低人数 10" },
-    { minimumParticipants: 10, occupiedCapacity: 12, label: "已付款有效人数 12 / 最低人数 10" },
-    { minimumParticipants: 10, occupiedCapacity: null, label: "已付款有效人数暂未提供 / 最低人数 10" },
+    { minimumParticipants: 10, occupiedCapacity: 0, label: "已付款且未取消：0 人 / 成团最低人数：10 人" },
+    { minimumParticipants: 10, occupiedCapacity: 10, label: "已付款且未取消：10 人 / 成团最低人数：10 人" },
+    { minimumParticipants: 10, occupiedCapacity: 12, label: "已付款且未取消：12 人 / 成团最低人数：10 人" },
+    { minimumParticipants: 10, occupiedCapacity: null, label: "已付款且未取消人数暂未提供 / 成团最低人数：10 人" },
   ])("displays the paid headcount reference for $occupiedCapacity / $minimumParticipants", ({ minimumParticipants, occupiedCapacity, label }) => {
     const session = parseTourSession({ ...publishedSession, minimumParticipants, occupiedCapacity })
     const trips = activityTrips([activeActivity], [session], [])
@@ -72,5 +72,20 @@ describe("activity catalog", () => {
       schools: [schools[0]],
       sessions: [publishedSession],
     })
+  })
+
+  it("keeps a detail date selector within the selected activity and school", () => {
+    const sameActivityLater = parseTourSession({ ...publishedSession, id: "session-later", code: "20261025-01" })
+    const anotherSchool = parseTourSession({ ...publishedSession, id: "session-other-school", organizationId: "school-other", code: "20261018-02" })
+    const trips = activityTrips(
+      [activeActivity, { ...activeActivity, organizationId: "school-other" }],
+      [publishedSession, sameActivityLater, anotherSchool],
+      [],
+    )
+
+    expect(activitySessionChoices(trips, publishedSession.id).map((trip) => trip.session.id)).toEqual([
+      publishedSession.id,
+      sameActivityLater.id,
+    ])
   })
 })

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { formatFen } from "../../enrollment-flow"
+import ConsultationEntry from "../../components/ConsultationEntry.vue"
+import TripServiceEntry from "../../components/TripServiceEntry.vue"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
 const props = defineProps<{
@@ -8,6 +10,7 @@ const props = defineProps<{
 }>()
 
 const {
+  contract, contractState, contractPending, refreshContract, openContract,
   canRetryPayment,
   errorMessage,
   order,
@@ -21,6 +24,10 @@ const {
 } = props.page
 const paymentButtonVisible = computed(() => canRetryPayment.value && wechatPaymentAvailable.value)
 const paymentStatusText = computed(() => {
+  if (contractState.value === "loading") return "正在读取本次报名合同。"
+  if (contractState.value === "error") return "合同暂未读取，请重试后继续办理。"
+  if (contractPending.value) return "订单已创建，请先阅读本次合同并完成本人签字。"
+  if (contract.value?.status === "parent_signed_pending_agency") return order.value?.status === "paid" ? "已支付，本人签字已保存，旅行社手续待处理。" : "本人已签字，待旅行社处理；可继续办理付款。"
   if (wechatPaymentAvailable.value) return order.value?.status === "paid" ? "支付成功，报名信息已确认。" : "订单已创建，请完成微信支付。"
   return order.value?.status === "paid" ? "订单已确认，可在我的订单查看。" : paymentUnavailableNotice
 })
@@ -47,6 +54,8 @@ function openOrders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
     </view>
 
     <view class="order-actions">
+      <button v-if="contractPending" class="primary-button" @tap="openContract">阅读合同并签字</button>
+      <button v-else-if="contractState === 'error' || contractState === 'idle'" class="primary-button" @tap="refreshContract">重新读取合同</button>
       <button
         v-if="paymentButtonVisible"
         class="secondary-button"
@@ -56,7 +65,10 @@ function openOrders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
       </button>
       <button class="primary-button" @tap="refreshOrder">刷新订单状态</button>
     </view>
+    <button v-if="contract && !contractPending" class="secondary-button own-orders-entry" @tap="openContract">查看合同与签字</button>
     <button class="secondary-button own-orders-entry" @tap="openOrders">查看我的订单</button>
+    <view v-if="order?.status === 'pending_payment'" class="order-consultation"><ConsultationEntry :context="{ source: 'order', id: order.id }" /></view>
+    <view v-if="order?.status === 'paid'" class="order-consultation"><TripServiceEntry :order-id="order.id" /></view>
   </view>
 </template>
 
@@ -128,6 +140,8 @@ function openOrders(): void { uni.switchTab({ url: "/pages/orders/index" }) }
   line-height: 44px;
 }
 .own-orders-entry { width: 100%; margin-top: 16px; }
+.order-consultation { margin-top: var(--space-3); }
+.order-consultation :deep(.button-secondary) { min-height: var(--size-touch-target); border-radius: var(--radius-control); color: var(--accent-primary); background: var(--accent-soft); font-size: var(--font-body); line-height: var(--size-touch-target); }
 
 .primary-button {
   color: var(--surface-elevated);

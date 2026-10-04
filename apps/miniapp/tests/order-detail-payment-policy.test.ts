@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest"
-import { decidePendingPaymentAction, paymentCapabilitiesClosed, type PaymentCapabilities } from "../src/payment-policy"
+import { decidePendingPaymentAction, paymentCapabilitiesClosed, type PaymentCapabilities, wechatPaymentFailureMessage } from "../src/payment-policy"
 
 const capabilitiesOpen: PaymentCapabilities = {
   wechatPaymentEnabled: true,
@@ -12,7 +12,6 @@ describe("order detail payment policy", () => {
     const action = decidePendingPaymentAction({
       paying: false,
       capabilities: paymentCapabilitiesClosed,
-      buildWechatPaymentEnabled: true,
     })
 
     expect(action.canStartWechatPayment).toBe(false)
@@ -22,18 +21,25 @@ describe("order detail payment policy", () => {
     expect(action.resultingOrderStatus).toBe("pending_payment")
   })
 
-  it("treats the build flag only as a local upper bound", () => {
-    expect(decidePendingPaymentAction({ paying: false, capabilities: capabilitiesOpen, buildWechatPaymentEnabled: false }).canStartWechatPayment).toBe(false)
-    expect(decidePendingPaymentAction({ paying: false, capabilities: capabilitiesOpen, buildWechatPaymentEnabled: true }).canStartWechatPayment).toBe(true)
+  it("uses the live server capability as the payment switch", () => {
+    expect(decidePendingPaymentAction({ paying: false, capabilities: paymentCapabilitiesClosed }).canStartWechatPayment).toBe(false)
+    expect(decidePendingPaymentAction({ paying: false, capabilities: capabilitiesOpen }).canStartWechatPayment).toBe(true)
   })
 
   it("does not expose any local payment action or successful payment result", () => {
     const action = decidePendingPaymentAction({
       paying: false,
       capabilities: paymentCapabilitiesClosed,
-      buildWechatPaymentEnabled: true,
     })
 
     expect(Object.values(action).join(" ")).not.toMatch(/mock|模拟|local_mock|支付成功|已支付/)
+  })
+
+  it("keeps the order payable when the user closes the WeChat cashier", () => {
+    expect(wechatPaymentFailureMessage({ errMsg: "requestPayment:fail cancel" })).toBe("已取消支付，订单仍为待支付，可稍后继续付款。")
+  })
+
+  it("uses the normal failure message for non-cancellation errors", () => {
+    expect(wechatPaymentFailureMessage({ errMsg: "requestPayment:fail system error" })).toBe("暂时无法确认支付结果，请查看订单状态。")
   })
 })

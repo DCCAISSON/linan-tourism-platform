@@ -9,7 +9,6 @@ export type PaymentCapabilities = {
 export type PendingPaymentActionInput = {
   readonly paying: boolean
   readonly capabilities: PaymentCapabilities
-  readonly buildWechatPaymentEnabled: boolean
 }
 
 export type PendingPaymentAction = {
@@ -27,9 +26,18 @@ export const paymentCapabilitiesClosed: PaymentCapabilities = {
 }
 
 export const paymentUnavailableNotice = "微信支付暂未开放，请联系工作人员处理。" as const
+export const paymentCancelledNotice = "已取消支付，订单仍为待支付，可稍后继续付款。" as const
 
-export function canUseWechatPayment(input: Pick<PendingPaymentActionInput, "capabilities" | "buildWechatPaymentEnabled">): boolean {
-  return input.buildWechatPaymentEnabled && input.capabilities.wechatPaymentEnabled
+export function wechatPaymentFailureMessage(cause: unknown): string {
+  if (typeof cause === "object" && cause !== null && "errMsg" in cause) {
+    const message = cause.errMsg
+    if (typeof message === "string" && message.toLowerCase().includes("cancel")) return paymentCancelledNotice
+  }
+  return "暂时无法确认支付结果，请查看订单状态。"
+}
+
+export function canUseWechatPayment(input: Pick<PendingPaymentActionInput, "capabilities">): boolean {
+  return input.capabilities.wechatPaymentEnabled
 }
 
 export function decidePendingPaymentAction(input: PendingPaymentActionInput): PendingPaymentAction {
@@ -38,8 +46,8 @@ export function decidePendingPaymentAction(input: PendingPaymentActionInput): Pe
     return {
       canStartWechatPayment,
       disabled: true,
-      buttonText: "微信支付发起中",
-      notice: "正在调起微信支付，请按微信收银台结果确认订单状态。",
+      buttonText: "正在打开微信支付",
+      notice: "正在打开微信支付页面，请稍候。",
       resultingOrderStatus: "pending_payment",
     }
   }
@@ -47,8 +55,8 @@ export function decidePendingPaymentAction(input: PendingPaymentActionInput): Pe
     return {
       canStartWechatPayment,
       disabled: false,
-      buttonText: "发起微信支付",
-      notice: "当前订单将通过微信支付发起付款，请按微信收银台结果确认订单状态。",
+      buttonText: "去微信支付",
+      notice: "请在微信支付页面完成付款，并确认订单状态。",
       resultingOrderStatus: "pending_payment",
     }
   }

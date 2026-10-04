@@ -5,7 +5,7 @@ import { ApiError, type Order, type OrderDetail, type TourSession } from "../src
 import { useEnrollmentPage } from "../src/pages/index/useEnrollmentPage"
 
 vi.mock("vue", async (original) => ({ ...await original<typeof import("vue")>(), onMounted: () => undefined }))
-vi.mock("@dcloudio/uni-app", () => ({ onLoad: () => undefined }))
+vi.mock("@dcloudio/uni-app", () => ({ onLoad: () => undefined, onShow: () => undefined, onHide: () => undefined, onUnload: () => undefined }))
 const calls = vi.hoisted(() => ({
   submitEnrollment: vi.fn(async () => ({ id: "enrollment", status: "submitted" })),
   createOrder: vi.fn<() => Promise<Order>>(),
@@ -14,6 +14,7 @@ const calls = vi.hoisted(() => ({
   authorize: vi.fn<(orderId: string, lineId: string, payload: object, token: string | undefined) => Promise<void>>(),
   listEnrollmentMembers: vi.fn(async () => []),
   token: "first-token",
+  phoneVerificationToken: "first-token",
 }))
 vi.mock("../src/api", async (original) => ({ ...await original<typeof import("../src/api")>(), createMiniappApi: () => ({
   ...calls, checkEnrollmentAvailability: async () => undefined,
@@ -27,11 +28,17 @@ const scopes: EffectScope[] = []
 beforeEach(() => {
   vi.clearAllMocks()
   calls.token = "first-token"
+  calls.phoneVerificationToken = "first-token"
   calls.createOrder.mockResolvedValue(order)
   calls.createEnrollmentMember.mockReset().mockResolvedValue({ id: "new-member" })
   calls.authorize.mockReset().mockResolvedValue(undefined)
   calls.getOrderDetail.mockResolvedValue({ ...order, tourSessionId: "trip", activityTitle: "研学", schoolName: "学校", startsAt: "2026-11-01", endsAt: "2026-11-02", createdAt: "2026-09-27", contactName: "家长", emergencyContactName: null, emergencyContactPhone: null, refundSummary: { status: "none", refundedFen: 0, pendingFen: 0, failedCount: 0 }, refundHistory: [], participants: ["second", "first"].map((id) => ({ id: `line-${id}`, familyMemberId: id, enrollmentParticipantId: `participant-${id}`, displayName: "同名学生", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 100, refundedFen: 0, refundStatus: "none" })) })
-  vi.stubGlobal("uni", { pageScrollTo: vi.fn(), getStorageSync: () => calls.token, setStorageSync: vi.fn() })
+  vi.stubGlobal("uni", { pageScrollTo: vi.fn(), getStorageSync: (key: string) => {
+    if (key === "linan_service_consent") return { version: "2026-10-03.2", choice: "accepted" }
+    if (key === "linan_enrollment_draft_identity") return { token: calls.token, familyCode: "same-family" }
+    if (key === "linan_wechat_phone_verification") return { token: calls.phoneVerificationToken, phoneVerified: true }
+    return calls.token
+  }, setStorageSync: vi.fn() })
 })
 afterEach(() => { scopes.splice(0).forEach((scope) => scope.stop()); vi.unstubAllGlobals() })
 
@@ -112,6 +119,7 @@ describe("optional enrollment health", () => {
     expect(page.submissionCode.value).toBe("enrollment")
     expect(page.draft.familyMembers[0]?.healthNotes).toBe("备注-first")
     calls.token = "new-token"
+    calls.phoneVerificationToken = "new-token"
     // When
     await page.completeLogin()
     // Then

@@ -17,11 +17,21 @@ export type FamilyNotificationAuthorization = {
 }
 
 export type FamilyNotificationEntry = {
+  readonly corpId?: string | null
   readonly kind: NotificationEntryKind
   readonly label: string
   readonly url: string
   readonly enabled: boolean
   readonly version: number
+}
+
+export type RecipientAccessStatus = "pending" | "active" | "expired" | "revoked"
+export type RecipientInvitation = { readonly id: string; readonly status: RecipientAccessStatus | "unclaimed"; readonly receiverName: string | null; readonly expiresAt: string; readonly authorizationDeadline: string }
+export type RecipientTripSummary = { readonly authorizationId: string; readonly receiverName: string; readonly status: RecipientAccessStatus; readonly expiresAt: string | null }
+export type RecipientTrip = RecipientTripSummary & {
+  readonly trip: { readonly title: string; readonly startsAt: string; readonly endsAt: string; readonly gatheringAt: string | null; readonly gatheringPlace: string; readonly notice: string } | null
+  readonly entries: readonly FamilyNotificationEntry[]
+  readonly templates: readonly { readonly templateId: string; readonly title: string; readonly status: "active" | "rejected" | "consumed"; readonly version: number }[]
 }
 
 export type FamilyNotificationOverview = {

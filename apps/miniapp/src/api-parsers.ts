@@ -19,7 +19,7 @@ type UnknownRecord = Record<string, unknown>
 
 export function readCollection<T>(value: unknown, parse: (item: unknown) => T): readonly T[] {
   if (!Array.isArray(value)) {
-    throw new ApiError(0, "列表响应格式不正确")
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
 
   return value.map(parse)
@@ -83,7 +83,7 @@ function readOptionalCount(record: UnknownRecord, key: "minimumParticipants" | "
   const minimum = key === "minimumParticipants" ? 1 : 0
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < minimum
     || (key === "minimumParticipants" && value > readNumber(record, "capacity"))) {
-    throw new ApiError(0, "团期人数响应格式不正确")
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
   return value
 }
@@ -120,11 +120,11 @@ function parseNoticeContent(value: unknown): NoticeContent {
 function readStringList(record: UnknownRecord, field: string): readonly string[] {
   const value = record[field]
   if (!Array.isArray(value)) {
-    throw new ApiError(0, `${field} 响应格式不正确`)
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
   return value.map((item) => {
     if (typeof item !== "string" || item.length === 0) {
-      throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
     }
     return item
   })
@@ -134,7 +134,7 @@ export function parseEnrollmentAvailability(value: unknown): EnrollmentAvailabil
   const record = readRecord(value)
   const available = record["available"]
   if (available !== true) {
-    throw new ApiError(0, "报名可用性响应格式不正确")
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
 
   return {
@@ -185,7 +185,7 @@ export function parseMockPayment(value: unknown): MockPayment {
   const record = readRecord(value)
   const provider = readString(record, "provider")
   if (provider !== "local_mock") {
-    throw new ApiError(0, "provider 响应格式不正确")
+    throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
   }
 
   return {
@@ -212,7 +212,7 @@ export function readRecord(value: unknown): UnknownRecord {
     return value
   }
 
-  throw new ApiError(0, "响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -225,7 +225,7 @@ export function readString(record: UnknownRecord, field: string): string {
     return value
   }
 
-      throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readOptionalNullableString(record: UnknownRecord, field: string): string | null | undefined {
@@ -240,7 +240,7 @@ function readOptionalNullableString(record: UnknownRecord, field: string): strin
     return value
   }
 
-      throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readOptionalParticipantKind(record: UnknownRecord): "student" | "adult" | undefined {
@@ -252,7 +252,7 @@ function readOptionalParticipantKind(record: UnknownRecord): "student" | "adult"
     return value
   }
 
-  throw new ApiError(0, "participantKind 响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 export function readIsoString(record: UnknownRecord, field: string): string {
@@ -261,7 +261,7 @@ export function readIsoString(record: UnknownRecord, field: string): string {
     return value
   }
 
-      throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readNumber(record: UnknownRecord, field: string): number {
@@ -270,7 +270,7 @@ function readNumber(record: UnknownRecord, field: string): number {
     return value
   }
 
-      throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 export function readNonNegativeInteger(record: UnknownRecord, field: string): number {
@@ -279,7 +279,7 @@ export function readNonNegativeInteger(record: UnknownRecord, field: string): nu
     return value
   }
 
-      throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readPositiveInteger(record: UnknownRecord, field: string): number {
@@ -288,7 +288,7 @@ function readPositiveInteger(record: UnknownRecord, field: string): number {
     return value
   }
 
-      throw new ApiError(0, `${field} 响应格式不正确`)
+      throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readTourSessionStatus(record: UnknownRecord): TourSessionStatus {
@@ -297,7 +297,7 @@ function readTourSessionStatus(record: UnknownRecord): TourSessionStatus {
     return value
   }
 
-  throw new ApiError(0, "status 响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readOrderStatus(record: UnknownRecord): OrderStatus {
@@ -306,7 +306,7 @@ function readOrderStatus(record: UnknownRecord): OrderStatus {
     return value
   }
 
-  throw new ApiError(0, "status 响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }
 
 function readPaymentStatus(record: UnknownRecord): PaymentStatus {
@@ -315,5 +315,5 @@ function readPaymentStatus(record: UnknownRecord): PaymentStatus {
     return value
   }
 
-  throw new ApiError(0, "status 响应格式不正确")
+  throw new ApiError(0, "服务信息暂时无法读取，请稍后再试。")
 }

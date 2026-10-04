@@ -103,7 +103,7 @@ export function buildEnrollmentPayload(
 
   const activeNotice = selectedSession.activeNotice
   if (activeNotice === null) {
-    throw new Error("请先配置家长告知书")
+    throw new Error("该团期暂未提供家长告知书，请稍后再试")
   }
 
   return {

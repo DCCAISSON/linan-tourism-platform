@@ -10,6 +10,18 @@ export type ActivityTrip = {
   readonly minimumParticipantsLabel: string | null
 }
 
+export function activitySessionChoices(
+  trips: readonly ActivityTrip[],
+  selectedSessionId: string,
+): readonly ActivityTrip[] {
+  const selected = trips.find((trip) => trip.session.id === selectedSessionId)
+  if (selected === undefined) return []
+  return trips.filter((trip) =>
+    trip.activity.id === selected.activity.id
+    && trip.session.organizationId === selected.session.organizationId,
+  )
+}
+
 export function activeEnrollmentOptions(
   activities: readonly CatalogItem[],
   sessions: readonly TourSession[],
@@ -38,7 +50,7 @@ export function activityTrips(activities: readonly CatalogItem[], sessions: read
     if (activity === undefined || session.status === "draft" || session.status === "cancelled") return []
     const gate = readTripGate(session, new Date().toISOString())
     const minimumParticipantsLabel = session.minimumParticipants == null ? null
-      : `已付款有效人数${session.occupiedCapacity == null ? "暂未提供" : ` ${session.occupiedCapacity}`} / 最低人数 ${session.minimumParticipants}`
+      : `已付款且未取消${session.occupiedCapacity == null ? "人数暂未提供" : `：${session.occupiedCapacity} 人`} / 成团最低人数：${session.minimumParticipants} 人`
     return [{ activity, session, schoolName: schools.find((school) => school.id === session.organizationId)?.name ?? "学校信息待完善", registrationLabel: gate.open ? "报名开放" : gate.reason, canEnroll: gate.open, minimumParticipantsLabel }]
   })
 }

@@ -9,6 +9,7 @@ import {
   type MiniappRequestOptions,
   type RequestTransport,
 } from "../src/api"
+import { getWechatSessionPhoneVerified, saveWechatSessionPhoneVerified, saveWechatSessionToken } from "../src/wechat-token"
 
 describe("miniapp API client", () => {
   afterEach(() => { vi.unstubAllGlobals() })
@@ -112,6 +113,30 @@ describe("miniapp API client", () => {
     )
   })
 
+  it("updates a saved participant name through the scoped member endpoint", async () => {
+    const requests: MiniappRequestOptions[] = []
+    const api = createMiniappApi({
+      baseUrl: "https://api.example.test",
+      request: async (options) => {
+        requests.push(options)
+        return {
+          statusCode: 200,
+          data: { id: "member-a", code: "member-a", displayName: "董敬轩" },
+        }
+      },
+    })
+
+    const member = await api.updateEnrollmentMember("member-a", { displayName: "董敬轩" })
+
+    expect(member.displayName).toBe("董敬轩")
+    expect(requests[0]).toMatchObject({
+      url: "https://api.example.test/enrollment/members/member-a/update",
+      method: "POST",
+      data: { displayName: "董敬轩" },
+      header: { "Content-Type": "application/json" },
+    })
+  })
+
   it("clears expired sessions without navigating away from the enrollment draft", async () => {
     const removeStorageSync = vi.fn()
     const reLaunch = vi.fn()
@@ -168,5 +193,53 @@ describe("miniapp API client", () => {
       method: "POST",
       data: { code: "wx-code", familyCode: "family-a" },
     })
+  })
+
+  it("uses the phone-authorized and SMS routes without treating manual input as a session", async () => {
+    // Given a transport that records the three phone-authentication requests.
+    const requests: MiniappRequestOptions[] = []
+    vi.stubGlobal("uni", { setStorageSync: vi.fn(), getStorageSync: vi.fn(), removeStorageSync: vi.fn() })
+    const api = createMiniappApi({
+      baseUrl: "https://api.example.test",
+      request: async (options) => {
+        requests.push(options)
+        if (options.url.endsWith("/sms/send")) return { data: { ok: true, retryAfterSeconds: 60 }, statusCode: 201 }
+        return { data: { token: "phone-session", familyCode: "family-a", expiresAt: "2026-10-02T00:00:00.000Z", phoneVerified: true }, statusCode: 201 }
+      },
+    })
+
+    // When the user authorizes their WeChat phone, requests a code, and verifies it by SMS.
+    const wechat = await api.loginWithWechatPhone("login-code", "phone-code")
+    const sms = await api.sendSmsLoginCode("13800138000")
+    const bySms = await api.loginWithSmsCode("login-code", "13800138000", "123456")
+
+    // Then both login routes establish the same verified session contract.
+    expect(wechat.phoneVerified).toBe(true)
+    expect(sms.retryAfterSeconds).toBe(60)
+    expect(bySms.phoneVerified).toBe(true)
+    expect(requests.map((request) => ({ url: request.url, data: request.data }))).toEqual([
+      { url: "https://api.example.test/wechat/miniapp/phone-login", data: { loginCode: "login-code", phoneCode: "phone-code" } },
+      { url: "https://api.example.test/wechat/miniapp/sms/send", data: { phone: "13800138000" } },
+      { url: "https://api.example.test/wechat/miniapp/sms-login", data: { loginCode: "login-code", phone: "13800138000", code: "123456" } },
+    ])
+  })
+
+  it("clears an earlier phone verification after ordinary WeChat login", async () => {
+    const storage = new Map<string, unknown>()
+    vi.stubGlobal("uni", {
+      getStorageSync: (key: string) => storage.get(key),
+      setStorageSync: (key: string, value: unknown) => storage.set(key, value),
+      removeStorageSync: (key: string) => storage.delete(key),
+    })
+    saveWechatSessionToken("earlier-token")
+    saveWechatSessionPhoneVerified("earlier-token", true)
+    const api = createMiniappApi({
+      baseUrl: "https://api.example.test",
+      request: async () => ({ data: { token: "ordinary-token", familyCode: "family-a", expiresAt: "2026-10-02T00:00:00.000Z" }, statusCode: 201 }),
+    })
+
+    await api.loginWithWechatCode("login-code")
+
+    expect(getWechatSessionPhoneVerified()).toBe(false)
   })
 })

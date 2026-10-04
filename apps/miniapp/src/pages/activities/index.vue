@@ -17,9 +17,14 @@ onShow(() => { void load() })
 
 <template>
   <view class="discovery-page">
-    <text class="page-heading">研学活动</text>
-    <text class="page-subtitle">选择学校，查看适用团期和学校价格。</text>
-    <picker class="activity-school-picker" mode="selector" :range="schoolNames" @change="selectSchool"><view class="filter-picker">学校：{{ schoolName }}</view></picker>
+    <view class="activity-catalog-header">
+      <text class="page-heading">研学活动</text>
+      <text class="page-subtitle">选择学校，查看可报名团期和对应价格。</text>
+    </view>
+    <view class="activity-filter">
+      <text class="activity-filter__label">按学校查看</text>
+      <picker class="activity-school-picker" mode="selector" :range="schoolNames" @change="selectSchool"><view class="filter-picker">{{ schoolName }}</view></picker>
+    </view>
     <DiscoveryState :state="state" :message="error" empty-title="暂无已发布活动" @retry="load" />
     <view v-if="state === 'ready'">
       <text v-if="filtered.length === 0" class="test-notice">该学校暂无已发布团期，请选择其他学校。</text>

@@ -1,12 +1,13 @@
 import { execFileSync, spawn } from "node:child_process"
 import { createRequire } from "node:module"
+// SIZE_OK: The linear runner keeps shared fixture state, route order, and screenshot evidence explicit.
 import fs from "node:fs"
 import path from "node:path"
 import process from "node:process"
 import { fileURLToPath } from "node:url"
 import { closeServer, createFixtureServer, listen } from "./e2e-fixture.mjs"
 import { runDiscoveryAfter, runDiscoveryBefore } from "./discovery-journey.mjs"
-import { assertIncludes, assertNoHorizontalOverflow, componentWithText, evidenceDir, required, screenshot, waitForRoute } from "./e2e-ui.mjs"
+import { assertIncludes, assertNoHorizontalOverflow, evidenceDir, required, screenshot, waitForComponentWithText, waitForRoute } from "./e2e-ui.mjs"
 
 const cliPath = process.env.WECHAT_DEVTOOLS_CLI
 if (!cliPath) fail("E2E blocked: WECHAT_DEVTOOLS_CLI is not set; WeChat DevTools automation was not run.")
@@ -46,14 +47,19 @@ try {
   await miniProgram.mockWxMethod("login", { code: "fixture-wechat-code", errMsg: "login:ok" })
   await new Promise((resolve) => setTimeout(resolve, 5_000))
   console.log("E2E_STAGE connected")
-  await withStageTimeout("discovery-before", runDiscoveryBefore(miniProgram, fixture), 90_000)
-  console.log("E2E_STAGE discovery-before")
-  const journeyEvidence = await withStageTimeout("baseline-journey", runJourney(miniProgram), 90_000)
-  console.log("E2E_STAGE baseline-journey")
-  await withStageTimeout("discovery-after", runDiscoveryAfter(miniProgram), 90_000)
-  console.log("E2E_STAGE discovery-after")
-  const task14Evidence = await withStageTimeout("remaining-business-surfaces", runRemainingBusinessSurfaces(miniProgram), 90_000)
-  console.log(JSON.stringify({ screenshots: 24 + task14Evidence.screenshots.length, members: 2, amountFen: 25_600, paymentStateSource: "fixture-paid-state", ...journeyEvidence, task14Evidence }))
+  if (process.env.MINIAPP_E2E_FOCUS === "member-payment") {
+    const focusedEvidence = await withStageTimeout("member-payment-surfaces", runFocusedMemberPaymentSurfaces(miniProgram), 90_000)
+    console.log(JSON.stringify(focusedEvidence))
+  } else {
+    await withStageTimeout("discovery-before", runDiscoveryBefore(miniProgram, fixture), 90_000)
+    console.log("E2E_STAGE discovery-before")
+    const journeyEvidence = await withStageTimeout("baseline-journey", runJourney(miniProgram), 90_000)
+    console.log("E2E_STAGE baseline-journey")
+    await withStageTimeout("discovery-after", runDiscoveryAfter(miniProgram), 90_000)
+    console.log("E2E_STAGE discovery-after")
+    const task14Evidence = await withStageTimeout("remaining-business-surfaces", runRemainingBusinessSurfaces(miniProgram), 90_000)
+    console.log(JSON.stringify({ screenshots: 24 + task14Evidence.screenshots.length, members: 2, amountFen: 25_600, paymentStateSource: "fixture-paid-state", ...journeyEvidence, task14Evidence }))
+  }
 } finally {
   miniProgram?.disconnect()
   if (projectOpened) await runCli(["close", "--project", projectPath], 60_000)
@@ -63,6 +69,21 @@ try {
     await closeServer(server)
   }
   await closeOwnedDevToolsProcesses(existingDevToolsProcessIds)
+}
+
+async function runFocusedMemberPaymentSurfaces(program) {
+  fs.mkdirSync(task14EvidenceDir, { recursive: true })
+  fixture.catalogBlocked = false
+  fixture.orderCreated = true
+  fixture.members.push(
+    { id: "member-e2e-saved-1", code: "saved-1", displayName: "张同学", participantKind: "student", schoolId: "school-e2e", gradeId: "grade-e2e", classId: "class-e2e", identityNumberMasked: "110101********0010", phoneMasked: "199****0001" },
+    { id: "member-e2e-saved-2", code: "saved-2", displayName: "李女士", participantKind: "adult", schoolId: "school-e2e", gradeId: null, classId: null, identityNumberMasked: "110101********0029", phoneMasked: "199****0002" },
+  )
+  await program.callWxMethod("setStorageSync", "linan_wechat_session_token", "fixture-session-token")
+  const screenshots = []
+  const memberManagement = await verifyMemberManagementSurface(program, screenshots)
+  const pendingPayment = await verifyPendingPaymentSurface(program, screenshots)
+  return { focus: "member-payment", screenshots, memberManagement, pendingPayment }
 }
 
 async function runRemainingBusinessSurfaces(program) {
@@ -79,6 +100,8 @@ async function runRemainingBusinessSurfaces(program) {
   const screenshots = []
   const surfaces = []
   try {
+    surfaces.push(await verifyMemberManagementSurface(program, screenshots))
+    surfaces.push(await verifyPendingPaymentSurface(program, screenshots))
     surfaces.push(await verifySurface(program, screenshots, {
       name: "pretrip",
       route: "/pages/orders/pretrip?orderId=order-e2e",
@@ -92,7 +115,7 @@ async function runRemainingBusinessSurfaces(program) {
       route: "/pages/orders/refund?orderId=order-e2e",
       pagePath: "pages/orders/refund",
       root: ".discovery-page",
-      texts: ["退款申请", "申请金额由服务器", "张同学", "申请记录", "已拒绝"],
+      texts: ["退款申请", "实际退款金额由系统按报名记录计算", "张同学", "申请记录", "已拒绝"],
       screenshots: ["24-refund-application.png", "25-refund-history.png"],
     }))
     surfaces.push(await verifySurface(program, screenshots, {
@@ -157,6 +180,100 @@ async function runRemainingBusinessSurfaces(program) {
   }
   fs.writeFileSync(path.join(task14EvidenceDir, "result.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8")
   return report
+}
+
+async function verifyMemberManagementSurface(program, screenshots) {
+  console.log("E2E_STAGE task14-member-management")
+  fixture.paymentEnabled = false
+  await program.reLaunch("/pages/enrollment/index?sessionId=session-open-e2e")
+  const page = await waitForRoute(program, "pages/enrollment/index")
+  const pageText = await waitForPageText(page, "[u-i]", ["\u53c2\u52a0\u4eba\u5458"])
+  const enrollmentForm = await required(page, "[u-i]")
+  const memberSection = await required(enrollmentForm, "[u-i]")
+  const cards = await memberSection.$$(".member-card")
+  if (cards.length < 2) throw new Error(`Expected saved participant cards, received ${cards.length}; page text: ${pageText}`)
+  await (await required(cards[0], ".member-choice")).tap()
+  await page.waitFor(100)
+  assertIncludes(await (await required(memberSection, ".member-selection-summary")).text(), "\u672c\u6b21\u53c2\u52a0 1 \u4eba", "saved participant selected count")
+  await (await required(cards[0], ".member-edit-button")).tap()
+  await page.waitFor(100)
+  const editingCards = await memberSection.$$(".member-card")
+  const editingCard = editingCards[0]
+  const nextName = "\u5f20\u540c\u5b66\u65b0"
+  await (await required(editingCard, ".member-name-editor input")).input(nextName)
+  const editButtons = await editingCard.$(".member-editor-actions")
+  if (editButtons === null) throw new Error("Saved participant editor was not rendered")
+  const buttons = await editButtons.$$("button")
+  if (buttons.length !== 2) throw new Error(`Expected saved participant edit actions, received ${buttons.length}`)
+  await buttons[1].tap()
+  await page.waitFor(200)
+  const savedCards = await memberSection.$$(".member-card")
+  assertIncludes(await savedCards[0].text(), nextName, "saved participant name updated")
+  const updateRequest = fixture.requests.find((entry) => entry.method === "POST" && entry.path.endsWith("/update") && entry.body.displayName === nextName)
+  if (updateRequest === undefined) throw new Error("Saved participant update request was not recorded")
+  await assertNoHorizontalOverflow(program, page)
+  const memberOffset = await memberSection.offset()
+  await program.pageScrollTo(Math.max(0, Number(memberOffset.top) - 80))
+  await page.waitFor(100)
+  await task14Screenshot(program, screenshots, "35-member-management.png")
+  return { name: "member-management", route: "pages/enrollment/index", selectedCount: 1, edited: true, horizontalOverflow: false }
+}
+
+async function verifyPendingPaymentSurface(program, screenshots) {
+  console.log("E2E_STAGE task14-pending-payment")
+  fixture.orderPaid = false
+  fixture.paymentEnabled = true
+  try {
+    await program.reLaunch("/pages/orders/detail?orderId=order-e2e")
+    const page = await waitForRoute(program, "pages/orders/detail")
+    const visible = ["\u5e94\u4ed8\u603b\u989d", "\u6d3b\u52a8\u5355\u4ef7", "\u53d1\u8d77\u5fae\u4fe1\u652f\u4ed8", "\u5b8c\u6210\u652f\u4ed8\u540e", "\u8ba2\u9605\u8ba2\u5355\u901a\u77e5", "\u8054\u7cfb\u5ba2\u670d"]
+    const text = await waitForPageText(page, ".discovery-page", visible)
+    const paymentBar = await required(page, ".order-action-bar")
+    assertIncludes(await paymentBar.text(), "\u5f85\u652f\u4ed8", "sticky pending-payment summary")
+    assertIncludes(await paymentBar.text(), "\u00a5256.00", "sticky pending-payment amount")
+    const paymentButton = await required(paymentBar, ".payment-primary-action")
+    if ((await paymentButton.attribute("disabled")) === true) throw new Error("Wechat payment button is disabled while the server capability is enabled")
+    await assertNoHorizontalOverflow(program, page)
+    await task14Screenshot(program, screenshots, "36-pending-payment-summary.png")
+    await program.pageScrollTo(10_000)
+    await page.waitFor(100)
+    await task14Screenshot(program, screenshots, "37-pending-payment-and-service.png")
+    await (await required(page, ".notification-order-entry")).tap()
+    const notificationPage = await waitForRoute(program, "pages/notifications/index")
+    await waitForPageText(notificationPage, ".notification-page", ["\u63a5\u6536\u4eba\u6388\u6743\u4e0e\u670d\u52a1\u5165\u53e3"])
+    fixture.orderPaid = true
+    fixture.refundApplicationStatus = "submitted"
+    await program.reLaunch("/pages/orders/detail?orderId=order-e2e")
+    let paidPage = await waitForRoute(program, "pages/orders/detail")
+    await waitForPageText(paidPage, ".discovery-page", ["\u5df2\u652f\u4ed8", "1 \u4eba\u53ef\u9009", "\u7533\u8bf7\u9000\u6b3e"])
+    fixture.refundApplicationStatus = "approved"
+    fixture.refundApplicationRequestId = "refund-request-e2e"
+    fixture.refundApplicationRefundStatus = "failed"
+    await program.reLaunch("/pages/orders/detail?orderId=order-e2e")
+    paidPage = await waitForRoute(program, "pages/orders/detail")
+    await waitForPageText(paidPage, ".discovery-page", ["\u5df2\u652f\u4ed8", "2 \u4eba\u53ef\u9009", "\u7533\u8bf7\u9000\u6b3e"])
+    const refundEntry = await required(paidPage, ".refund-primary-action")
+    await task14Screenshot(program, screenshots, "38-paid-refund-entry.png")
+    await refundEntry.tap()
+    const refundPage = await waitForRoute(program, "pages/orders/refund")
+    await waitForPageText(refundPage, ".refund-page", ["\u9009\u62e9\u9000\u6b3e\u4eba\u5458", "\u5df2\u9009 0 \u4eba", "\u5f20\u540c\u5b66", "\u674e\u5973\u58eb"])
+    const refundPeople = await refundPage.$$(".refund-person")
+    if (refundPeople.length !== 2) throw new Error(`Expected 2 refundable participants, received ${refundPeople.length}`)
+    await refundPeople[0].tap()
+    await refundPage.waitFor(100)
+    assertIncludes(await refundPeople[0].attribute("class"), "refund-person--selected", "selected refund participant styling")
+    const refundBar = await required(refundPage, ".refund-action-bar")
+    assertIncludes(await refundBar.text(), "\u5df2\u9009 1 \u4eba", "selected refund participant count")
+    assertIncludes(await refundBar.text(), "\u00a5128.00", "selected refund amount")
+    await task14Screenshot(program, screenshots, "39-refund-person-selected.png")
+    return { name: "order-primary-actions", route: "pages/orders/detail", visible, horizontalOverflow: false, notificationEntryLoaded: true, refundEntryLoaded: true, selectedRefundParticipants: 1, textLength: text.length }
+  } finally {
+    fixture.paymentEnabled = false
+    fixture.orderPaid = true
+    fixture.refundApplicationStatus = "rejected"
+    fixture.refundApplicationRequestId = null
+    fixture.refundApplicationRefundStatus = null
+  }
 }
 
 async function verifySurface(program, screenshots, spec) {
@@ -287,12 +404,16 @@ async function runJourney(program) {
   await page.waitFor(100)
   assertIncludes(await (await required(page, ".topbar")).text(), "告知书 v1", "active notice version")
   component = await required(page, "[u-i]")
-  await (await required(component, ".text-button")).tap()
+  await (await required(component, ".member-manage-button")).tap()
   await page.waitFor(50)
   component = await required(page, "[u-i]")
-  await (await required(component, ".text-button")).tap()
+  await (await required(component, ".member-manage-button")).tap()
   await page.waitFor(50)
   component = await required(page, "[u-i]")
+  assertIncludes(await (await required(component, ".member-selection-summary")).text(), "\u672c\u6b21\u53c2\u52a0 2 \u4eba", "selected participant count")
+  const memberCards = await component.$$(".member-card--selected")
+  if (memberCards.length !== 2) throw new Error(`Expected 2 selected participant cards, received ${memberCards.length}`)
+  for (const card of memberCards) assertIncludes(await card.text(), "\u5df2\u9009", "participant selected marker")
   const kindButtons = await component.$$(".kind-toggle__button")
   if (kindButtons.length !== 4) throw new Error(`Expected 4 participant kind buttons, received ${kindButtons.length}`)
   await kindButtons[3].tap()
@@ -342,11 +463,11 @@ async function runJourney(program) {
 
   await (await required(page, ".primary-button")).tap()
   await page.waitFor(100)
-  const loginPrompt = await componentWithText(page, "再逛会")
+  const loginPrompt = await waitForComponentWithText(page, "再逛会")
   await (await required(loginPrompt, ".login-prompt-cancel")).tap()
   await (await required(page, ".primary-button")).tap()
-  await (await required(await componentWithText(page, "再逛会"), ".login-prompt-confirm")).tap()
-  const consent = await componentWithText(page, "确认身份，保存本次报名")
+  await (await required(await waitForComponentWithText(page, "再逛会"), ".login-prompt-confirm")).tap()
+  const consent = await waitForComponentWithText(page, "确认身份，保存本次报名")
   if (fixture.requests.some(entry => entry.method === "POST" && entry.path === "/enrollment/members")) throw new Error("Personal data was sent before identity consent")
   await (await required(consent, ".consent-choice")).tap()
   await screenshot(program, "16-signup-identity-confirmation.png")
@@ -422,7 +543,8 @@ async function connectWhenReady(timeout) {
     let candidate
     try {
       candidate = await automator.launcher.connectTool({ wsEndpoint: automationEndpoint })
-      await candidate.currentPage()
+      await new Promise((resolve) => setTimeout(resolve, 1_500))
+      await candidate.reLaunch("/pages/enrollment/index")
       return candidate
     } catch (error) {
       candidate?.disconnect()

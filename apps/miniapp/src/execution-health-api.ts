@@ -1,4 +1,4 @@
-﻿import { ApiError } from "./api-error"
+import { ApiError } from "./api-error"
 import { DEV_FAMILY_IDENTITY_HEADER, FALLBACK_API_BASE_URL, type MiniappRequestOptions, type MiniappRequestResult, type RequestTransport } from "./api-types"
 import { readCollection, readRecord, readString } from "./api-parsers"
 import { getWechatSessionToken } from "./wechat-token"
@@ -46,7 +46,7 @@ async function requestJson(request: RequestTransport, baseUrl: string, familyIde
   if (familyIdentityHeader !== undefined && familyIdentityHeader.length > 0) header[DEV_FAMILY_IDENTITY_HEADER] = familyIdentityHeader
   if (wechatSessionToken !== undefined) header["Authorization"] = `Bearer ${wechatSessionToken}`
   const response = await request(data === undefined ? { url: `${baseUrl}${path}`, method, header } : { url: `${baseUrl}${path}`, method, header, data })
-  if (response.statusCode < 200 || response.statusCode >= 300) throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
+  if (response.statusCode < 200 || response.statusCode >= 300) throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? "服务暂时无法响应，请稍后再试。")
   return response.data
 }
 
@@ -62,13 +62,13 @@ function parseHealthAuthorization(value: unknown): HealthAuthorization {
   const active = record["active"]
   const version = record["version"]
   const revokedAt = record["revokedAt"]
-  if (typeof active !== "boolean" || typeof version !== "number" || !Number.isSafeInteger(version)) throw new ApiError(0, "健康授权响应格式不正确")
-  if (revokedAt !== null && typeof revokedAt !== "string") throw new ApiError(0, "健康授权响应格式不正确")
+  if (typeof active !== "boolean" || typeof version !== "number" || !Number.isSafeInteger(version)) throw new ApiError(0, "健康信息暂时无法读取，请稍后再试。")
+  if (revokedAt !== null && typeof revokedAt !== "string") throw new ApiError(0, "健康信息暂时无法读取，请稍后再试。")
   return { id: readString(record, "id"), tourSessionId: readString(record, "tourSessionId"), orderId: readString(record, "orderId"), personRef: readPersonRef(record), active, version, authorizedAt: readString(record, "authorizedAt"), revokedAt }
 }
 function readPersonRef(record: Record<string, unknown>): PersonRef {
   const value = readString(record, "personRef")
   if (value.startsWith("paid:") || value.startsWith("imported:")) return value as PersonRef
-  throw new ApiError(0, "personRef 响应格式不正确")
+  throw new ApiError(0, "健康信息暂时无法读取，请稍后再试。")
 }
 function readErrorMessage(value: unknown): string | null { return typeof value === "object" && value !== null && !Array.isArray(value) && typeof (value as { message?: unknown }).message === "string" ? (value as { message: string }).message : null }

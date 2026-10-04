@@ -1,4 +1,4 @@
-﻿import { ApiError } from "./api-error"
+import { ApiError } from "./api-error"
 import { readCollection, readErrorMessage, readRecord, readString } from "./api-parsers"
 import {
   DEV_FAMILY_IDENTITY_HEADER,
@@ -83,10 +83,10 @@ function parseAlbumAsset(value: unknown): AlbumAsset {
   const status = readString(record, "status")
   const cleanupPending = record["cleanupPending"]
   const contentUrl = readString(record, "contentUrl")
-  if (kind !== "image" && kind !== "video") throw new ApiError(0, "media kind 响应格式不正确")
-  if (status !== "published") throw new ApiError(0, "media status 响应格式不正确")
-  if (cleanupPending !== false) throw new ApiError(0, "cleanupPending 响应格式不正确")
-  if (!contentUrl.startsWith("https://")) throw new ApiError(0, "contentUrl 响应格式不正确")
+  if (kind !== "image" && kind !== "video") throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
+  if (status !== "published") throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
+  if (cleanupPending !== false) throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
+  if (!contentUrl.startsWith("https://")) throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
   return {
     id: readString(record, "id"),
     tourSessionId: readString(record, "tourSessionId"),
@@ -108,9 +108,9 @@ function parseAlbumProvider(value: unknown): AlbumProvider {
   const kind = readString(record, "kind")
   const enabled = record["enabled"]
   const url = readString(record, "url")
-  if (kind !== "album" && kind !== "live") throw new ApiError(0, "provider kind 响应格式不正确")
-  if (enabled !== true) throw new ApiError(0, "provider enabled 响应格式不正确")
-  if (!/^https:\/\/(?![^/]*@)(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*(?::443)?(?:[/?#]|$)/i.test(url)) throw new ApiError(0, "provider url 响应格式不正确")
+  if (kind !== "album" && kind !== "live") throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
+  if (enabled !== true) throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
+  if (!/^https:\/\/(?![^/]*@)(?:[a-z0-9-]+\.)+[a-z][a-z0-9-]*(?::443)?(?:[/?#]|$)/i.test(url)) throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
   return {
     kind,
     label: readString(record, "label"),
@@ -123,7 +123,7 @@ function parseAlbumProvider(value: unknown): AlbumProvider {
 function readSafeInteger(record: Record<string, unknown>, field: string): number {
   const value = record[field]
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value
-  throw new ApiError(0, `${field} 响应格式不正确`)
+  throw new ApiError(0, "活动影像暂时无法读取，请稍后再试。")
 }
 
 async function requestWithUni(options: MiniappRequestOptions): Promise<MiniappRequestResult> {
@@ -151,7 +151,7 @@ async function requestJson(
     header: buildHeaders(familyIdentityHeader, wechatSessionToken),
   })
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? `请求失败（${response.statusCode}）`)
+    throw new ApiError(response.statusCode, readErrorMessage(response.data) ?? "服务暂时无法响应，请稍后再试。")
   }
   return response.data
 }

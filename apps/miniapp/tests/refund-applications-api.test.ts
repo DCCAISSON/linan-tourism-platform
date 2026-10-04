@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ApiError } from "../src/api"
-import { createRefundApplicationClient, parseRefundApplication } from "../src/refund-applications-api"
+import { activeRefundApplicationLineIds, createRefundApplicationClient, parseRefundApplication } from "../src/refund-applications-api"
 import type { MiniappRequestOptions } from "../src/api-types"
 
 const application = {
@@ -58,6 +58,17 @@ describe("family refund application API", () => {
   })
 
   it("rejects malformed application status", () => {
-    expect(() => parseRefundApplication({ ...application, status: "succeeded" })).toThrow(new ApiError(0, "status 响应格式不正确"))
+    expect(() => parseRefundApplication({ ...application, status: "succeeded" })).toThrow(new ApiError(0, "退款信息暂时无法读取，请稍后再试。"))
+  })
+
+  it("blocks lines only while an application is active and not yet executed", () => {
+    const activeLineIds = activeRefundApplicationLineIds([
+      parseRefundApplication(application),
+      parseRefundApplication({ ...application, id: "app-2", status: "approved", lines: [{ ...application.lines[0], lineId: "line-2" }] }),
+      parseRefundApplication({ ...application, id: "app-3", status: "approved", refundRequestId: "refund-3", refundStatus: "failed", lines: [{ ...application.lines[0], lineId: "line-3" }] }),
+      parseRefundApplication({ ...application, id: "app-4", status: "rejected", lines: [{ ...application.lines[0], lineId: "line-4" }] }),
+    ])
+
+    expect([...activeLineIds]).toEqual(["line-1", "line-2"])
   })
 })

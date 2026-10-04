@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import WechatConsent from "../../components/WechatConsent.vue"
-import LoginPrompt from "../../components/LoginPrompt.vue"
+import ProfileLoginSheet from "../../components/ProfileLoginSheet.vue"
+import ServiceConsent from "../../components/ServiceConsent.vue"
 import EnrollmentForm from "../index/EnrollmentForm.vue"
 import EnrollmentReview from "../index/EnrollmentReview.vue"
 import EnrollmentStatePanel from "../index/EnrollmentStatePanel.vue"
@@ -9,9 +9,11 @@ import { useEnrollmentPage } from "../index/useEnrollmentPage"
 
 const page = useEnrollmentPage()
 const {
+  draftStatus, clearCurrentDraft,
   healthState, healthNeedsLogin, healthMessage, retryHealthNotes, openHealthOrder,
-  loginPromptVisible, confirmLogin,
-  authenticated, completeLogin, loginRequested, requestLogin, cancelLogin, validationShown, selectedSession,
+  loginPromptVisible,
+  serviceConsentVisible, completeServiceConsent, cancelServiceConsent,
+  authenticated, adoptLoginDraft, completeLogin, loginRequested, requestLogin, cancelLogin, validationShown, selectedSession,
   backToEdit,
   canSubmit,
   enterReview,
@@ -28,7 +30,8 @@ const {
 
 <template>
   <view class="page">
-    <LoginPrompt v-if="loginPromptVisible" @cancel="cancelLogin" @confirm="confirmLogin" />
+    <ServiceConsent v-if="serviceConsentVisible" required @accepted="completeServiceConsent" @declined="cancelServiceConsent" />
+    <ProfileLoginSheet v-if="loginPromptVisible || loginRequested" @completed="(response, phone) => { adoptLoginDraft(response, phone); completeLogin(response) }" @cancelled="cancelLogin" />
     <view class="topbar">
       <view class="state-pill">
         <view class="state-pill__dot" :class="`state-pill__dot--${stateTone}`" />
@@ -45,15 +48,15 @@ const {
     <view class="flow-stepper" aria-label="报名步骤">
       <view class="flow-step" :class="{ 'flow-step--active': pageMode === 'editing' }">
         <text class="flow-step__index">1</text>
-        <text class="flow-step__label">行程</text>
+        <text class="flow-step__label"><text class="flow-step__phrase">填写</text><text class="flow-step__phrase">资料</text></text>
       </view>
       <view class="flow-step" :class="{ 'flow-step--active': pageMode === 'review' || pageMode === 'submitting' }">
         <text class="flow-step__index">2</text>
-        <text class="flow-step__label">核对</text>
+        <text class="flow-step__label"><text class="flow-step__phrase">核对</text><text class="flow-step__phrase">信息</text></text>
       </view>
       <view class="flow-step" :class="{ 'flow-step--active': pageMode === 'paymentPending' }">
         <text class="flow-step__index">3</text>
-        <text class="flow-step__label">确认</text>
+        <text class="flow-step__label">支付</text>
       </view>
       <view class="flow-step" :class="{ 'flow-step--active': pageMode === 'paid' }">
         <text class="flow-step__index">4</text>
@@ -67,27 +70,21 @@ const {
 
     <view v-else class="content">
       <view v-if="!authenticated && pageMode === 'editing'" id="enrollment-login-field">
-        <view v-if="loginRequested">
-          <WechatConsent title="确认身份，保存本次报名" login-label="同意并继续" @authenticated="completeLogin" />
-          <button class="secondary-button" @tap="cancelLogin">返回继续填写</button>
-        </view>
-        <button v-else class="secondary-button" @tap="requestLogin">使用已保存的参加人</button>
+        <button class="secondary-button" @tap="requestLogin">使用已保存的参加人</button>
       </view>
       <view v-if="errorMessage.length > 0 && pageMode !== 'paymentPending' && pageMode !== 'paid'" class="inline-error" aria-live="polite">
         <text>{{ errorMessage }}</text>
       </view>
 
       <EnrollmentForm v-if="pageMode === 'editing'" :page="page" />
+      <text v-if="draftStatus && (pageMode === 'editing' || pageMode === 'review')" class="draft-error" aria-live="polite">{{ draftStatus }}</text>
+      <button v-if="pageMode === 'editing'" class="draft-clear" @tap="clearCurrentDraft">清除已填信息</button>
       <EnrollmentReview v-if="pageMode === 'review' || pageMode === 'submitting'" :page="page" />
       <view v-if="healthState !== 'idle' && (pageMode === 'paymentPending' || pageMode === 'paid')" class="health-save-state" aria-live="polite">
         <text class="health-save-title">{{ healthState === 'saved' ? '健康备注已保存' : healthState === 'saving' ? '保存健康备注' : '报名已提交，健康备注待保存' }}</text>
         <text class="health-save-message">{{ healthMessage }}</text>
         <view v-if="healthState === 'error'">
-          <view v-if="healthNeedsLogin && loginRequested" id="enrollment-login-field">
-            <WechatConsent title="重新确认身份，继续保存健康备注" login-label="同意并继续" @authenticated="completeLogin" />
-            <button class="secondary-button" @tap="cancelLogin">暂不登录</button>
-          </view>
-          <button v-else-if="healthNeedsLogin" class="primary-button health-login-button" @tap="retryHealthNotes">重新登录并保存</button>
+          <button v-if="healthNeedsLogin" class="primary-button health-login-button" @tap="retryHealthNotes">重新登录并保存</button>
           <button v-else class="primary-button health-retry-button" @tap="retryHealthNotes">重试健康备注</button>
           <text class="health-save-message">离开本页后，尚未保存的备注将清除；也可稍后从订单重新填写。</text>
         </view>
@@ -95,7 +92,7 @@ const {
       </view>
       <OrderStatusPanel v-if="pageMode === 'paymentPending' || pageMode === 'paid'" :page="page" />
 
-      <view v-if="!loginRequested && (pageMode === 'editing' || pageMode === 'review' || pageMode === 'submitting')" class="bottom-actions">
+      <view v-if="(pageMode === 'editing' || pageMode === 'review' || pageMode === 'submitting')" class="bottom-actions">
         <button v-if="pageMode === 'review'" class="secondary-button" @tap="backToEdit">返回修改</button>
         <button v-if="pageMode === 'editing'" class="primary-button" @tap="enterReview">
           核对信息
@@ -118,6 +115,8 @@ const {
 </template>
 
 <style scoped>
+.draft-error { display: block; margin-top: var(--space-3); color: var(--status-error); font-size: var(--font-body-sm); line-height: 1.5; }
+.draft-clear { margin: var(--space-3) 0 0; min-height: var(--size-touch-target); color: var(--text-secondary); background: transparent; font-size: var(--font-body-sm); line-height: var(--size-touch-target); }
 .page {
   min-height: 100dvh;
   box-sizing: border-box;
@@ -216,17 +215,19 @@ const {
 }
 
 .flow-stepper {
-  gap: 8px;
-  margin-top: 24px;
+  align-items: stretch;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
 }
 
 .flow-step {
+  flex-direction: column;
   flex: 1 1 0;
   min-width: 0;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 8px;
-  border-radius: 8px;
+  gap: var(--space-1);
+  min-height: var(--size-touch-target);
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-control);
   background: var(--surface-secondary);
 }
 
@@ -235,9 +236,10 @@ const {
 }
 
 .flow-step__index {
-  flex: 0 0 20px;
-  height: 20px;
-  border-radius: 20px;
+  flex: 0 0 var(--space-5);
+  width: var(--space-5);
+  height: var(--space-5);
+  border-radius: var(--space-5);
   color: var(--surface-elevated);
   font-size: 12px;
   line-height: 20px;
@@ -247,7 +249,19 @@ const {
 
 .flow-step__label {
   min-width: 0;
+  font-size: var(--font-body-sm);
+  text-align: center;
   overflow-wrap: anywhere;
+}
+
+.flow-step__phrase {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.flow-step--active .flow-step__label {
+  color: var(--accent-primary);
+  font-weight: 600;
 }
 
 .content {

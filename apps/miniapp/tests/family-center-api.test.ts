@@ -68,7 +68,7 @@ describe("family center API", () => {
       participants: [{ id: "line-a", enrollmentParticipantId: "person-a", familyMemberId: "member-a", displayName: "演示甲", participantKind: "student", gradeName: null, className: null, amountFen: 128.5 }],
     } }) })
     // When / Then
-    await expect(api.getOrderDetail("order-a")).rejects.toEqual(new ApiError(0, "amountFen 响应格式不正确"))
+    await expect(api.getOrderDetail("order-a")).rejects.toEqual(new ApiError(0, "服务信息暂时无法读取，请稍后再试。"))
   })
 })
 
@@ -118,17 +118,17 @@ describe("family center refund API", () => {
   })
 
   it.each([
-    [{ ...refundDetail, refundSummary: undefined }, "响应格式不正确"],
-    [{ ...refundDetail, participants: [{ ...refundDetail.participants[0], familyMemberId: undefined }] }, "familyMemberId 响应格式不正确"],
-    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, status: "unknown" } }, "status 响应格式不正确"],
-    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, refundedFen: -1 } }, "refundedFen 响应格式不正确"],
-    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, pendingFen: 0.5 } }, "pendingFen 响应格式不正确"],
-    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, failedCount: "1" } }, "failedCount 响应格式不正确"],
-    [{ ...refundDetail, participants: [{ ...refundDetail.participants[0], refundStatus: "succeeded" }] }, "refundStatus 响应格式不正确"],
-    [{ ...refundDetail, participants: [{ ...refundDetail.participants[0], refundedFen: null }] }, "refundedFen 响应格式不正确"],
-    [{ ...refundDetail, refundHistory: [{ ...refundDetail.refundHistory[0], status: "refunded" }] }, "status 响应格式不正确"],
-    [{ ...refundDetail, refundHistory: [{ ...refundDetail.refundHistory[0], processedAt: "invalid" }] }, "processedAt 响应格式不正确"],
-    [{ ...refundDetail, refundHistory: [{ ...refundDetail.refundHistory[0], lines: [{ lineId: "line-a", displayName: "演示甲", amountFen: -1 }] }] }, "amountFen 响应格式不正确"],
+    [{ ...refundDetail, refundSummary: undefined }, "服务信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, participants: [{ ...refundDetail.participants[0], familyMemberId: undefined }] }, "服务信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, status: "unknown" } }, "订单信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, refundedFen: -1 } }, "服务信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, pendingFen: 0.5 } }, "服务信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, refundSummary: { ...refundDetail.refundSummary, failedCount: "1" } }, "服务信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, participants: [{ ...refundDetail.participants[0], refundStatus: "succeeded" }] }, "订单信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, participants: [{ ...refundDetail.participants[0], refundedFen: null }] }, "服务信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, refundHistory: [{ ...refundDetail.refundHistory[0], status: "refunded" }] }, "订单信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, refundHistory: [{ ...refundDetail.refundHistory[0], processedAt: "invalid" }] }, "服务信息暂时无法读取，请稍后再试。"],
+    [{ ...refundDetail, refundHistory: [{ ...refundDetail.refundHistory[0], lines: [{ lineId: "line-a", displayName: "演示甲", amountFen: -1 }] }] }, "服务信息暂时无法读取，请稍后再试。"],
   ])("rejects malformed refund data %#", async (data, message) => {
     // Given
     const api = createMiniappApi({ request: async () => ({ statusCode: 200, data }) })

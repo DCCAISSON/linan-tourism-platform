@@ -53,6 +53,9 @@ page {
   --overlay-scrim: rgba(16, 58, 50, .28);
   --layer-sticky: 1;
   --layer-modal: 20;
+  --layer-consent: 30;
+  --sheet-max-width: 640px;
+  --size-profile-avatar: 64px;
   --layout-content-max: 1440px;
   --layout-sidebar-width: 240px;
   min-height: 100%;

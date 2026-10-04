@@ -17,7 +17,7 @@ const selectedStatus = ref("")
 const authenticated = ref(false)
 const loginPrompt = ref(false)
 let loadGeneration = 0
-const statuses = [{ value: "", label: "全部" }, { value: "pending_payment", label: "待支付" }, { value: "paid", label: "已支付" }] as const
+const statuses = [{ value: "", label: "全部" }, { value: "pending_payment", label: "待支付" }, { value: "paid", label: "已支付" }, { value: "refunded", label: "已退款" }] as const
 const filtered = computed(() => orders.value.filter((order) => selectedStatus.value === "" || order.status === selectedStatus.value))
 onShow(() => {
   authenticated.value = import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || getWechatSessionToken() !== undefined
@@ -55,7 +55,7 @@ function login(): void { loginPrompt.value = false; uni.navigateTo({ url: "/page
 
 <template>
   <view class="discovery-page">
-    <text class="page-heading">我的订单</text><text class="page-subtitle">查看本家庭的报名记录、参加人员和支付状态。</text>
+    <text class="page-heading">我的订单</text><text class="page-subtitle">查看您的报名记录、参加人和支付状态。</text>
     <view v-if="!authenticated" class="info-card orders-guest-card">
       <view class="orders-guest-icon"><FunctionalIcon name="orders" /></view>
       <text class="card-title">您的报名，都在这里</text>
@@ -77,7 +77,7 @@ function login(): void { loginPrompt.value = false; uni.navigateTo({ url: "/page
         <button class="button-secondary order-detail-entry action-gap" @tap="open(order.id)">查看订单详情</button>
       </view>
     </view>
-    <text v-if="authenticated" class="test-notice">订单支付以实际开通的微信支付结果为准；如暂未开放，请联系工作人员处理。</text>
+    <text v-if="authenticated" class="test-notice">付款后可在订单详情查看支付状态；需要协助时请联系工作人员。</text>
     <LoginPrompt v-if="loginPrompt" message="登录后，查看您的报名订单" @cancel="loginPrompt = false" @confirm="login" />
   </view>
 </template>
@@ -85,7 +85,7 @@ function login(): void { loginPrompt.value = false; uni.navigateTo({ url: "/page
 <style>
 @import "../../styles/discovery.css";
 .status-tabs { display: flex; gap: var(--space-2); margin-top: var(--space-4); }
-.status-tabs .button-secondary { flex: 1; min-width: 0; }
+.status-tabs .button-secondary { flex: 1; min-width: 0; padding: 0 var(--space-2); font-size: var(--font-body-sm); }
 .status-tabs--selected { color: var(--on-accent); background: var(--accent-primary); }
 .orders-guest-card { margin-top: var(--space-6); padding: var(--space-6); text-align: center; }
 .orders-guest-icon { display: inline-flex; padding: var(--space-5); margin: var(--space-3) 0; border-radius: var(--radius-banner); background: var(--accent-soft); }

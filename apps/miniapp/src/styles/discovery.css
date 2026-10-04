@@ -8,12 +8,16 @@
 .row-between > .caption { min-width: 0; }
 .activity-card, .info-card, .discovery-state { margin-top: var(--space-4); overflow: hidden; border-radius: var(--radius-card); background: var(--surface-elevated); }
 .info-card, .discovery-state { padding: var(--space-5); }
-.activity-cover { display: block; width: 100%; aspect-ratio: 16 / 9; height: calc((100vw - var(--space-4) * 2) * 9 / 16); }
+.activity-cover { display: block; width: 100%; aspect-ratio: 16 / 9; height: calc((100vw - var(--space-4) * 2) * 9 / 16); max-height: calc(var(--space-10) * 4); }
 .activity-cover--empty { box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; padding: var(--space-6); background: var(--brand-mist); }
 .cover-eyebrow { color: var(--accent-secondary); font-size: var(--font-caption); line-height: 1.5; }
 .cover-title { margin-top: var(--space-2); color: var(--brand-ink); font-size: var(--font-h2); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 .card-content { padding: var(--space-4); }
+.activity-card__meta { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.activity-card__school { min-width: 0; text-align: right; }
+.activity-card__date { margin-top: var(--space-3); color: var(--text-primary); font-weight: 500; }
 .card-footer { margin-top: var(--space-4); }
+.activity-card__pricing { display: block; margin-top: var(--space-1); color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.5; }
 .badge { display: inline-block; flex-shrink: 0; white-space: nowrap; padding: var(--space-1) var(--space-2); border-radius: var(--radius-control); color: var(--accent-secondary); background: var(--accent-secondary-soft); font-size: var(--font-caption); line-height: 1.5; }
 .badge--muted { color: var(--text-secondary); background: var(--surface-secondary); }
 .price { color: var(--accent-warm); font-size: var(--font-h2); font-weight: 600; line-height: 1.4; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -26,6 +30,21 @@
 .button-primary:focus-visible, .button-secondary:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
 .retry-button { margin-top: var(--space-4); }
 .detail-line { display: block; margin-top: var(--space-3); color: var(--text-primary); font-size: var(--font-body-sm); line-height: 1.6; overflow-wrap: anywhere; }
-.filter-picker { margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); color: var(--text-primary); background: var(--surface-elevated); font-size: var(--font-body); line-height: 1.5; }
+.activity-catalog-header { padding-top: var(--space-2); }
+.activity-filter { margin-top: var(--space-5); padding: var(--space-4); border-radius: var(--radius-card); background: var(--surface-secondary); }
+.activity-filter__label { display: block; color: var(--text-secondary); font-size: var(--font-caption); font-weight: 600; line-height: 1.5; }
+.filter-picker { margin-top: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); color: var(--text-primary); background: var(--surface-elevated); font-size: var(--font-body); font-weight: 600; line-height: 1.5; }
 .test-notice { display: block; margin-top: var(--space-4); padding: var(--space-3); border-radius: var(--radius-control); color: var(--text-secondary); background: var(--surface-secondary); font-size: var(--font-body-sm); line-height: 1.6; }
 .action-gap { margin-top: var(--space-4); }
+.activity-card { display: flex; align-items: stretch; gap: var(--space-3); padding: var(--space-3); }
+.activity-card > .activity-cover { flex: 0 0 calc(var(--space-10) * 2); width: calc(var(--space-10) * 2); height: calc(var(--space-10) * 3); border-radius: var(--radius-control); }
+.activity-card > .activity-cover--empty { padding: var(--space-3); }
+.activity-card .cover-title { font-size: var(--font-h3); }
+.activity-card .card-content { flex: 1; min-width: 0; padding: 0; }
+.activity-card .card-title { margin-top: var(--space-2); font-size: var(--font-body); }
+.activity-card__meta { flex-wrap: wrap; gap: var(--space-1); }
+.activity-card__school { text-align: left; }
+.activity-card .card-footer { flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.activity-detail-button { margin-left: auto; padding: 0 var(--space-2); font-size: var(--font-body-sm); background: transparent; }
+.activity-card__date { font-size: var(--font-body-sm); line-height: 1.5; }
+@media (max-width: 400px) { .activity-card > .activity-cover { flex-basis: calc(var(--space-10) + var(--space-7)); width: calc(var(--space-10) + var(--space-7)); } }

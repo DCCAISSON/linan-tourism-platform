@@ -4,6 +4,7 @@ import {
   buildCreateOrderPayload,
   nextPageModeForOrder,
   readTripGate,
+  summarizeParticipantPricing,
 } from "../src/checkout-flow"
 import type { Order, TourSession } from "../src/api"
 
@@ -94,5 +95,27 @@ describe("checkout flow", () => {
     // Then
     expect(pendingMode).toBe("paymentPending")
     expect(paidMode).toBe("paid")
+  })
+
+  it("separates the per-person price from the participant count", () => {
+    // Given
+    const participantFees = [{ amountFen: 100 }, { amountFen: 100 }]
+
+    // When
+    const pricing = summarizeParticipantPricing(participantFees)
+
+    // Then
+    expect(pricing).toEqual({ kind: "uniform", participantCount: 2, unitAmountFen: 100 })
+  })
+
+  it("does not claim one unit price when participant fees differ", () => {
+    // Given
+    const participantFees = [{ amountFen: 100 }, { amountFen: 200 }]
+
+    // When
+    const pricing = summarizeParticipantPricing(participantFees)
+
+    // Then
+    expect(pricing).toEqual({ kind: "mixed", participantCount: 2 })
   })
 })
