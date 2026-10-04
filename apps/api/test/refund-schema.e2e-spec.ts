@@ -11,6 +11,7 @@ import {
 import { describe, expect, it } from "vitest"
 import { DOMAIN_DATA_SOURCE_OPTIONS, createDomainDataSource } from "../src/domain/data-source.js"
 import { RefundRequestEntity, RefundRequestLineEntity } from "../src/domain/entities/index.js"
+import { AddPhoneAuthentication1766020000000 } from "../src/migrations/1766020000000-AddPhoneAuthentication.js"
 import { AddRefundRequestSchema1765933200000 } from "../src/migrations/1765933200000-AddRefundRequestSchema.js"
 import { STAFF_PERMISSION_KEYS } from "../src/modules/iam/staff-permissions.js"
 
@@ -36,11 +37,13 @@ describe.skipIf(databaseUrl === undefined)("Refund schema contracts", () => {
 
     try {
       const migrated = await dataSource.runMigrations()
+      expect(await dataSource.runMigrations()).toEqual([])
       if (shouldCycleMigration) {
         expect(migrated.map(({ name }) => name)).toContain("AddRefundRequestSchema1765933200000")
         await dataSource.undoLastMigration()
         const rerun = await dataSource.runMigrations()
-        expect(rerun.map(({ name }) => name)).toEqual(["AddRefundRequestSchema1765933200000"])
+        expect(rerun.map(({ name }) => name)).toEqual([new AddPhoneAuthentication1766020000000().name])
+        expect(await dataSource.runMigrations()).toEqual([])
       }
 
       expect(dataSource.hasMetadata(RefundRequestEntity)).toBe(true)
@@ -219,6 +222,23 @@ describe.skipIf(databaseUrl === undefined)("Refund schema contracts", () => {
       ).rejects.toThrow()
       await expect(
         dataSource.query(
+          "INSERT INTO refund_requests (id, organization_id, order_id, provider, idempotency_key, status, reason, amount_fen, requested_by_staff_id, requested_at, policy_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp(6), ?)",
+          [
+            `refund-missing-staff-${scope}`,
+            ids.organization,
+            ids.order,
+            "local_validation",
+            `idem-missing-staff-${scope}`,
+            REFUND_STATUS.pending,
+            "missing staff foreign key",
+            1_200,
+            `missing-staff-${scope}`,
+            DOMAIN_POLICY_VERSION,
+          ],
+        ),
+      ).rejects.toThrow()
+      await expect(
+        dataSource.query(
           "INSERT INTO refund_request_lines (id, organization_id, refund_request_id, order_line_id, amount_fen, policy_version) VALUES (?, ?, ?, ?, ?, ?)",
           [`refund-line-duplicate-${scope}`, ids.organization, ids.refund, ids.orderLine, 1_200, DOMAIN_POLICY_VERSION],
         ),
@@ -258,6 +278,9 @@ describe.skipIf(databaseUrl === undefined)("Refund schema contracts", () => {
       const indexes = await dataSource.query(
         "SELECT DISTINCT table_name AS tableName, index_name AS indexName, non_unique AS nonUnique FROM information_schema.statistics WHERE table_schema = DATABASE() AND index_name IN ('uq_refund_requests_org_idempotency_key', 'idx_refund_requests_order', 'idx_refund_requests_requested_by_staff', 'idx_refund_requests_processed_by_staff', 'uq_refund_request_lines_request_line', 'idx_refund_request_lines_order_line') ORDER BY indexName",
       )
+      const staffForeignKeyCollations: readonly { readonly tableName: string; readonly columnName: string; readonly characterSet: string; readonly collationName: string }[] = await dataSource.query(
+        "SELECT table_name AS tableName, column_name AS columnName, character_set_name AS characterSet, collation_name AS collationName FROM information_schema.columns WHERE table_schema = DATABASE() AND ((table_name = 'staff_accounts' AND column_name = 'id') OR (table_name = 'refund_requests' AND column_name IN ('requested_by_staff_id', 'processed_by_staff_id'))) ORDER BY table_name, column_name",
+      )
       const schemaLog = await dataSource.driver.createSchemaBuilder().log()
       const refundSchemaQueryPattern = /`refund_requests`|`refund_request_lines`/u
       const pendingRefundSchemaUpQueries = schemaLog.upQueries.filter(({ query }) =>
@@ -290,6 +313,11 @@ describe.skipIf(databaseUrl === undefined)("Refund schema contracts", () => {
       expect(tables).toHaveLength(2)
       expect(constraints).toHaveLength(7)
       expect(indexes).toHaveLength(6)
+      expect(staffForeignKeyCollations).toEqual([
+        { tableName: "refund_requests", columnName: "processed_by_staff_id", characterSet: "utf8mb4", collationName: "utf8mb4_unicode_ci" },
+        { tableName: "refund_requests", columnName: "requested_by_staff_id", characterSet: "utf8mb4", collationName: "utf8mb4_unicode_ci" },
+        { tableName: "staff_accounts", columnName: "id", characterSet: "utf8mb4", collationName: "utf8mb4_unicode_ci" },
+      ])
       expect(pendingRefundSchemaUpQueries).toHaveLength(0)
       expect(pendingRefundSchemaDownQueries).toHaveLength(0)
 

@@ -24,6 +24,7 @@ export type ClassResponse = {
 export type CatalogItemResponse = {
   readonly id: string
   readonly organizationId: string
+  readonly templateId: string | null
   readonly code: string
   readonly title: string
   readonly description: string

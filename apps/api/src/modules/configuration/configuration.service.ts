@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common"
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { DOMAIN_POLICY_VERSION, ORDER_STATUS, ROSTER_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
 import { In } from "typeorm"
 import { ensureScopeHierarchy, lockTourSession } from "./configuration.scope.js"
@@ -185,24 +185,20 @@ export class ConfigurationService {
 
   async updateCatalogItem(id: string, input: UpdateCatalogItem): Promise<CatalogItemResponse> {
     const dataSource = await this.database.getDataSource()
-    const item = await findCatalogItem(dataSource, id)
-    if (input.code !== undefined) {
-      item.code = input.code
-    }
-    if (input.title !== undefined) {
-      item.title = input.title
-    }
-    if (input.description !== undefined) {
-      item.description = input.description
-    }
-    if (input.coverImageUrl !== undefined) {
-      item.coverImageUrl = input.coverImageUrl
-    }
-    if (input.status !== undefined) {
-      item.status = input.status
-    }
     try {
-      return await dataSource.getRepository(CatalogItemEntity).save(item)
+      return await dataSource.transaction(async manager => {
+        const item = await manager.findOne(CatalogItemEntity, { where: { id }, lock: { mode: "pessimistic_write" } })
+        if (item === null) throw new NotFoundException({ code: "not_found", message: "学校课程不存在" })
+        if (item.templateId !== null && (input.title !== undefined || input.description !== undefined || input.coverImageUrl !== undefined)) {
+          throw new ConflictException({ code: "catalog_template_linked", message: "该课程使用共享模板，请编辑模板或先解除关联" })
+        }
+        if (input.code !== undefined) item.code = input.code
+        if (input.title !== undefined) item.title = input.title
+        if (input.description !== undefined) item.description = input.description
+        if (input.coverImageUrl !== undefined) item.coverImageUrl = input.coverImageUrl
+        if (input.status !== undefined) item.status = input.status
+        return manager.save(item)
+      })
     } catch (error) {
       throwWriteConflict(error)
     }

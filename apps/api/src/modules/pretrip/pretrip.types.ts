@@ -5,11 +5,8 @@ export type PretripAdjustmentKind = "vehicle_change" | "profile_correction"
 export type PretripAdjustmentStatus = "submitted" | "accepted" | "rejected"
 
 export type PretripAttachmentInput = {
-  readonly id?: string
+  readonly id: string
   readonly title: string
-  readonly objectKey: string
-  readonly contentType: string
-  readonly byteSize: number
 }
 
 export type PretripConfigInput = {
@@ -24,7 +21,7 @@ export type PretripConfigInput = {
   readonly serviceContact: string
   readonly noticeVersionId: string | null
   readonly expectedVersion: number
-  readonly attachments: readonly PretripAttachmentInput[]
+  readonly attachments?: readonly PretripAttachmentInput[]
 }
 
 export type PretripConfigResponse = {

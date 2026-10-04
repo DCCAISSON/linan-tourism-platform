@@ -71,6 +71,9 @@ export class TourSessionEntity {
   @Column({ name: "active_notice_id", type: "varchar", length: 64, nullable: true })
   activeNoticeId: string | null = null
 
+  @Column({ name: "active_contract_template_id", type: "varchar", length: 64, nullable: true })
+  activeContractTemplateId: string | null = null
+
   @Column({ name: "policy_version", type: "varchar", length: 64 })
   policyVersion = DOMAIN_POLICY_VERSION
 

@@ -19,7 +19,7 @@ export class EnrollmentIdentityService {
       const dataSource = await this.database.getDataSource()
       const session = await dataSource.getRepository(WechatFamilySessionEntity).findOneBy({ tokenHash: hashWechatSessionToken(token) })
       if (session !== null && session.revokedAt === null && session.expiresAt.getTime() > Date.now()) {
-        return { familyCode: session.familyCode, actorId: session.openidHash }
+        return { familyCode: session.familyCode, actorId: session.openidHash, phoneVerified: session.phoneVerified }
       }
       throw new UnauthorizedException({ code: "identity_required", message: "wechat session is expired" })
     }
@@ -39,7 +39,7 @@ export class EnrollmentIdentityService {
       })
     }
 
-    return { familyCode: familyHeader, actorId: familyHeader }
+    return { familyCode: familyHeader, actorId: familyHeader, phoneVerified: false }
   }
 }
 

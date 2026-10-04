@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign, createCipheriv } from "node:crypto"
 import { describe, expect, it } from "vitest"
 import { decryptNotification, merchantNumber, verifyWechatSignature } from "./wechat-crypto.js"
 import { parseTradeBill, yuanToFen } from "./wechat-bill.parser.js"
-import { parsePaymentResource, parseRefundResource, shouldSettleWechatPaidOrder } from "./wechat-payment.service.js"
+import { parsePaymentResource, parseRefundQueryResource, parseRefundResource, shouldSettleWechatPaidOrder } from "./wechat-payment.service.js"
 import { buildBillDifferences } from "./wechat-reconciliation.service.js"
 import { hashWechatIdentity, hashWechatSessionToken } from "./wechat-session-token.js"
 import { parseWechatLoginInput } from "./wechat-auth.service.js"
@@ -46,9 +46,11 @@ describe("WeChat protocol boundaries", () => {
   })
   it("parses callback resources into local status bridge inputs", () => {
     expect(parsePaymentResource({ appid: "app", mchid: "mch", out_trade_no: "P1", transaction_id: "wx1", trade_state: "SUCCESS", amount: { total: 1200, currency: "CNY" } })).toEqual({ appId: "app", merchantId: "mch", outTradeNo: "P1", transactionId: "wx1", tradeState: "SUCCESS", amountFen: 1200, currency: "CNY" })
-    expect(parseRefundResource({ mchid: "mch", out_refund_no: "R1", refund_id: "rf1", refund_status: "PROCESSING", amount: { refund: 500, total: 1200, currency: "CNY" } })).toEqual({ merchantId: "mch", outRefundNo: "R1", refundId: "rf1", refundStatus: "PROCESSING", refundFen: 500, totalFen: 1200, currency: "CNY" })
+    expect(parseRefundResource({ mchid: "mch", out_refund_no: "R1", refund_id: "rf1", refund_status: "PROCESSING", amount: { refund: 500, total: 1200, payer_total: 1200, payer_refund: 500 } })).toEqual({ merchantId: "mch", outRefundNo: "R1", refundId: "rf1", refundStatus: "PROCESSING", refundFen: 500, totalFen: 1200 })
     expect(() => parsePaymentResource({ appid: "app", mchid: "mch", out_trade_no: "P1", transaction_id: "wx1", trade_state: "SUCCESS", amount: { total: 1200, currency: "USD" } })).toThrow()
-    expect(() => parseRefundResource({ mchid: "mch", out_refund_no: "R1", refund_id: "rf1", refund_status: "SUCCESS", amount: { refund: 500, total: 1200, currency: "USD" } })).toThrow()
+  })
+  it("parses active refund query responses", () => {
+    expect(parseRefundQueryResource({ refund_id: "rf1", out_refund_no: "R1", status: "ABNORMAL", amount: { refund: 500, total: 1200 } })).toEqual({ outRefundNo: "R1", refundId: "rf1", refundStatus: "ABNORMAL", refundFen: 500, totalFen: 1200 })
   })
   it("computes bill differences without mutating payments", () => {
     const rows = [{ appId: "app", merchantId: "mch", transactionId: "wx1", outTradeNo: "P1", state: "SUCCESS", amountFen: 1200, refundFen: 0, outRefundNo: "", tradedAt: "2026-09-21 10:00:00" }, { appId: "app", merchantId: "mch", transactionId: "wx2", outTradeNo: "P2", state: "SUCCESS", amountFen: 300, refundFen: 0, outRefundNo: "", tradedAt: "2026-09-21 10:01:00" }]

@@ -17,6 +17,11 @@ export class EvaluationsController {
     @Inject(DevStaffAccessService) private readonly access: DevStaffAccessService,
   ) {}
 
+  @Get("sessions")
+  async sessions(@Headers() headers: StaffAccessRequestHeaders) {
+    return this.evaluations.sessions(await this.access.resolve(headers))
+  }
+
   @Get("staff/sessions/:sessionId")
   async dashboard(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string) {
     return this.evaluations.dashboard(await this.access.resolve(headers), sessionId)

@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from "typeorm"
 import { OrganizationEntity } from "./organization.entity.js"
+import { CatalogContentTemplateEntity } from "./catalog-content-template.entity.js"
 
 @Entity({ name: "catalog_items" })
 @Index("uq_catalog_items_org_code", ["organizationId", "code"], { unique: true })
@@ -23,6 +24,13 @@ export class CatalogItemEntity {
   })
   @Column({ name: "organization_id", type: "varchar", length: 64 })
   organizationId = ""
+
+  @ForeignKey(() => CatalogContentTemplateEntity, {
+    name: "fk_catalog_items_content_template", onDelete: "RESTRICT", onUpdate: "CASCADE",
+  })
+  @Index("idx_catalog_items_template")
+  @Column({ name: "template_id", type: "varchar", length: 64, nullable: true })
+  templateId: string | null = null
 
   @Column({ type: "varchar", length: 64 })
   code = ""

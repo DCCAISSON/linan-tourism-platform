@@ -4,6 +4,7 @@ import { CapabilitiesController } from "./capabilities.controller.js"
 describe("CapabilitiesController", () => {
   const names = [
     "WECHAT_PAY_ENABLED",
+    "WECHAT_REFUND_ENABLED",
     "WECHAT_PAY_MERCHANT_MODE",
     "WECHAT_MINIAPP_APP_ID",
     "WECHAT_PAY_MCH_ID",
@@ -51,10 +52,22 @@ describe("CapabilitiesController", () => {
       paymentReconciliationEnabled: false,
     })
   })
+
+  it("reports refund capability only when the independent refund switch is enabled", () => {
+    setWechatPaymentEnv()
+    process.env["WECHAT_REFUND_ENABLED"] = "true"
+
+    expect(new CapabilitiesController().getCapabilities()).toEqual({
+      wechatPaymentEnabled: true,
+      wechatRefundEnabled: true,
+      paymentReconciliationEnabled: true,
+    })
+  })
 })
 
 function setWechatPaymentEnv(): void {
   process.env["WECHAT_PAY_ENABLED"] = "true"
+  process.env["WECHAT_REFUND_ENABLED"] = "false"
   process.env["WECHAT_PAY_MERCHANT_MODE"] = "direct_confirmed"
   process.env["WECHAT_MINIAPP_APP_ID"] = "wx-app"
   process.env["WECHAT_PAY_MCH_ID"] = "mch"

@@ -18,6 +18,7 @@ import {
 import { findScopedOrder, lockScopedEnrollment, toOrderResponse } from "./order.persistence.js"
 import type { NewOrder, OrderResponse } from "./order.types.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
+import { captureOrderContract } from "../contracts/contracts.persistence.js"
 
 const MAX_UNSIGNED_INT = 4_294_967_295
 
@@ -96,6 +97,7 @@ export class OrderService {
             policyVersion: DOMAIN_POLICY_VERSION,
           })),
         )
+        await captureOrderContract(manager, { session, enrollment, order })
         await recordOrderNotificationSource(manager, { session, order })
         return toOrderResponse(manager, order)
       })

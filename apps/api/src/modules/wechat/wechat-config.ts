@@ -23,8 +23,14 @@ export function readPaymentCapabilities(): PaymentCapabilities {
   const enabled = hasWechatPaymentConfiguration()
   return {
     wechatPaymentEnabled: enabled,
-    wechatRefundEnabled: false,
+    wechatRefundEnabled: enabled && process.env["WECHAT_REFUND_ENABLED"] === "true",
     paymentReconciliationEnabled: enabled,
+  }
+}
+
+export function assertWechatRefundEnabled(): void {
+  if (!readPaymentCapabilities().wechatRefundEnabled) {
+    throw new ServiceUnavailableException({ code: "wechat_refund_disabled", message: "微信退款尚未启用" })
   }
 }
 

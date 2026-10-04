@@ -47,6 +47,12 @@ export class NotificationRecipientAuthorizationEntity {
   @Column({ type: "boolean", default: true })
   active = true
 
+  @Column({ type: "varchar", length: 24, default: "order" })
+  scope: "order" | "pretrip_only" = "order"
+
+  @Column({ name: "expires_at", type: "datetime", precision: 6, nullable: true })
+  expiresAt: Date | null = null
+
   @Column({ name: "revoked_at", type: "datetime", precision: 6, nullable: true })
   revokedAt: Date | null = null
 

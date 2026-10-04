@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common"
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { DOMAIN_POLICY_VERSION, ENROLLMENT_STATUS } from "@linan/contracts"
 import { In } from "typeorm"
 import type { EntityManager } from "typeorm"
@@ -135,6 +135,9 @@ export class EnrollmentService {
     identity: EnrollmentIdentity,
     input: NewEnrollmentSubmission,
   ): Promise<EnrollmentSubmissionResponse> {
+    if (phoneVerificationRequired(process.env["NODE_ENV"], identity.phoneVerified)) {
+      throw new ForbiddenException({ code: "phone_verification_required", message: "报名需要已验证手机号" })
+    }
     await this.configuration.checkEnrollmentAvailability(input.tourSessionId, new Date())
     const dataSource = await this.database.getDataSource()
     try {
@@ -265,6 +268,10 @@ export class EnrollmentService {
   private async manager(): Promise<EntityManager> {
     return (await this.database.getDataSource()).manager
   }
+}
+
+export function phoneVerificationRequired(environment: string | undefined, verified: boolean | undefined): boolean {
+  return environment === "production" && verified !== true
 }
 
 function toMemberResponse(member: FamilyMemberEntity): FamilyMemberResponse {

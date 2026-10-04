@@ -1,3 +1,4 @@
+import { ORDER_STATUS, type OrderStatus } from "@linan/contracts"
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
@@ -18,13 +19,19 @@ export class NotificationAccessService {
   async familyOrder(manager: EntityManager, identity: EnrollmentIdentity, orderId: string): Promise<ScopedOrder> {
     try {
       const scoped = await findScopedOrder(manager, identity, orderId)
-      if (scoped.order.status !== "paid" || scoped.order.paidFen <= 0) throw forbidden()
+      if (!orderAllowsFamilyNotificationAccess(scoped.order.status, scoped.order.paidFen)) throw forbidden()
       return scoped
     } catch (error) {
       if (error instanceof NotFoundException) throw forbidden()
       throw error
     }
   }
+}
+
+export function orderAllowsFamilyNotificationAccess(status: OrderStatus, paidFen: number): boolean {
+  return status === ORDER_STATUS.pendingPayment
+    || status === ORDER_STATUS.paid && paidFen > 0
+    || status === ORDER_STATUS.refunded && paidFen > 0
 }
 
 export function notificationScopeMatches(access: StaffAccess, session: TourSessionEntity, permission: NotificationPermission): boolean {

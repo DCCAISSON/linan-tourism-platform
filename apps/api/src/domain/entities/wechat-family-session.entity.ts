@@ -30,6 +30,12 @@ export class WechatFamilySessionEntity {
   @Column({ name: "token_hash", type: "char", length: 64 })
   tokenHash = ""
 
+  @Column({ name: "phone_hash", type: "char", length: 64, nullable: true })
+  phoneHash: string | null = null
+
+  @Column({ name: "phone_verified", type: "boolean", default: false })
+  phoneVerified = false
+
   @Column({ name: "expires_at", type: "datetime", precision: 6 })
   expiresAt = new Date(0)
 

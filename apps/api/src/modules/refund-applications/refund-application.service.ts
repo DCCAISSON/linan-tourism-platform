@@ -13,6 +13,7 @@ import { createStaffRefundRequest } from "../order/staff-refund.service.js"
 import { applyRefundResult } from "../order/refund-result.js"
 import { assertPaidOrder, loadOrderLines, lockOrder, quoteRefund, selectLines } from "../order/refund-balance.js"
 import type { StaffRefundRequestInput } from "../order/refund-request.parser.js"
+import { WechatPaymentService } from "../wechat/wechat-payment.service.js"
 import { assertApplicationPermission, assertApplicationTransition, assertLocalExecutionAvailable, type ExecuteInput, type ReviewInput } from "./refund-application.policy.js"
 import type { RefundApplicationResponse } from "./refund-application.types.js"
 
@@ -21,6 +22,7 @@ export class RefundApplicationService {
   constructor(
     @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
     @Inject(AuditLogService) private readonly auditLog: AuditLogService,
+    @Inject(WechatPaymentService) private readonly wechatPayments: WechatPaymentService,
   ) {}
 
   async submit(identity: EnrollmentIdentity, orderId: string, input: StaffRefundRequestInput): Promise<RefundApplicationResponse> {
@@ -101,6 +103,12 @@ export class RefundApplicationService {
 
   async execute(access: StaffAccess, applicationId: string, input: ExecuteInput): Promise<RefundApplicationResponse> {
     assertApplicationPermission(access, "refunds.execute")
+    if (process.env["NODE_ENV"] === "production") {
+      if (input.outcome !== "succeeded") {
+        throw new ConflictException({ code: "manual_refund_result_unavailable", message: "真实退款结果由微信确认，不能人工登记" })
+      }
+      return this.executeWechat(access, applicationId)
+    }
     assertLocalExecutionAvailable()
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
@@ -128,6 +136,49 @@ export class RefundApplicationService {
           organizationId: order.organizationId,
           actorId: access.actorId,
           action: input.outcome === "succeeded" ? "refund_application.execute_succeeded" : "refund_application.execute_failed",
+          targetType: "refund_application",
+          targetId: app.id,
+        })
+      }
+      return toApplicationResponse(manager, app)
+    })
+  }
+
+  private async executeWechat(access: StaffAccess, applicationId: string): Promise<RefundApplicationResponse> {
+    const dataSource = await this.database.getDataSource()
+    const prepared = await dataSource.transaction(async (manager) => {
+      const app = await lockApplication(manager, applicationId)
+      if (app.status !== "approved") {
+        throw new ConflictException({ code: "refund_application_not_approved", message: "申请尚未批准，不能执行退款" })
+      }
+      if (app.refundRequestId !== null) return { response: await toApplicationResponse(manager, app), command: null }
+      return {
+        response: null,
+        command: {
+          orderId: app.orderId,
+          input: {
+            lineIds: app.lines.map((line) => line.lineId),
+            reason: app.reason,
+            note: null,
+            idempotencyKey: `refund-application:${app.id}`,
+          },
+        },
+      }
+    })
+    if (prepared.command === null) return prepared.response
+    const refund = await this.wechatPayments.createWechatRefund(prepared.command.orderId, prepared.command.input, access.actorId)
+    return dataSource.transaction(async (manager) => {
+      const app = await lockApplication(manager, applicationId, prepared.command.orderId)
+      if (app.refundRequestId !== null && app.refundRequestId !== refund.id) {
+        throw new ConflictException({ code: "refund_application_execution_conflict", message: "退款申请已关联其他退款记录" })
+      }
+      if (app.refundRequestId === null) {
+        app.refundRequestId = refund.id
+        await manager.save(app)
+        await this.auditLog.record(manager, {
+          organizationId: app.organizationId,
+          actorId: access.actorId,
+          action: "refund_application.execute_started",
           targetType: "refund_application",
           targetId: app.id,
         })

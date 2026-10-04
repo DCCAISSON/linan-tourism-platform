@@ -23,6 +23,9 @@ export class NotificationChannelEntryEntity {
   @Column({ type: "varchar", length: 2000 })
   url = ""
 
+  @Column({ name: "corp_id", type: "varchar", length: 64, nullable: true })
+  corpId: string | null = null
+
   @Column({ type: "boolean", default: false })
   enabled = false
 

@@ -17,6 +17,8 @@ import { findScopedOrder } from "../order/order.persistence.js"
 import { assertTravelerActionable, readTravelers, resolveTraveler } from "../travelers/travelers.read-model.js"
 import type { PersonRef, TravelerRecord } from "../travelers/travelers.types.js"
 import { readTransportConfirmation } from "../transport/transport-confirmation.read.js"
+import { PretripAttachmentsService, type PretripAttachmentContent } from "./pretrip-attachments.service.js"
+import type { PretripAttachmentUpload } from "./pretrip-attachments.parser.js"
 import type {
   AttachmentUrlResponse,
   FamilyPretripPerson,
@@ -65,6 +67,7 @@ export class PretripService {
   constructor(
     @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
     @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
+    @Inject(PretripAttachmentsService) private readonly attachmentFiles: PretripAttachmentsService,
   ) {}
 
   async readStaffConfig(access: StaffAccess, tourSessionId: string): Promise<PretripConfigResponse> {
@@ -97,18 +100,7 @@ export class PretripService {
         version: row.version + 1,
       })
       await manager.save(row)
-      await manager.delete(PretripAttachmentEntity, { tourSessionId: session.id })
-      if (input.attachments.length > 0) {
-        await manager.save(input.attachments.map((attachment) => manager.create(PretripAttachmentEntity, {
-          id: attachment.id ?? randomUUID(),
-          tourSessionId: session.id,
-          title: attachment.title,
-          objectKey: attachment.objectKey,
-          contentType: attachment.contentType,
-          byteSize: attachment.byteSize,
-          createdByStaffId: access.actorId,
-        })))
-      }
+      await this.attachmentFiles.retain(manager, session.id, input.attachments)
       await audit(manager, session, access.actorId, "pretrip.config.saved", session.id)
       await recordPretripNotificationSource(manager, { session, config: row })
       return this.configResponse(manager, session.id)
@@ -138,14 +130,19 @@ export class PretripService {
     return { expiresAt, url: `/orders/${encodeURIComponent(orderId)}/pretrip/attachments/${encodeURIComponent(attachment.id)}/download?expiresAt=${encodeURIComponent(expiresAt)}` }
   }
 
-  async downloadAttachment(identity: EnrollmentIdentity, orderId: string, attachmentId: string, expiresAt: string): Promise<PretripAttachmentResponse> {
+  async uploadAttachment(access: StaffAccess, tourSessionId: string, input: PretripAttachmentUpload): Promise<PretripConfigResponse> {
+    await this.attachmentFiles.upload(access, tourSessionId, input)
+    return this.readStaffConfig(access, tourSessionId)
+  }
+
+  async downloadAttachment(identity: EnrollmentIdentity, orderId: string, attachmentId: string, expiresAt: string): Promise<PretripAttachmentContent> {
     const expires = Date.parse(expiresAt)
-    if (!Number.isFinite(expires) || expires < Date.now()) throw expired("pretrip attachment link has expired")
+    if (!Number.isFinite(expires) || expires < Date.now() || expires > Date.now() + 10 * 60 * 1000) throw expired("附件链接已失效，请重新打开")
     const manager = (await this.database.getDataSource()).manager
     const scoped = await findScopedOrder(manager, identity, orderId)
     const attachment = await manager.findOneBy(PretripAttachmentEntity, { id: attachmentId, tourSessionId: scoped.enrollment.tourSessionId })
     if (attachment === null) throw missing("pretrip attachment not found")
-    return toAttachment(attachment)
+    return this.attachmentFiles.content(attachment)
   }
 
   async schoolConfirm(access: StaffAccess, tourSessionId: string): Promise<SchoolPretripConfirmationResponse> {
@@ -224,7 +221,7 @@ export class PretripService {
 
   private async currentTransport(manager: EntityManager, tourSessionId: string): Promise<TransportState & { readonly status: "current"; readonly confirmationId: string }> {
     const state = await this.transportState(manager, tourSessionId)
-    if (state.status !== "current" || state.confirmationId === null) throw stale("transport plan is not currently confirmed")
+    if (state.status !== "current" || state.confirmationId === null) throw stale(state.status === "stale" ? "出行名单或车辆安排已变更，请旅行社重新确认分车后再确认名单" : "分车方案尚未确认，请旅行社确认后再确认名单")
     return { ...state, status: "current", confirmationId: state.confirmationId }
   }
 

@@ -5,9 +5,10 @@ import { RosterController } from "./roster.controller.js"
 import { RosterService } from "./roster.service.js"
 import { RosterImportService } from "./roster-import.service.js"
 import { WorkbenchService } from "./workbench.service.js"
+import { DateStatisticsService } from "./date-statistics.service.js"
 
 @Module({
   controllers: [RosterController],
-  providers: [AuditLogService, ConfigurationDatabaseService, RosterImportService, RosterService, WorkbenchService],
+  providers: [AuditLogService, ConfigurationDatabaseService, RosterImportService, RosterService, WorkbenchService, DateStatisticsService],
 })
 export class RosterModule {}

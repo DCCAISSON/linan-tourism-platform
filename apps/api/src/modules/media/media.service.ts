@@ -71,6 +71,11 @@ export class MediaService {
     } catch (error) {
       asset.row.status = "failed"
       asset.row.version += 1
+      const failure = error instanceof ServiceUnavailableException ? error.getResponse() : null
+      if (typeof failure === "object" && failure !== null && "code" in failure && failure.code === "media_storage_unconfigured") {
+        await source.manager.save(asset.row)
+        throw new ServiceUnavailableException({ code: "media_storage_unconfigured", message: "暂时无法上传，请联系工作人员后重试。" })
+      }
       try { await this.storage.deleteObject(asset.row.objectKey) }
       catch (cleanupError) {
         if (!(cleanupError instanceof Error)) throw cleanupError
@@ -78,7 +83,7 @@ export class MediaService {
       }
       await source.manager.save(asset.row)
       if (!(error instanceof Error)) throw error
-      throw new ServiceUnavailableException({ code: "media_upload_failed", message: asset.row.cleanupPending ? "上传失败，残留文件待清理；请在素材列表中删除该记录重试" : "上传失败，已清理文件；请刷新列表后重新选择上传" })
+      throw new ServiceUnavailableException({ code: "media_upload_failed", message: asset.row.cleanupPending ? "上传失败，文件清理未完成；请联系有素材管理权限的工作人员处理。" : "上传失败，已清理文件；请重新选择上传。" })
     }
     return toMediaAsset(asset.row)
   }

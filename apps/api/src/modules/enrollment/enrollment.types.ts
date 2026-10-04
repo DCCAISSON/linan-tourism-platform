@@ -4,6 +4,7 @@ import type { ParticipantKind, PlainPersonData, ProtectedPersonData } from "./pe
 export type EnrollmentIdentity = {
   readonly familyCode: string
   readonly actorId: string
+  readonly phoneVerified?: boolean
 }
 
 export type NewFamilyMember = {

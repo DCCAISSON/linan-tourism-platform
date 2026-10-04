@@ -62,7 +62,7 @@ export function parsePreview(value: unknown): NotificationPreviewInput {
 }
 
 export function parseChannelEntry(value: unknown): NotificationEntryInput {
-  const input = record(value, ["label", "url", "enabled", "expectedVersion"])
+  const input = record(value, ["label", "url", "corpId", "enabled", "expectedVersion"])
   const enabled = input["enabled"]
   const expectedVersion = input["expectedVersion"]
   if (typeof enabled !== "boolean") throw invalid("入口启用状态不正确")
@@ -70,7 +70,8 @@ export function parseChannelEntry(value: unknown): NotificationEntryInput {
   const label = text(input, "label", 80, !enabled)
   const url = text(input, "url", 2000, !enabled)
   if (enabled && !isPublicHttps(url)) throw invalid("启用的通知入口必须使用公开 HTTPS 地址")
-  return { label, url, enabled, expectedVersion }
+  const corpId = optionalText(input, "corpId", 64)
+  return { label, url, enabled, expectedVersion, ...(corpId === null ? {} : { corpId }) }
 }
 
 export function parseExpectedVersion(value: unknown): number {

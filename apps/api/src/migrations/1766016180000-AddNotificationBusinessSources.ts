@@ -14,7 +14,7 @@ export class AddNotificationBusinessSources1766016180000 implements MigrationInt
       CONSTRAINT fk_notification_source_session FOREIGN KEY (session_id) REFERENCES tour_sessions(id),
       CONSTRAINT fk_notification_source_order FOREIGN KEY (order_id) REFERENCES orders(id),
       CONSTRAINT fk_notification_source_task FOREIGN KEY (linked_task_id) REFERENCES notification_delivery_tasks(id)
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {

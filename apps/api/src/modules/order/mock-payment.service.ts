@@ -42,10 +42,15 @@ import {
 } from "./order.types.js"
 import { reduceMockPaymentStatus } from "./payment-state.js"
 import type { EnrollmentIdentity } from "../enrollment/enrollment.types.js"
+import { EnrollmentAutoNotificationService } from "../notifications/enrollment-auto-notification.service.js"
+import { assertOrderContractSigned } from "../contracts/contracts.persistence.js"
 
 @Injectable()
 export class MockPaymentService {
-  constructor(@Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService) {}
+  constructor(
+    @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
+    @Inject(EnrollmentAutoNotificationService) private readonly notifications: EnrollmentAutoNotificationService,
+  ) {}
 
   ensureAvailable(): void {
     if (process.env["NODE_ENV"] === "production") {
@@ -58,6 +63,7 @@ export class MockPaymentService {
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
       const { order } = await lockScopedOrder(manager, identity, orderId)
+      await assertOrderContractSigned(manager, order.id)
       if (order.status === ORDER_STATUS.cancelled || order.status === ORDER_STATUS.refunded) {
         throw orderNotPayable()
       }
@@ -91,7 +97,8 @@ export class MockPaymentService {
     const dataSource = await this.database.getDataSource()
     try {
       // Read committed makes the capacity count see payments committed while waiting for the session lock.
-      return await dataSource.transaction("READ COMMITTED", async (manager) => {
+      let confirmedOrder = false
+      const result = await dataSource.transaction("READ COMMITTED", async (manager) => {
         const { order, enrollment } = await lockScopedOrder(manager, identity, event.orderId)
         const payment = await manager.findOne(PaymentEntity, {
           where: { organizationId: order.organizationId, paymentNo: mockPaymentNumber(order.id) },
@@ -142,10 +149,14 @@ export class MockPaymentService {
           enrollment.status = ENROLLMENT_STATUS.confirmed
           await manager.save(order)
           await manager.save(enrollment)
+          await this.notifications.enqueueConfirmed(manager, { enrollment, orderId: order.id })
+          confirmedOrder = true
         }
         await manager.save(payment)
         return toPaymentResponse(payment)
       })
+      if (confirmedOrder) this.notifications.dispatchAfterConfirmation()
+      return result
     } catch (error) {
       if (!isDuplicateEntry(error)) {
         throw error

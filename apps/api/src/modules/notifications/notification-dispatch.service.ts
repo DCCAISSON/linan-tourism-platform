@@ -18,7 +18,12 @@ import type { StaffAccess } from "../iam/dev-staff-access.service.js"
 import { NotificationAccessService } from "./notification-access.service.js"
 import { canDispatchTarget, isAuthorizationCurrent, summarizeTaskStatus } from "./notification-domain.js"
 import type { NotificationDispatchMode, WechatTemplateData } from "./notifications.types.js"
-import { WechatSubscribeAdapter, type WechatSubscribeOutcome } from "./wechat-subscribe.adapter.js"
+import { WechatSubscribeAdapter, type WechatSubscribeOutcome, type WechatSubscribeRequest } from "./wechat-subscribe.adapter.js"
+import { RecipientTemplateConsentEntity } from "../../domain/entities/notification-recipient-invite.entity.js"
+import { UserNotificationTemplateEntity } from "../../domain/entities/user-notification.entity.js"
+import { CatalogItemEntity } from "../../domain/entities/catalog-item.entity.js"
+import { PretripConfigEntity } from "../../domain/entities/pretrip-config.entity.js"
+import { recipientAuthorizationIsCurrent, safeRecipientTemplateData } from "./recipient-pretrip-policy.js"
 
 @Injectable()
 export class NotificationDispatchService {
@@ -74,14 +79,15 @@ export class NotificationDispatchService {
   }
 
   private async dispatchTarget(manager: EntityManager, task: NotificationDeliveryTaskEntity, targetId: string, mode: NotificationDispatchMode): Promise<void> {
-    await manager.transaction(async (transaction) => {
+    const reserved = await manager.transaction(async (transaction) => {
       const source = await transaction.findOneBy(NotificationBusinessSourceEntity, { linkedTaskId: task.id })
       if (source !== null) await transaction.findOneOrFail(TourSessionEntity, { where: { id: task.tourSessionId }, lock: { mode: "pessimistic_write" } })
       const target = await transaction.findOneOrFail(NotificationDeliveryTargetEntity, { where: { id: targetId, taskId: task.id }, lock: { mode: "pessimistic_write" } })
-      if (!canDispatchTarget(mode, target.status)) return
+      if (!canDispatchTarget(mode, target.status)) return null
       const authorization = await transaction.findOneOrFail(NotificationRecipientAuthorizationEntity, { where: { id: target.authorizationId }, lock: { mode: "pessimistic_write" } })
       const attemptNumber = await transaction.countBy(NotificationDeliveryAttemptEntity, { targetId: target.id }) + 1
-      const outcome = await this.sendTarget(transaction, task, target, authorization, source)
+      const result = await this.sendTarget(transaction, task, target, authorization, source)
+      const outcome = "recipientRequest" in result ? manual("recipient_send_reserved", "本次订阅已消费，发送结果待核对") : result
       const attempt = transaction.create(NotificationDeliveryAttemptEntity, {
         id: randomUUID(), taskId: task.id, targetId: target.id, attemptNumber,
         status: outcome.status, errorCode: outcome.errorCode,
@@ -90,6 +96,20 @@ export class NotificationDispatchService {
       })
       target.status = outcome.status
       await transaction.save([attempt, target])
+      return "recipientRequest" in result ? { request: result.recipientRequest, attemptId: attempt.id } : null
+    })
+    if (reserved === null) return
+    // Commit consumption before external I/O so an interrupted send cannot reuse this once consent.
+    let outcome: WechatSubscribeOutcome
+    try { outcome = await this.wechat.send(reserved.request) }
+    catch { outcome = manual("wechat_transport_unknown", "发送结果未知，本次订阅不会重复发送") }
+    if (outcome.status === "retryable_failed") outcome = manual(outcome.errorCode ?? "recipient_send_failed", "本次提醒发送失败；需接收人重新订阅后再安排通知")
+    await manager.transaction(async transaction => {
+      await transaction.update(NotificationDeliveryAttemptEntity, { id: reserved.attemptId }, {
+        status: outcome.status, errorCode: outcome.errorCode, providerMessage: outcome.providerMessage.slice(0, 255),
+        acceptedAt: outcome.status === "api_accepted" ? new Date() : null,
+      })
+      await transaction.update(NotificationDeliveryTargetEntity, { id: targetId, taskId: task.id }, { status: outcome.status })
     })
   }
 
@@ -99,8 +119,9 @@ export class NotificationDispatchService {
     target: NotificationDeliveryTargetEntity,
     authorization: NotificationRecipientAuthorizationEntity,
     source: NotificationBusinessSourceEntity | null = null,
-  ): Promise<WechatSubscribeOutcome> {
+  ): Promise<WechatSubscribeOutcome | { readonly recipientRequest: WechatSubscribeRequest }> {
     if (!isAuthorizationCurrent(authorization.active, authorization.version, target.authorizationVersion)) return manual("authorization_withdrawn", "接收人授权已撤回或变更，未发送")
+    if (authorization.scope === "pretrip_only" && (source?.kind !== "pretrip_updated" || !recipientAuthorizationIsCurrent(authorization))) return manual("recipient_pretrip_scope_required", "该接收人只允许接收有效授权期内的行前更新")
     const order = source === null
       ? await manager.findOneBy(OrderEntity, { id: authorization.orderId, organizationId: task.organizationId })
       : await manager.findOne(OrderEntity, { where: { id: authorization.orderId, organizationId: task.organizationId }, lock: { mode: "pessimistic_write" } })
@@ -117,6 +138,20 @@ export class NotificationDispatchService {
     }
     const content = await manager.findOneBy(NotificationContentVersionEntity, { id: task.contentVersionId, tourSessionId: task.tourSessionId })
     if (content === null || content.templateId === null) return manual("wechat_template_missing", "通知内容未配置微信订阅模板")
+    if (authorization.scope === "pretrip_only") {
+      const template = await manager.findOneBy(UserNotificationTemplateEntity, { templateId: content.templateId })
+      const consent = await manager.findOne(RecipientTemplateConsentEntity, { where: { authorizationId: authorization.id, templateId: content.templateId }, lock: { mode: "pessimistic_write" } })
+      if (template === null || consent?.status !== "active") return manual("recipient_subscription_required", "接收人未同意本模板的一次提醒，未发送")
+      const session = await manager.findOneBy(TourSessionEntity, { id: task.tourSessionId })
+      const config = await manager.findOneBy(PretripConfigEntity, { tourSessionId: task.tourSessionId })
+      const catalog = session === null ? null : await manager.findOneBy(CatalogItemEntity, { id: session.catalogItemId })
+      const data = session === null || catalog === null ? null : safeRecipientTemplateData(template, { title: catalog.title, startsAt: session.startsAt, gatheringAt: config?.gatheringAt ?? null, gatheringPlace: config?.gatheringPlace ?? "" })
+      if (data === null) return manual("recipient_template_ineligible", "该模板不符合行前提醒字段要求，未发送")
+      consent.status = "consumed"
+      consent.version += 1
+      await manager.save(consent)
+      return { recipientRequest: { openid: target.subscriberOpenid, templateId: template.templateId, page: `pages/recipient-invite/index?authorizationId=${encodeURIComponent(authorization.id)}`, data } }
+    }
     return this.wechat.send({
       openid: target.subscriberOpenid, templateId: content.templateId,
       page: content.miniappPage, data: readTemplateData(content.templateDataJson),

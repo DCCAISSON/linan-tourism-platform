@@ -1,5 +1,7 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import type { EntityManager } from "typeorm"
+import { In } from "typeorm"
+import { CatalogItemEntity } from "../../domain/entities/catalog-item.entity.js"
 import { EvaluationStandardEntity } from "../../domain/entities/evaluation-standard.entity.js"
 import { StudentEvaluationEntity } from "../../domain/entities/student-evaluation.entity.js"
 import { TourSessionEntity } from "../../domain/entities/tour-session.entity.js"
@@ -17,6 +19,7 @@ import type {
   EvaluationDashboard,
   EvaluationGradeCode,
   EvaluationRevisionInput,
+  EvaluationSession,
   EvaluationStandardInput,
   EvaluationStandardSummary,
   EvaluationSummaryRow,
@@ -32,6 +35,22 @@ export class EvaluationsService {
     @Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService,
     @Inject(ExecutionAccessService) private readonly execution: ExecutionAccessService,
   ) {}
+
+  async sessions(staff: StaffAccess): Promise<readonly EvaluationSession[]> {
+    const canReadInternal = staff.permissionKeys.has("evaluations.read")
+    assertEvaluationPermission(staff, canReadInternal ? "evaluations.read" : "evaluations.school_report")
+    const manager = (await this.database.getDataSource()).manager
+    const [sessions, assigned] = await Promise.all([
+      manager.find(TourSessionEntity, { order: { startsAt: "DESC" } }),
+      staff.kind === "guide" ? this.execution.assignedSessionIds(staff) : null,
+    ])
+    const allowed = sessions.filter(session => hasSessionScope(staff, session)
+      && (canReadInternal || canReadSchoolEvaluations(staff, session.organizationId))
+      && (assigned === null || assigned.includes(session.id)))
+    const catalogs = await manager.findBy(CatalogItemEntity, { id: In(allowed.map(session => session.catalogItemId)) })
+    const titles = new Map(catalogs.map(catalog => [catalog.id, catalog.title]))
+    return allowed.map(session => ({ id: session.id, code: session.code, title: titles.get(session.catalogItemId) ?? session.code, organizationId: session.organizationId }))
+  }
 
   async standards(staff: StaffAccess, tourSessionId: string): Promise<readonly EvaluationStandardSummary[]> {
     const permission = staff.permissionKeys.has("evaluations.standard.write") ? "evaluations.standard.write" : "evaluations.standard.confirm"
@@ -205,10 +224,14 @@ function assertEligibleStudent(travelers: readonly TravelerRecord[], personRef: 
 async function assertStaffSession(manager: EntityManager, access: StaffAccess, tourSessionId: string): Promise<TourSessionEntity> {
   const session = await manager.findOneBy(TourSessionEntity, { id: tourSessionId })
   if (session === null) throw new NotFoundException({ code: "tour_session_not_found", message: "session not found" })
-  if (!access.scopes.some((scope) => scope.kind === "all" || ((scope.kind === "organization" || scope.kind === "school") && scope.id === session.organizationId) || (scope.kind === "tour_session" && scope.id === session.id))) {
+  if (!hasSessionScope(access, session)) {
     throw new ForbiddenException({ code: "evaluation_scope_forbidden", message: "session scope forbidden" })
   }
   return session
+}
+
+function hasSessionScope(access: StaffAccess, session: Pick<TourSessionEntity, "id" | "organizationId">): boolean {
+  return access.scopes.some(scope => scope.kind === "all" || ((scope.kind === "organization" || scope.kind === "school") && scope.id === session.organizationId) || (scope.kind === "tour_session" && scope.id === session.id))
 }
 
 async function confirmedStandard(manager: EntityManager, id: string, tourSessionId: string): Promise<EvaluationStandardEntity> {

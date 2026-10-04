@@ -1,6 +1,7 @@
 import type { PersonRef } from "../travelers/travelers.types.js"
 
 export type EvaluationGradeCode = "A" | "B"
+export type EvaluationSession = { readonly id: string; readonly code: string; readonly title: string; readonly organizationId: string }
 export type EvaluationDimension = { readonly code: string; readonly label: string; readonly description: string }
 export type DimensionObservation = { readonly code: string; readonly observation: string }
 export type StandardItemInput = {

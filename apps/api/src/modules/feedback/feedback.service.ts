@@ -72,7 +72,7 @@ export class FeedbackService {
   }
 
   async sessions(staff: StaffAccess) {
-    requirePermission(staff, "feedback.read")
+    if (!staff.permissionKeys.has("feedback.submit")) requirePermission(staff, "feedback.read")
     const db = await this.database.getDataSource()
     const all = staff.scopes.some(scope => scope.kind === "all")
     const organizations = staff.scopes.flatMap(scope => (scope.kind === "organization" || scope.kind === "school") && scope.id !== null ? [scope.id] : [])

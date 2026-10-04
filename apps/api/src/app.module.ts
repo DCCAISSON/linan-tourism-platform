@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common"
+import { ContractsModule } from "./modules/contracts/contracts.module.js"
 import { ConfigurationModule } from "./modules/configuration/configuration.module.js"
 import { BusinessModule } from "./modules/business/business.module.js"
 import { CrmModule } from "./modules/crm/crm.module.js"
@@ -11,6 +12,7 @@ import { InsuranceModule } from "./modules/insurance/insurance.module.js"
 import { MediaModule } from "./modules/media/media.module.js"
 import { NotificationsModule } from "./modules/notifications/notifications.module.js"
 import { OrderModule } from "./modules/order/order.module.js"
+import { OrderChangeModule } from "./modules/order-change/order-change.module.js"
 import { PretripModule } from "./modules/pretrip/pretrip.module.js"
 import { RefundApplicationModule } from "./modules/refund-applications/refund-application.module.js"
 import { RosterModule } from "./modules/roster/roster.module.js"
@@ -22,7 +24,7 @@ import { CapabilitiesController } from "./capabilities.controller.js"
 import { HealthController } from "./health.controller.js"
 
 @Module({
-  imports: [IamModule, ConfigurationModule, EnrollmentModule, OrderModule, RosterModule, TransportModule, TravelersModule, RefundApplicationModule, WechatModule, ExecutionModule, EvaluationsModule, FeedbackModule, InsuranceModule, MediaModule, CrmModule, BusinessModule, PretripModule, NotificationsModule, SessionArchivesModule],
+  imports: [ContractsModule, IamModule, ConfigurationModule, EnrollmentModule, OrderModule, OrderChangeModule, RosterModule, TransportModule, TravelersModule, RefundApplicationModule, WechatModule, ExecutionModule, EvaluationsModule, FeedbackModule, InsuranceModule, MediaModule, CrmModule, BusinessModule, PretripModule, NotificationsModule, SessionArchivesModule],
   controllers: [HealthController, CapabilitiesController],
 })
 export class AppModule {}

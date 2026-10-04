@@ -38,6 +38,7 @@ export type NotificationPreviewInput = {
 }
 
 export type NotificationEntryInput = {
+  readonly corpId?: string | null
   readonly label: string
   readonly url: string
   readonly enabled: boolean

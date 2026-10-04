@@ -20,7 +20,7 @@ export class AddStaffIam1765915200000 implements MigrationInterface {
         updated_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
         PRIMARY KEY (id),
         UNIQUE KEY idx_staff_accounts_username (username)
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
     await queryRunner.query(`
       CREATE TABLE staff_account_permissions (
@@ -32,7 +32,7 @@ export class AddStaffIam1765915200000 implements MigrationInterface {
         UNIQUE KEY idx_staff_account_permissions_unique (staff_account_id, permission_key),
         KEY idx_staff_account_permissions_account (staff_account_id),
         CONSTRAINT fk_staff_account_permissions_account FOREIGN KEY (staff_account_id) REFERENCES staff_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
     await queryRunner.query(`
       CREATE TABLE staff_account_scopes (
@@ -44,7 +44,7 @@ export class AddStaffIam1765915200000 implements MigrationInterface {
         PRIMARY KEY (id),
         KEY idx_staff_account_scopes_account (staff_account_id),
         CONSTRAINT fk_staff_account_scopes_account FOREIGN KEY (staff_account_id) REFERENCES staff_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
     await queryRunner.query(`
       CREATE TABLE staff_sessions (
@@ -59,7 +59,7 @@ export class AddStaffIam1765915200000 implements MigrationInterface {
         UNIQUE KEY idx_staff_sessions_token_hash (token_hash),
         KEY idx_staff_sessions_account (staff_account_id),
         CONSTRAINT fk_staff_sessions_account FOREIGN KEY (staff_account_id) REFERENCES staff_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE
-      )
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
   }
 

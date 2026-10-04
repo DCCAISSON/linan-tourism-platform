@@ -105,9 +105,9 @@ export class RosterService {
         ol.person_data_key_version_snapshot as personDataKeyVersion,
         org.id as schoolId,
         org.name as schoolName,
-        sg.id as gradeId,
+        coalesce(ep.grade_id_snapshot, fm.grade_id) as gradeId,
         coalesce(ol.grade_name_snapshot, sg.name) as gradeName,
-        sc.id as classId,
+        coalesce(ep.class_id_snapshot, fm.class_id) as classId,
         coalesce(ol.class_name_snapshot, sc.name) as className,
         ol.amount_fen as amountFen,
         e.code as enrollmentCode,
@@ -119,8 +119,8 @@ export class RosterService {
       join enrollment_participants ep on ep.id = ol.enrollment_participant_id
       join family_members fm on fm.id = ep.family_member_id
       join organizations org on org.id = ol.organization_id
-      left join school_grades sg on sg.id = fm.grade_id
-      left join school_classes sc on sc.id = fm.class_id
+      left join school_grades sg on sg.id = coalesce(ep.grade_id_snapshot, fm.grade_id)
+      left join school_classes sc on sc.id = coalesce(ep.class_id_snapshot, fm.class_id)
       join roster_entries re on re.enrollment_participant_id = ep.id and re.enrollment_id = e.id
       ${sql.where}
       order by org.name, sg.name, sc.name, ol.display_name_snapshot, ol.id
@@ -172,11 +172,11 @@ function buildSqlParts(filters: RosterFilters): SqlParts {
     params.push(filters.schoolId)
   }
   if (filters.gradeId !== null) {
-    clauses.push("and fm.grade_id = ?")
+    clauses.push("and coalesce(ep.grade_id_snapshot, fm.grade_id) = ?")
     params.push(filters.gradeId)
   }
   if (filters.classId !== null) {
-    clauses.push("and fm.class_id = ?")
+    clauses.push("and coalesce(ep.class_id_snapshot, fm.class_id) = ?")
     params.push(filters.classId)
   }
   return { where: clauses.join("\n"), params }

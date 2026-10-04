@@ -5,6 +5,12 @@ import { signWechatRequest, verifyWechatSignature } from "./wechat-crypto.js"
 import { wechatHttp } from "./wechat-http.js"
 import { parseJson, record, textValue } from "./wechat-parser.js"
 
+export class WechatPayRequestError extends BadGatewayException {
+  constructor(readonly providerStatus: number, readonly providerCode: string) {
+    super({ code: "wechat_request_rejected", message: "微信未完成请求，请查询原交易或核对配置", providerStatus })
+  }
+}
+
 @Injectable()
 export class WechatPayClient {
   config(): WechatPayConfig { return loadWechatPayConfig() }
@@ -14,8 +20,11 @@ export class WechatPayClient {
     const request = { method: body === undefined ? "GET" as const : "POST" as const, path, body: body === undefined ? "" : JSON.stringify(body) }
     const response = await wechatHttp(new URL(path, config.apiOrigin), { ...request, headers: { Authorization: signWechatRequest(config, request), Accept: "application/json", "Content-Type": "application/json", "Wechatpay-Serial": config.publicKeyId } })
     const raw = response.body.toString("utf8")
+    if (response.status < 200 || response.status >= 300) {
+      throw new WechatPayRequestError(response.status, textValue(record(parseJson(raw)), "code"))
+    }
     verifyWechatSignature(config, response.headers, raw)
-    if (response.status < 200 || response.status >= 300) throw new BadGatewayException({ code: "wechat_request_rejected", message: "微信未完成请求，请查询原交易或核对配置", providerStatus: response.status })
+    if (response.status === 204) return {}
     return record(parseJson(raw))
   }
 

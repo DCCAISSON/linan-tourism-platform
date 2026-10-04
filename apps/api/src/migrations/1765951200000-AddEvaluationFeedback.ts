@@ -20,7 +20,7 @@ export class AddEvaluationFeedback1765951200000 implements MigrationInterface {
       KEY idx_evaluation_standards_session (tour_session_id),
       CONSTRAINT fk_evaluation_standards_session FOREIGN KEY (tour_session_id) REFERENCES tour_sessions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_evaluation_standards_author FOREIGN KEY (created_by_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    )`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await queryRunner.query(`CREATE TABLE student_evaluations (
       id varchar(64) NOT NULL,
       tour_session_id varchar(64) NOT NULL,
@@ -49,7 +49,7 @@ export class AddEvaluationFeedback1765951200000 implements MigrationInterface {
       CONSTRAINT fk_student_evaluations_session FOREIGN KEY (tour_session_id) REFERENCES tour_sessions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_student_evaluations_standard FOREIGN KEY (standard_id) REFERENCES evaluation_standards(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_student_evaluations_author FOREIGN KEY (updated_by_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    )`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await queryRunner.query(`CREATE TABLE service_feedback (
       id varchar(64) NOT NULL,
       tour_session_id varchar(64) NOT NULL,
@@ -72,7 +72,7 @@ export class AddEvaluationFeedback1765951200000 implements MigrationInterface {
       UNIQUE KEY uq_service_feedback_request (tour_session_id, source, idempotency_key),
       KEY idx_service_feedback_session_status (tour_session_id, status),
       CONSTRAINT fk_service_feedback_session FOREIGN KEY (tour_session_id) REFERENCES tour_sessions(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    )`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {

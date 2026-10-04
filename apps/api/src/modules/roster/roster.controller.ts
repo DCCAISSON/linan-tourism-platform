@@ -12,6 +12,7 @@ import type { PaymentSummary, RosterSummary } from "./roster.types.js"
 import { createRosterWorkbook } from "./roster.workbook.js"
 import { WorkbenchService } from "./workbench.service.js"
 import type { WorkbenchSummary } from "./workbench.types.js"
+import { DateStatisticsService, parseDateStatisticsFilters } from "./date-statistics.service.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 const ROSTER_IMPORT_MAX_FILE_BYTES = 5 * 1024 * 1024
@@ -36,7 +37,13 @@ export class RosterController {
     @Inject(RosterImportService) private readonly rosterImport: RosterImportService,
     @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
     @Inject(WorkbenchService) private readonly workbench: WorkbenchService,
+    @Inject(DateStatisticsService) private readonly dateStatistics: DateStatisticsService,
   ) {}
+
+  @Get("date-statistics")
+  async dateSummary(@Headers() headers: RequestHeaders, @Query() query: unknown) {
+    return this.dateStatistics.summarize(await this.staffAccess.resolve(headers), parseDateStatisticsFilters(query))
+  }
 
   @Get("workbench")
   async workbenchSummary(@Headers() headers: RequestHeaders): Promise<WorkbenchSummary> {

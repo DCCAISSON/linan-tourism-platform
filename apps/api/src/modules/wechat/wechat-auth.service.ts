@@ -3,7 +3,7 @@ import type { EntityManager } from "typeorm"
 import { FamilyEntity, WechatFamilySessionEntity, WechatIdentityEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { makeId } from "../configuration/configuration.persistence.js"
-import { createWechatSessionToken, hashWechatIdentity, hashWechatSessionToken, WECHAT_SESSION_TTL_MS } from "./wechat-session-token.js"
+import { createWechatSessionToken, hashPhone, hashWechatIdentity, hashWechatSessionToken, WECHAT_SESSION_TTL_MS } from "./wechat-session-token.js"
 
 type Code2SessionResponse = {
   readonly openid: string
@@ -103,10 +103,29 @@ export class WechatAuthService {
       openidHash: hashes.openidHash,
       unionidHash: hashes.unionidHash,
       tokenHash: hashWechatSessionToken(token),
+      phoneHash: null,
+      phoneVerified: false,
       expiresAt,
       revokedAt: null,
     })
     return { token, familyCode, expiresAt: expiresAt.toISOString() }
+  }
+
+  private async createVerifiedPhoneSession(session: Code2SessionResponse, phone: string): Promise<PhoneLoginResponse> {
+    const hashes = toWechatIdentityHashes(session)
+    const phoneHash = hashPhone(phone)
+    const dataSource = await this.database.getDataSource()
+    return dataSource.transaction(async (manager) => {
+      const familyCode = await this.resolveFamilyCode(manager, hashes.openidHash)
+      await manager.query("INSERT INTO phone_identities (phone_hash, family_code) VALUES (?, ?) ON DUPLICATE KEY UPDATE phone_hash = phone_hash", [phoneHash, familyCode])
+      const rows: readonly { readonly family_code: string }[] = await manager.query("SELECT family_code FROM phone_identities WHERE phone_hash = ?", [phoneHash])
+      if (!sameFamilyCode(rows[0]?.family_code, familyCode)) throw new UnauthorizedException({ code: "phone_identity_conflict", message: "手机号已绑定其他家庭身份" })
+      const family = await manager.findOneBy(FamilyEntity, { code: familyCode })
+      const token = createWechatSessionToken()
+      const expiresAt = new Date(Date.now() + WECHAT_SESSION_TTL_MS)
+      await manager.save(WechatFamilySessionEntity, { id: makeId("wechat-session"), organizationId: family?.organizationId ?? null, familyId: family?.id ?? null, familyCode, openidHash: hashes.openidHash, unionidHash: hashes.unionidHash, tokenHash: hashWechatSessionToken(token), phoneHash, phoneVerified: true, expiresAt, revokedAt: null })
+      return { token, familyCode, expiresAt: expiresAt.toISOString(), phoneVerified: true }
+    })
   }
 
   private async resolveFamilyCode(manager: EntityManager, openidHash: string): Promise<string> {
@@ -116,6 +135,14 @@ export class WechatAuthService {
     )
     const identity = await manager.findOneByOrFail(WechatIdentityEntity, { openidHash })
     return identity.familyCode
+  }
+
+  async loginWithWechatPhone(loginCode: string, phoneCode: string): Promise<PhoneLoginResponse> {
+    return this.createVerifiedPhoneSession(await exchangeCode2Session(loginCode), await exchangeWechatPhone(phoneCode))
+  }
+
+  async loginWithVerifiedPhone(loginCode: string, phone: string): Promise<PhoneLoginResponse> {
+    return this.createVerifiedPhoneSession(await exchangeCode2Session(loginCode), phone)
   }
 
   private async resolveBearerSession(headers: Record<string, string | readonly string[] | undefined>): Promise<WechatFamilySessionEntity> {
@@ -177,6 +204,34 @@ export async function exchangeCode2Session(code: string): Promise<Code2SessionRe
     unionid: typeof record["unionid"] === "string" && record["unionid"].length > 0 ? record["unionid"] : null,
     sessionKey: typeof record["session_key"] === "string" && record["session_key"].length > 0 ? record["session_key"] : null,
   }
+}
+
+export type PhoneLoginResponse = WechatLoginResponse & { readonly phoneVerified: true }
+
+export function sameFamilyCode(phoneFamilyCode: string | undefined, openidFamilyCode: string): boolean {
+  return phoneFamilyCode === openidFamilyCode
+}
+
+export async function exchangeWechatPhone(phoneCode: string): Promise<string> {
+  const appId = process.env["WECHAT_MINIAPP_APP_ID"]
+  const secret = process.env["WECHAT_MINIAPP_APP_SECRET"]
+  if (appId === undefined || secret === undefined || appId.length === 0 || secret.length === 0) throw new BadRequestException({ code: "wechat_login_unconfigured", message: "wechat miniapp credentials are not configured" })
+  const tokenUrl = new URL("https://api.weixin.qq.com/cgi-bin/token")
+  tokenUrl.searchParams.set("grant_type", "client_credential")
+  tokenUrl.searchParams.set("appid", appId)
+  tokenUrl.searchParams.set("secret", secret)
+  const tokenValue: unknown = await (await fetch(tokenUrl)).json()
+  if (typeof tokenValue !== "object" || tokenValue === null || Array.isArray(tokenValue)) throw new BadGatewayException({ code: "wechat_phone_invalid", message: "wechat phone response is invalid" })
+  const tokenRecord = Object.fromEntries(Object.entries(tokenValue))
+  const accessToken = tokenRecord["access_token"]
+  if (typeof accessToken !== "string") throw new BadGatewayException({ code: "wechat_phone_invalid", message: "wechat phone response is invalid" })
+  const phoneUrl = new URL("https://api.weixin.qq.com/wxa/business/getuserphonenumber")
+  phoneUrl.searchParams.set("access_token", accessToken)
+  const phoneValue: unknown = await (await fetch(phoneUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: phoneCode }) })).json()
+  if (typeof phoneValue !== "object" || phoneValue === null || Array.isArray(phoneValue)) throw new BadGatewayException({ code: "wechat_phone_invalid", message: "wechat phone response is invalid" })
+  const phoneInfo = Object.fromEntries(Object.entries(phoneValue))["phone_info"]
+  if (typeof phoneInfo !== "object" || phoneInfo === null || Array.isArray(phoneInfo) || typeof phoneInfo.phoneNumber !== "string" || !/^1[3-9]\d{9}$/.test(phoneInfo.phoneNumber)) throw new UnauthorizedException({ code: "wechat_phone_invalid", message: "wechat phone code is invalid" })
+  return phoneInfo.phoneNumber
 }
 
 export function parseWechatLoginInput(value: unknown): WechatLoginInput {

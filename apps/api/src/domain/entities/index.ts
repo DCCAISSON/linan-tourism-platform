@@ -1,9 +1,16 @@
+import { UserNotificationTemplateEntity, UserNotificationSubscriptionEntity, UserNotificationTaskEntity, UserNotificationTargetEntity, UserNotificationAttemptEntity } from "./user-notification.entity.js"
+export { UserNotificationTemplateEntity, UserNotificationSubscriptionEntity, UserNotificationTaskEntity, UserNotificationTargetEntity, UserNotificationAttemptEntity } from "./user-notification.entity.js"
 import { AuditLogEntity } from "./audit-log.entity.js"
+import { ContractTemplateVersionEntity } from "./contract-template-version.entity.js"
+import { OrderContractEntity } from "./order-contract.entity.js"
+export { ContractTemplateVersionEntity } from "./contract-template-version.entity.js"
+export { OrderContractEntity } from "./order-contract.entity.js"
 import { BusinessFollowupEntity } from "./business-followup.entity.js"
 import { BusinessInquiryEntity } from "./business-inquiry.entity.js"
 import { BusinessInquiryCustomerLinkEntity } from "./business-inquiry-customer-link.entity.js"
 import { BusinessProductEntity } from "./business-product.entity.js"
 import { CatalogItemEntity } from "./catalog-item.entity.js"
+import { CatalogContentTemplateEntity } from "./catalog-content-template.entity.js"
 import { ConsentRecordEntity } from "./consent-record.entity.js"
 import { CrmCustomerEntity } from "./crm-customer.entity.js"
 import { CrmFollowupEntity } from "./crm-followup.entity.js"
@@ -32,7 +39,9 @@ import { NotificationBusinessSourceEntity } from "./notification-business-source
 import { NotificationContentVersionEntity } from "./notification-content-version.entity.js"
 import { NotificationDeliveryAttemptEntity, NotificationDeliveryTargetEntity, NotificationDeliveryTaskEntity } from "./notification-delivery.entity.js"
 import { NotificationRecipientAuthorizationEntity } from "./notification-recipient-authorization.entity.js"
+import { NotificationRecipientInviteEntity, RecipientTemplateConsentEntity } from "./notification-recipient-invite.entity.js"
 import { OrderEntity } from "./order.entity.js"
+import { OrderChangeRequestEntity } from "./order-change-request.entity.js"
 import { OrderLineEntity } from "./order-line.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 import { PaymentEntity } from "./payment.entity.js"
@@ -67,6 +76,8 @@ import { TravelerImportChangeEntity } from "./traveler-import-change.entity.js"
 import { WechatBillDifferenceEntity, WechatBillReconciliationEntity } from "./wechat-bill-reconciliation.entity.js"
 import { WechatIdentityEntity } from "./wechat-identity.entity.js"
 import { WechatFamilySessionEntity } from "./wechat-family-session.entity.js"
+import { PhoneSmsChallengeEntity } from "./phone-sms-challenge.entity.js"
+import { PhoneSmsRateLimitEntity } from "./phone-sms-rate-limit.entity.js"
 import { WechatTransactionEntity } from "./wechat-transaction.entity.js"
 
 export { AuditLogEntity } from "./audit-log.entity.js"
@@ -75,6 +86,7 @@ export { BusinessInquiryEntity } from "./business-inquiry.entity.js"
 export { BusinessInquiryCustomerLinkEntity } from "./business-inquiry-customer-link.entity.js"
 export { BusinessProductEntity } from "./business-product.entity.js"
 export { CatalogItemEntity } from "./catalog-item.entity.js"
+export { CatalogContentTemplateEntity } from "./catalog-content-template.entity.js"
 export { ConsentRecordEntity } from "./consent-record.entity.js"
 export { CrmCustomerEntity } from "./crm-customer.entity.js"
 export { CrmFollowupEntity } from "./crm-followup.entity.js"
@@ -103,7 +115,9 @@ export { NotificationBusinessSourceEntity } from "./notification-business-source
 export { NotificationContentVersionEntity } from "./notification-content-version.entity.js"
 export { NotificationDeliveryAttemptEntity, NotificationDeliveryTargetEntity, NotificationDeliveryTaskEntity } from "./notification-delivery.entity.js"
 export { NotificationRecipientAuthorizationEntity } from "./notification-recipient-authorization.entity.js"
+export { NotificationRecipientInviteEntity, RecipientTemplateConsentEntity } from "./notification-recipient-invite.entity.js"
 export { OrderEntity } from "./order.entity.js"
+export { OrderChangeRequestEntity } from "./order-change-request.entity.js"
 export { OrderLineEntity } from "./order-line.entity.js"
 export { OrganizationEntity } from "./organization.entity.js"
 export { PaymentEntity } from "./payment.entity.js"
@@ -138,9 +152,14 @@ export { TravelerImportChangeEntity } from "./traveler-import-change.entity.js"
 export { WechatBillDifferenceEntity, WechatBillReconciliationEntity } from "./wechat-bill-reconciliation.entity.js"
 export { WechatIdentityEntity } from "./wechat-identity.entity.js"
 export { WechatFamilySessionEntity } from "./wechat-family-session.entity.js"
+export { PhoneSmsChallengeEntity } from "./phone-sms-challenge.entity.js"
+export { PhoneSmsRateLimitEntity } from "./phone-sms-rate-limit.entity.js"
 export { WechatTransactionEntity } from "./wechat-transaction.entity.js"
 
 export const DOMAIN_ENTITIES = [
+  ContractTemplateVersionEntity,
+  OrderContractEntity,
+  UserNotificationTemplateEntity, UserNotificationSubscriptionEntity, UserNotificationTaskEntity, UserNotificationTargetEntity, UserNotificationAttemptEntity,
   OrganizationEntity,
   FamilyEntity,
   InsuranceBatchEntity,
@@ -150,6 +169,7 @@ export const DOMAIN_ENTITIES = [
   SchoolClassEntity,
   FamilyMemberEntity,
   CatalogItemEntity,
+  CatalogContentTemplateEntity,
   TourSessionEntity,
   EnrollmentEntity,
   EnrollmentParticipantEntity,
@@ -168,6 +188,7 @@ export const DOMAIN_ENTITIES = [
   ExecutionHealthAuthorizationEntity,
   NoticeVersionEntity,
   OrderEntity,
+  OrderChangeRequestEntity,
   OrderLineEntity,
   PaymentEntity,
   PaymentEventEntity,
@@ -196,6 +217,8 @@ export const DOMAIN_ENTITIES = [
   PretripAdjustmentRequestEntity,
   NotificationContentVersionEntity,
   NotificationRecipientAuthorizationEntity,
+  NotificationRecipientInviteEntity,
+  RecipientTemplateConsentEntity,
   NotificationChannelEntryEntity,
   NotificationBusinessSourceEntity,
   NotificationDeliveryTaskEntity,
@@ -211,6 +234,8 @@ export const DOMAIN_ENTITIES = [
   BusinessFollowupEntity,
   WechatIdentityEntity,
   WechatFamilySessionEntity,
+  PhoneSmsChallengeEntity,
+  PhoneSmsRateLimitEntity,
   WechatTransactionEntity,
   WechatBillReconciliationEntity,
   WechatBillDifferenceEntity,

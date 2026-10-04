@@ -6,7 +6,7 @@ import type { WechatHeaders } from "./wechat-crypto.js"
 export type WireResponse = { readonly status: number; readonly headers: WechatHeaders; readonly body: Buffer }
 export function wechatHttp(url: URL, input: { readonly method: "GET" | "POST"; readonly headers?: Readonly<Record<string, string>>; readonly body?: string }): Promise<WireResponse> {
   return new Promise((resolve, reject) => {
-    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, { method: input.method, headers: input.headers, timeout: 10000 }, response => {
+    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, { method: input.method, headers: { "User-Agent": "linan-platform/1.0", ...input.headers }, timeout: 10000 }, response => {
       const chunks: Buffer[] = []
       let size = 0
       response.on("data", (chunk: Buffer) => {

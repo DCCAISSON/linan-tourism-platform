@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Headers, Inject, Param, Post, Put, Query } from "@nestjs/common"
+import { Body, Controller, Get, Headers, Inject, Param, Post, Put, Query, Res, UploadedFile, UseInterceptors } from "@nestjs/common"
+import { FileInterceptor } from "@nestjs/platform-express"
+import type { Response } from "express"
 import { EnrollmentIdentityService } from "../enrollment/enrollment.identity.js"
 import { DevStaffAccessService, type StaffAccessRequestHeaders } from "../iam/dev-staff-access.service.js"
 import { parseAdjustmentProcess, parsePretripAdjustment, parsePretripConfig } from "./pretrip.parser.js"
 import { PretripService } from "./pretrip.service.js"
+import { parsePretripAttachmentUpload, PRETRIP_ATTACHMENT_MAX_BYTES } from "./pretrip-attachments.parser.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -25,8 +28,16 @@ export class PretripController {
   }
 
   @Get("orders/:orderId/pretrip/attachments/:attachmentId/download")
-  async downloadAttachment(@Headers() headers: RequestHeaders, @Param("orderId") orderId: string, @Param("attachmentId") attachmentId: string, @Query("expiresAt") expiresAt: string) {
-    return this.pretrip.downloadAttachment(await this.identities.resolve(headers), orderId, attachmentId, expiresAt)
+  async downloadAttachment(@Headers() headers: RequestHeaders, @Param("orderId") orderId: string, @Param("attachmentId") attachmentId: string, @Query("expiresAt") expiresAt: string, @Res() response: Response): Promise<void> {
+    const file = await this.pretrip.downloadAttachment(await this.identities.resolve(headers), orderId, attachmentId, expiresAt)
+    response.status(200).set({ "Content-Type": file.attachment.contentType, "Content-Length": String(file.body.length), "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(file.attachment.title)}`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" }).send(file.body)
+  }
+
+  @Post("pretrip/staff/sessions/:tourSessionId/attachments")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: PRETRIP_ATTACHMENT_MAX_BYTES } }))
+  async uploadAttachment(@Headers() headers: StaffAccessRequestHeaders, @Param("tourSessionId") tourSessionId: string, @UploadedFile() file: unknown, @Body() body: unknown) {
+    this.staffAccess.assertUnsafeOrigin(headers)
+    return this.pretrip.uploadAttachment(await this.staffAccess.resolve(headers), tourSessionId, parsePretripAttachmentUpload(file, body))
   }
 
   @Get("pretrip/staff/sessions/:tourSessionId")

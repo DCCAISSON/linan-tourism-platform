@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common"
+import { BadGatewayException, BadRequestException, Inject, Injectable } from "@nestjs/common"
 import { createHash } from "node:crypto"
 import { PaymentEntity, WechatBillDifferenceEntity, WechatBillReconciliationEntity, WechatTransactionEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
@@ -60,10 +60,32 @@ export class WechatReconciliationService {
     const contentHash = createHash("sha256").update(bill.content).digest("hex")
     const rows = parseTradeBill(content)
     const dataSource = await this.database.getDataSource()
+    const localPayments = await dataSource.manager.findBy(PaymentEntity, { channel: "wechat_pay" })
+    const localRefunds = await dataSource.manager.findBy(WechatTransactionEntity, { kind: "refund" })
+    const paymentNumbersByOrder = new Map(localPayments.map((payment) => [payment.orderId, payment.paymentNo]))
+    const payments: PaymentEntity[] = []
+    for (const payment of localPayments) {
+      if (payment.status !== "succeeded" && payment.status !== "refunded") continue
+      const resource = await this.client.request(`/v3/pay/transactions/out-trade-no/${encodeURIComponent(payment.paymentNo)}?mchid=${encodeURIComponent(config.merchantId)}`)
+      if (providerBillDate(resource["success_time"]) === date) payments.push(payment)
+    }
+    const refunds: WechatTransactionEntity[] = []
+    for (const refund of localRefunds) {
+      if (refund.outRefundNo === null) throw new BadGatewayException({ code: "wechat_bill_date_unverified", message: "退款单号缺失，无法核实账单日期" })
+      const resource = await this.client.request(`/v3/refund/domestic/refunds/${encodeURIComponent(refund.outRefundNo)}`)
+      if (providerBillDate(resource["create_time"]) === date) refunds.push(refund)
+    }
+    const differences = buildBillDifferences({
+      merchant: { appId: config.appId, merchantId: config.merchantId },
+      rows,
+      payments,
+      refunds: refunds.map((refund) => ({
+        outRefundNo: refund.outRefundNo,
+        outTradeNo: refund.orderId === null ? null : paymentNumbersByOrder.get(refund.orderId) ?? null,
+        amountFen: refund.amountFen,
+      })),
+    })
     return dataSource.transaction(async (manager) => {
-      const localPayments = await manager.findBy(PaymentEntity, { channel: "wechat_pay" })
-      const localRefunds = await manager.findBy(WechatTransactionEntity, { kind: "refund" })
-      const differences = buildBillDifferences({ merchant: { appId: config.appId, merchantId: config.merchantId }, rows, payments: localPayments, refunds: localRefunds })
       let record = await manager.findOneBy(WechatBillReconciliationEntity, { billDate: date })
       if (record === null) {
         record = await manager.save(WechatBillReconciliationEntity, {
@@ -119,6 +141,13 @@ export class WechatReconciliationService {
     await dataSource.getRepository(WechatBillReconciliationEntity).update({ billDate: date }, { confirmedNote: note })
     return this.get(date)
   }
+}
+
+function providerBillDate(value: unknown): string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value))) {
+    throw new BadGatewayException({ code: "wechat_bill_date_unverified", message: "微信交易日期无法核实，对账未保存" })
+  }
+  return new Date(Date.parse(value) + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
 }
 
 export function buildBillDifferences(input: BillReconciliationInput): readonly BillDifference[] {

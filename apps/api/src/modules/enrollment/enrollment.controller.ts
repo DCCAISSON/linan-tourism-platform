@@ -43,6 +43,15 @@ export class EnrollmentController {
     return this.enrollment.updateMember(await this.identity.resolve(headers), id, parseFamilyMemberPatch(body))
   }
 
+  @Post("enrollment/members/:id/update")
+  async updateMemberFromMiniapp(
+    @Headers() headers: RequestHeaders,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ): Promise<FamilyMemberResponse> {
+    return this.enrollment.updateMember(await this.identity.resolve(headers), id, parseFamilyMemberPatch(body))
+  }
+
   @Delete("enrollment/members/:id")
   async deleteMember(
     @Headers() headers: RequestHeaders,

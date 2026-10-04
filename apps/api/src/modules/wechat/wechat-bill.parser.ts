@@ -25,7 +25,8 @@ export function parseTradeBill(input: string): readonly BillRow[] {
     const read = (name: string) => cells[columns.indexOf(name)] ?? ""
     const state = read("交易状态")
     if (state !== "SUCCESS" && state !== "REFUND") throw new BadRequestException("账单交易状态不支持")
-    rows.push({ tradedAt: read("交易时间"), appId: read("公众账号ID"), merchantId: read("商户号"), transactionId: read("微信订单号"), outTradeNo: read("商户订单号"), state, amountFen: yuanToFen(read(amountColumn)), refundFen: yuanToFen(read("退款金额")), outRefundNo: read("商户退款单号") })
+    const refundNo = read("商户退款单号")
+    rows.push({ tradedAt: read("交易时间"), appId: read("公众账号ID"), merchantId: read("商户号"), transactionId: read("微信订单号"), outTradeNo: read("商户订单号"), state, amountFen: yuanToFen(read(amountColumn)), refundFen: yuanToFen(read("退款金额")), outRefundNo: refundNo === "0" ? "" : refundNo })
   }
   return rows
 }

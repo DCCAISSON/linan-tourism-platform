@@ -19,7 +19,7 @@ export class AddPretripWorkspace1765972800000 implements MigrationInterface {
       updated_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
       CONSTRAINT fk_pretrip_configs_session FOREIGN KEY (tour_session_id) REFERENCES tour_sessions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_pretrip_configs_updated_by FOREIGN KEY (updated_by_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await queryRunner.query(`CREATE TABLE pretrip_attachments (
       id varchar(64) NOT NULL PRIMARY KEY,
       tour_session_id varchar(64) NOT NULL,
@@ -32,7 +32,7 @@ export class AddPretripWorkspace1765972800000 implements MigrationInterface {
       KEY idx_pretrip_attachments_session (tour_session_id),
       CONSTRAINT fk_pretrip_attachments_session FOREIGN KEY (tour_session_id) REFERENCES tour_sessions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_pretrip_attachments_created_by FOREIGN KEY (created_by_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await queryRunner.query(`CREATE TABLE pretrip_school_confirmations (
       id varchar(64) NOT NULL PRIMARY KEY,
       tour_session_id varchar(64) NOT NULL,
@@ -48,7 +48,7 @@ export class AddPretripWorkspace1765972800000 implements MigrationInterface {
       CONSTRAINT fk_pretrip_school_confirmations_school FOREIGN KEY (school_id) REFERENCES organizations(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_pretrip_school_confirmations_transport_confirmation FOREIGN KEY (transport_confirmation_id) REFERENCES transport_confirmations(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_pretrip_school_confirmations_signed_by FOREIGN KEY (signed_by_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await queryRunner.query(`CREATE TABLE pretrip_adjustment_requests (
       id varchar(64) NOT NULL PRIMARY KEY,
       tour_session_id varchar(64) NOT NULL,
@@ -70,7 +70,7 @@ export class AddPretripWorkspace1765972800000 implements MigrationInterface {
       CONSTRAINT fk_pretrip_adjustments_school FOREIGN KEY (school_id) REFERENCES organizations(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_pretrip_adjustments_transport_confirmation FOREIGN KEY (transport_confirmation_id) REFERENCES transport_confirmations(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_pretrip_adjustments_requested_by FOREIGN KEY (requested_by_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
   }
 
   async down(queryRunner: QueryRunner): Promise<void> {

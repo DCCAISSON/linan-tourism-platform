@@ -23,7 +23,7 @@ export class AddMediaSchema1765958400000 implements MigrationInterface {
       KEY idx_media_assets_session_status (tour_session_id, status),
       CONSTRAINT fk_media_assets_session FOREIGN KEY (tour_session_id) REFERENCES tour_sessions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_media_assets_author FOREIGN KEY (author_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await queryRunner.query(`CREATE TABLE media_providers (
       id varchar(64) NOT NULL PRIMARY KEY,
       tour_session_id varchar(64) NOT NULL,
@@ -37,7 +37,7 @@ export class AddMediaSchema1765958400000 implements MigrationInterface {
       UNIQUE KEY uq_media_providers_session_kind (tour_session_id, kind),
       CONSTRAINT fk_media_providers_session FOREIGN KEY (tour_session_id) REFERENCES tour_sessions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
       CONSTRAINT fk_media_providers_author FOREIGN KEY (updated_by_staff_id) REFERENCES staff_accounts(id) ON DELETE RESTRICT ON UPDATE CASCADE
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
   }
   async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query("DROP TABLE media_providers")

@@ -1,4 +1,6 @@
+import { AddUserNotifications1766016240000 } from "../migrations/1766016240000-AddUserNotifications.js"
 import "reflect-metadata"
+import { AddTourContracts1766024000000 } from "../migrations/1766024000000-AddTourContracts.js"
 import { DataSource, type DataSourceOptions } from "typeorm"
 import { DOMAIN_ENTITIES } from "./entities/index.js"
 import { InitialDomainContract1765897200000 } from "../migrations/1765897200000-InitialDomainContract.js"
@@ -26,6 +28,10 @@ import { AddPretripWorkspace1765972800000 } from "../migrations/1765972800000-Ad
 import { AddNotifications1765976400000 } from "../migrations/1765976400000-AddNotifications.js"
 import { AddWechatIdentities1765980000000 } from "../migrations/1765980000000-AddWechatIdentities.js"
 import { AddEnrollmentContactAndCommonMembers1765983600000 } from "../migrations/1765983600000-AddEnrollmentContactAndCommonMembers.js"
+import { AddPhoneAuthentication1766020000000 } from "../migrations/1766020000000-AddPhoneAuthentication.js"
+import { AddCatalogContentTemplates1766021000000 } from "../migrations/1766021000000-AddCatalogContentTemplates.js"
+import { AddRecipientInvitations1766022000000 } from "../migrations/1766022000000-AddRecipientInvitations.js"
+import { AddOrderChangeRequests1766023000000 } from "../migrations/1766023000000-AddOrderChangeRequests.js"
 
 import { AddEnrollmentPlacementSnapshot1765987200000 } from "../migrations/1765987200000-AddEnrollmentPlacementSnapshot.js"
 import { AddTourSessionMinimumParticipants1765990800000 } from "../migrations/1765990800000-AddTourSessionMinimumParticipants.js"
@@ -84,6 +90,12 @@ export const DOMAIN_DATA_SOURCE_OPTIONS = {
     AddPretripCoordinates1766016060000,
     AddSessionArchives1766016120000,
     AddNotificationBusinessSources1766016180000,
+    AddUserNotifications1766016240000,
+    AddPhoneAuthentication1766020000000,
+    AddCatalogContentTemplates1766021000000,
+    AddRecipientInvitations1766022000000,
+    AddOrderChangeRequests1766023000000,
+    AddTourContracts1766024000000,
   ],
 } satisfies DataSourceOptions
 

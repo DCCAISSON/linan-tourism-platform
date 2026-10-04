@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { In, type EntityManager } from "typeorm"
 import { AuditLogEntity } from "../../domain/entities/audit-log.entity.js"
 import { EnrollmentEntity } from "../../domain/entities/enrollment.entity.js"
@@ -19,6 +19,7 @@ import { parseContentVersion } from "./notifications.parser.js"
 import { loadWechatSubscribeConfig } from "./wechat-subscribe.adapter.js"
 import { notificationTaskFingerprint } from "./notification-domain.js"
 import type { ContentVersionInput, NotificationEntryInput, NotificationTaskInput, NotificationTargetPreview } from "./notifications.types.js"
+import { availableContactEntry, recipientAuthorizationIsCurrent } from "./recipient-pretrip-policy.js"
 
 @Injectable()
 export class NotificationManagementService {
@@ -79,7 +80,8 @@ export class NotificationManagementService {
       const current = await manager.findOne(NotificationChannelEntryEntity, { where: { tourSessionId: session.id, kind }, lock: { mode: "pessimistic_write" } })
       if ((current?.version ?? 0) !== input.expectedVersion) throw conflict("通知入口已变更，请刷新后重试")
       const row = current ?? manager.create(NotificationChannelEntryEntity, { id: randomUUID(), tourSessionId: session.id, kind, version: 0 })
-      Object.assign(row, { label: input.label, url: input.url, enabled: input.enabled, updatedByStaffId: access.actorId, version: row.version + 1 })
+      Object.assign(row, { label: input.label, url: input.url, corpId: input.corpId ?? null, enabled: input.enabled, updatedByStaffId: access.actorId, version: row.version + 1 })
+      if (row.enabled && row.kind !== "customer_service" && !availableContactEntry(row)) throw new BadRequestException({ code: "notification_channel_invalid", message: row.kind === "enterprise_wechat" ? "请填写企业 ID 和有效的微信客服链接" : "请填写公众号文章链接" })
       await manager.save(row)
       await audit(manager, session, access.actorId, "notification.entry_updated", row.id)
       return toEntry(row)
@@ -155,6 +157,7 @@ async function selectedAuthorizations(manager: EntityManager, sessionId: string,
       throw conflict("所选通知接收人未授权或不属于本团")
     }
     if (source !== undefined && (!businessSourceAllowsOrder(source, order) || enrollment.status === "cancelled")) throw conflict("所选接收人不属于该业务来源的有效已付款订单")
+    if (row.scope === "pretrip_only" && (source?.kind !== "pretrip_updated" || !recipientAuthorizationIsCurrent(row))) throw conflict("受邀出行人仅可接收有效授权期内的行前更新")
     return row
   })
 }
@@ -167,7 +170,7 @@ async function businessSources(manager: EntityManager, sessionId: string) {
   return Promise.all(sources.map(async source => {
     const current = await businessSourceIsCurrent(manager, source)
     const allowedOrders = new Set(orders.filter(order => businessSourceAllowsOrder(source, order)).map(order => order.id))
-    const authorizationIds = current ? authorizations.filter(row => allowedOrders.has(row.orderId)).map(row => row.id) : []
+    const authorizationIds = current ? authorizations.filter(row => allowedOrders.has(row.orderId) && (row.scope !== "pretrip_only" || source.kind === "pretrip_updated" && recipientAuthorizationIsCurrent(row))).map(row => row.id) : []
     return { id: source.id, kind: source.kind, orderId: source.orderId, sourceVersion: source.sourceVersion,
       title: source.title, bodyText: source.bodyText, createdAt: source.createdAt.toISOString(), linkedTaskId: source.linkedTaskId,
       status: !current ? "expired" : source.linkedTaskId !== null ? "linked" : authorizationIds.length === 0 ? "awaiting_authorization" : "pending", authorizationIds }
@@ -183,7 +186,7 @@ function toContent(row: NotificationContentVersionEntity) {
   const templateData = parseContentVersion({ title: row.title, bodyText: row.bodyText, templateId: row.templateId, miniappPage: row.miniappPage, templateData: JSON.parse(row.templateDataJson) }).templateData
   return { id: row.id, title: row.title, bodyText: row.bodyText, templateId: row.templateId, miniappPage: row.miniappPage, templateData, createdAt: row.createdAt.toISOString() }
 }
-function toEntry(row: NotificationChannelEntryEntity) { return { kind: row.kind, label: row.label, url: row.url, enabled: row.enabled, version: row.version } }
+function toEntry(row: NotificationChannelEntryEntity) { return { kind: row.kind, label: row.label, url: row.url, corpId: row.corpId, enabled: row.enabled, version: row.version } }
 function toTaskSummary(row: NotificationDeliveryTaskEntity) { return { id: row.id, contentVersionId: row.contentVersionId, status: row.status, createdAt: row.createdAt.toISOString() } }
 async function audit(manager: EntityManager, session: TourSessionEntity, actorId: string, action: string, targetId: string): Promise<void> {
   await manager.save(manager.create(AuditLogEntity, { id: randomUUID(), organizationId: session.organizationId, actorId, action, targetType: "notification", targetId, createdAt: new Date() }))

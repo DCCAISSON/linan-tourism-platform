@@ -32,6 +32,7 @@ const WECHAT_MCH_ID = "todo14-mch"
 const BILL_DATE = "2026-09-23"
 let scope = ""
 let identitySequence = 100
+let wechatRequestReply: Record<string, unknown> | null = null
 
 type PaidOrder = { readonly id: string; readonly amountFen: number; readonly headers: Record<string, string>; readonly tourSessionId: string }
 type LineRow = { readonly id: string; readonly enrollmentParticipantId: string }
@@ -52,6 +53,7 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
   beforeEach(async () => {
     scope = createScope().replace("catalog-trip-", "todo14-")
     identitySequence = 100
+    wechatRequestReply = null
     process.stdout.write(`[todo14-scope:money-notifications] ${scope}\n`)
     previousNodeEnv = process.env["NODE_ENV"]
     previousOrigin = process.env["ADMIN_WEB_ORIGIN"]
@@ -120,37 +122,80 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
     expect(stale.body.confirmation).toMatchObject({ status: "stale" })
   })
 
-  it("processes signed WeChat refund callbacks idempotently and preserves pending state for processing, unknown, and mismatches", async () => {
+  it("processes signed WeChat refund callbacks idempotently and preserves pending state for processing, unknown, and amount mismatches", async () => {
     // Given
     const target = requireApp(app)
     const payment = await wechatRefundFixture(target, "callback")
     const service = target.get(WechatPaymentService)
 
     // When
-    const processingEvent = signedRefundNotification("event-processing", payment.outRefundNo, "PROCESSING", 1200, 2400, "CNY")
+    const processingEvent = signedRefundNotification("event-processing", payment.outRefundNo, "PROCESSING", 1200, 2400)
     await service.handleRefundCallback(processingEvent.headers, processingEvent.body)
     const processing = await refundStatus(payment.refundRequestId, payment.outRefundNo)
-    const successEvent = signedRefundNotification("event-success", payment.outRefundNo, "SUCCESS", 1200, 2400, "CNY")
+    const successEvent = signedRefundNotification("event-success", payment.outRefundNo, "SUCCESS", 1200, 2400)
     await service.handleRefundCallback(successEvent.headers, successEvent.body)
     await service.handleRefundCallback(successEvent.headers, successEvent.body)
     const success = await refundStatus(payment.refundRequestId, payment.outRefundNo)
     const unknown = await wechatRefundFixture(target, "unknown")
-    const unknownEvent = signedRefundNotification("event-unknown", unknown.outRefundNo, "USERPAYING", 1200, 2400, "CNY")
+    const unknownEvent = signedRefundNotification("event-unknown", unknown.outRefundNo, "USERPAYING", 1200, 2400)
     await service.handleRefundCallback(unknownEvent.headers, unknownEvent.body)
     const mismatch = await wechatRefundFixture(target, "mismatch")
-    const mismatchEvent = signedRefundNotification("event-mismatch", mismatch.outRefundNo, "SUCCESS", 1300, 2400, "CNY")
+    const mismatchEvent = signedRefundNotification("event-mismatch", mismatch.outRefundNo, "SUCCESS", 1300, 2400)
     await service.handleRefundCallback(mismatchEvent.headers, mismatchEvent.body)
-    const currency = await wechatRefundFixture(target, "currency")
-    const currencyEvent = signedRefundNotification("event-currency", currency.outRefundNo, "SUCCESS", 1200, 2400, "USD")
-    await expect(service.handleRefundCallback(currencyEvent.headers, currencyEvent.body)).rejects.toMatchObject({ response: expect.objectContaining({ code: "wechat_currency_mismatch" }) })
 
     // Then
     expect(processing).toMatchObject({ requestStatus: "pending", transactionStatus: "processing" })
     expect(success).toMatchObject({ requestStatus: "succeeded", transactionStatus: "succeeded" })
     await expect(refundStatus(unknown.refundRequestId, unknown.outRefundNo)).resolves.toMatchObject({ requestStatus: "pending", transactionStatus: "unknown" })
     await expect(refundStatus(mismatch.refundRequestId, mismatch.outRefundNo)).resolves.toMatchObject({ requestStatus: "pending", transactionStatus: "abnormal", abnormalReason: "refund_amount_mismatch" })
-    await expect(refundStatus(currency.refundRequestId, currency.outRefundNo)).resolves.toMatchObject({ requestStatus: "pending", transactionStatus: "processing" })
     await expect(dataSource.query("select count(*) as count from refund_requests where id = ?", [payment.refundRequestId])).resolves.toEqual([{ count: "1" }])
+  })
+
+  it("queries WeChat refund status without making an abnormal refund retryable", async () => {
+    // Given
+    const target = requireApp(app)
+    const payment = await wechatRefundFixture(target, "query")
+    const staff = await staffSession(`${scope}-refund-query`, ["refunds.manage"])
+    wechatRequestReply = refundQueryReply(payment.outRefundNo, "ABNORMAL", 1200, 2400)
+
+    // When
+    const abnormal = await request(target.getHttpServer())
+      .post(`/staff/orders/${payment.orderId}/wechat-refunds/${payment.refundRequestId}/sync`)
+      .set(staff).set("Origin", ORIGIN).expect(201)
+    wechatRequestReply = refundQueryReply(payment.outRefundNo, "SUCCESS", 1200, 2400)
+    const succeeded = await request(target.getHttpServer())
+      .post(`/staff/orders/${payment.orderId}/wechat-refunds/${payment.refundRequestId}/sync`)
+      .set(staff).set("Origin", ORIGIN).expect(201)
+
+    // Then
+    expect(abnormal.body).toMatchObject({ status: "pending", failureMessage: "微信退款异常，请在微信支付商户平台处理后再次查询" })
+    expect(succeeded.body).toMatchObject({ status: "succeeded", failureMessage: null })
+    await expect(refundStatus(payment.refundRequestId, payment.outRefundNo)).resolves.toMatchObject({ requestStatus: "succeeded", transactionStatus: "succeeded" })
+  })
+
+  it("creates a WeChat refund without reusing the payment transaction number", async () => {
+    // Given
+    const target = requireApp(app)
+    const catalog = await capacityCatalog(target, 10, `${scope}-create-refund`)
+    const order = await paidOrder(target, catalog, "create-refund", 1)
+    const lines = await orderLines(order.id)
+    const line = lines[0]
+    if (line === undefined) throw new Error("refund fixture must include an order line")
+    const paymentNo = paymentNumber("create-refund")
+    const staff = await staffSession(`${scope}-refund-manager`, ["refunds.manage"])
+    await dataSource.query("insert into payments (id, organization_id, order_id, payment_no, provider_transaction_id, provider_event_id, status, amount_fen, channel, policy_version, created_at, updated_at) select ?, organization_id, id, ?, ?, ?, 'succeeded', amount_fen, 'wechat_pay', 'test', current_timestamp(6), current_timestamp(6) from orders where id = ?", [`payment-${scope}-create-refund`, paymentNo, `wx-${scope}-create-refund`, `wx-event-${scope}-create-refund`, order.id])
+    await dataSource.query("insert into wechat_transactions (id, organization_id, kind, event_id, order_id, refund_request_id, out_trade_no, out_refund_no, provider_transaction_id, status, amount_fen, abnormal_reason, raw_payload, created_at, updated_at) select ?, organization_id, 'payment', ?, id, null, ?, null, ?, 'succeeded', amount_fen, null, json_object(), current_timestamp(6), current_timestamp(6) from orders where id = ?", [`wechat-payment-${scope}-create-refund`, `payment-event-${scope}-create-refund`, paymentNo, `wx-${scope}-create-refund`, order.id])
+
+    // When
+    const response = await request(target.getHttpServer()).post(`/staff/orders/${order.id}/wechat-refunds`).set(staff).set("Origin", ORIGIN)
+      .send({ lineIds: [line.id], reason: "refund integration regression", note: null, idempotencyKey: `${scope}-create-refund` }).expect(201)
+
+    // Then
+    expect(response.body).toMatchObject({ orderId: order.id, amountFen: order.amountFen, status: "pending" })
+    await expect(dataSource.query("select kind, out_trade_no as outTradeNo from wechat_transactions where order_id = ? order by kind", [order.id])).resolves.toEqual([
+      { kind: "payment", outTradeNo: paymentNo },
+      { kind: "refund", outTradeNo: null },
+    ])
   })
 
   it("persists WeChat bill payment and refund differences without mutating ledger rows", async () => {
@@ -219,7 +264,17 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
 async function createTodo14App(bill: string, subscribeOrigin: string): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(WechatPayClient)
-    .useValue({ downloadBill: async () => ({ content: Buffer.from(bill), hashType: "SHA256", hash: createHash("sha256").update(bill).digest("hex") }) })
+    .useValue({
+      downloadBill: async () => ({ content: Buffer.from(bill), hashType: "SHA256", hash: createHash("sha256").update(bill).digest("hex") }),
+      request: async (path: string) => {
+        if (path.startsWith("/v3/refund/domestic/refunds/") && wechatRequestReply !== null) {
+          const reply = wechatRequestReply
+          wechatRequestReply = null
+          return reply
+        }
+        return {}
+      },
+    })
     .overrideProvider(WechatSubscribeAdapter)
     .useValue(new WechatSubscribeAdapter(() => ({ accessToken: `token-${scope}`, apiOrigin: subscribeOrigin, enabled: true, timeoutMs: 5000 })))
     .compile()
@@ -317,13 +372,22 @@ async function wechatRefundFixture(target: INestApplication, name: string) {
   await dataSource.query("insert into payments (id, organization_id, order_id, payment_no, provider_transaction_id, provider_event_id, status, amount_fen, channel, policy_version, created_at, updated_at) select ?, organization_id, id, ?, ?, ?, 'succeeded', amount_fen, 'wechat_pay', 'test', current_timestamp(6), current_timestamp(6) from orders where id = ?", [`payment-${scope}-${name}`, paymentNo, `wx-${scope}-${name}`, `wx-event-${scope}-${name}`, order.id])
   await dataSource.query("insert into refund_requests (id, organization_id, order_id, provider, idempotency_key, status, reason, note, amount_fen, requested_by_staff_id, processed_by_staff_id, failure_message, requested_at, processed_at, policy_version) select ?, organization_id, id, 'wechat_pay', ?, 'pending', 'wechat callback fixture', null, 1200, ?, null, null, current_timestamp(6), null, 'test' from orders where id = ?", [refundRequestId, `${scope}-${name}-refund`, requesterId, order.id])
   await dataSource.query("insert into refund_request_lines (id, organization_id, refund_request_id, order_line_id, amount_fen, policy_version) select ?, organization_id, ?, ?, 1200, 'test' from orders where id = ?", [`refund-line-${scope}-${name}`, refundRequestId, lines[0]?.id, order.id])
-  await dataSource.query("insert into wechat_transactions (id, organization_id, kind, event_id, order_id, refund_request_id, out_trade_no, out_refund_no, provider_transaction_id, status, amount_fen, abnormal_reason, raw_payload, created_at, updated_at) select ?, organization_id, 'refund', ?, id, ?, ?, ?, null, 'processing', 1200, null, json_object(), current_timestamp(6), current_timestamp(6) from orders where id = ?", [`wechat-tx-${scope}-${name}`, `seed-${scope}-${name}`, refundRequestId, paymentNo, outRefundNo, order.id])
-  return { refundRequestId, outRefundNo, paymentNo }
+  await dataSource.query("insert into wechat_transactions (id, organization_id, kind, event_id, order_id, refund_request_id, out_trade_no, out_refund_no, provider_transaction_id, status, amount_fen, abnormal_reason, raw_payload, created_at, updated_at) select ?, organization_id, 'refund', ?, id, ?, null, ?, null, 'processing', 1200, null, json_object(), current_timestamp(6), current_timestamp(6) from orders where id = ?", [`wechat-tx-${scope}-${name}`, `seed-${scope}-${name}`, refundRequestId, outRefundNo, order.id])
+  return { orderId: order.id, refundRequestId, outRefundNo, paymentNo }
 }
 
-function signedRefundNotification(eventId: string, outRefundNo: string, status: string, refundFen: number, totalFen: number, currency: string) {
-  const resource = { mchid: WECHAT_MCH_ID, out_refund_no: outRefundNo, refund_id: `wx-${eventId}`, refund_status: status, amount: { refund: refundFen, total: totalFen, currency } }
+function signedRefundNotification(eventId: string, outRefundNo: string, status: string, refundFen: number, totalFen: number) {
+  const resource = { mchid: WECHAT_MCH_ID, out_refund_no: outRefundNo, refund_id: `wx-${eventId}`, refund_status: status, amount: { refund: refundFen, total: totalFen, payer_total: totalFen, payer_refund: refundFen } }
   return signedNotification(eventId, resource)
+}
+
+function refundQueryReply(outRefundNo: string, status: string, refundFen: number, totalFen: number): Record<string, unknown> {
+  return {
+    refund_id: `wx-${outRefundNo}`,
+    out_refund_no: outRefundNo,
+    status,
+    amount: { refund: refundFen, total: totalFen, payer_total: totalFen, payer_refund: refundFen },
+  }
 }
 
 function signedNotification(eventId: string, resource: object) {
@@ -431,6 +495,7 @@ function installWechatFixtureKeys(): string {
   process.env["WECHAT_PAY_API_V3_KEY"] = API_V3_KEY
   process.env["WECHAT_PAY_NOTIFY_URL"] = "https://example.test/wechat/pay"
   process.env["WECHAT_PAY_REFUND_NOTIFY_URL"] = "https://example.test/wechat/refund"
+  process.env["WECHAT_REFUND_ENABLED"] = "true"
   return dir
 }
 
@@ -460,6 +525,7 @@ function wechatEnvKeys(): readonly string[] {
     "WECHAT_PAY_API_V3_KEY",
     "WECHAT_PAY_NOTIFY_URL",
     "WECHAT_PAY_REFUND_NOTIFY_URL",
+    "WECHAT_REFUND_ENABLED",
     "WECHAT_SUBSCRIBE_ENABLED",
     "WECHAT_SUBSCRIBE_ACCESS_TOKEN",
     "WECHAT_SUBSCRIBE_API_ORIGIN",
@@ -481,7 +547,7 @@ async function cleanup(activeScope: string): Promise<void> {
   await dataSource.query("delete entry from notification_channel_entries entry join tour_sessions ts on ts.id = entry.tour_session_id where ts.code like ?", [`session-${activeScope}%`])
   await dataSource.query("delete d from wechat_bill_differences d join wechat_bill_reconciliations r on r.id = d.reconciliation_id where r.bill_date = ?", [BILL_DATE])
   await dataSource.query("delete from wechat_bill_reconciliations where bill_date = ?", [BILL_DATE])
-  await dataSource.query("delete from wechat_transactions where out_trade_no like ? or id like ?", [`wechat-payment-${activeScope}%`, `wechat-tx-${activeScope}%`])
+  await dataSource.query("delete transaction from wechat_transactions transaction join orders o on o.id = transaction.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?", [`family-${activeScope}%`])
   await dataSource.query("delete line from refund_request_lines line join refund_requests request on request.id = line.refund_request_id where request.id like ?", [`%${activeScope}%`])
   await dataSource.query("delete from refund_applications where idempotency_key like ? or idempotency_key like ?", [`${activeScope}%`, `%${activeScope}%`])
   await dataSource.query("delete from refund_requests where id like ? or idempotency_key like ?", [`%${activeScope}%`, `%${activeScope}%`])

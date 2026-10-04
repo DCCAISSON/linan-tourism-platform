@@ -15,17 +15,14 @@ export function parsePretripConfig(value: unknown): PretripConfigInput {
     serviceContact: text(input["serviceContact"], "serviceContact", 255),
     noticeVersionId: nullableText(input["noticeVersionId"], "noticeVersionId", 64),
     expectedVersion: integer(input["expectedVersion"], "expectedVersion"),
-    attachments: array(input["attachments"], "attachments").map((item) => {
+    ...(input["attachments"] === undefined ? {} : { attachments: array(input["attachments"], "attachments").map((item) => {
       const attachment = record(item)
-      const id = optionalText(attachment["id"], "attachment.id", 64)
+      if (Object.keys(attachment).some((key) => key !== "id" && key !== "title")) throw invalid("附件只能引用本团已上传的文件")
       return {
-        ...(id === undefined ? {} : { id }),
+        id: text(attachment["id"], "attachment.id", 64),
         title: text(attachment["title"], "attachment.title", 120),
-        objectKey: text(attachment["objectKey"], "attachment.objectKey", 255),
-        contentType: text(attachment["contentType"], "attachment.contentType", 80),
-        byteSize: integer(attachment["byteSize"], "attachment.byteSize"),
       }
-    }),
+    }) }),
   }
 }
 
@@ -67,11 +64,6 @@ function text(value: unknown, label: string, maxLength: number): string {
   const normalized = value.trim()
   if (normalized.length === 0 || normalized.length > maxLength) throw invalid(`${label} length is invalid`)
   return normalized
-}
-
-function optionalText(value: unknown, label: string, maxLength: number): string | undefined {
-  if (value === undefined) return undefined
-  return text(value, label, maxLength)
 }
 
 function nullableText(value: unknown, label: string, maxLength: number): string | null {
