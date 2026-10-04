@@ -78,6 +78,32 @@ beforeEach(() => {
 })
 
 describe("profile login sheet", () => {
+  it("reuses current policy agreement and goes from saving directly to the separate subscription choice", async () => {
+    const sheet = setup()
+    expect(sheet.serviceAllowed.value).toBe(true)
+    expect(sheet.privacyVisible.value).toBe(false)
+    await sheet.authorizePhone({ detail: { code: "phone-code" } })
+    await sheet.saveProfile({ detail: { value: { nickname: "小林" } } })
+    expect(sheet.privacyVisible.value).toBe(false)
+    expect(sheet.subscriptionVisible.value).toBe(true)
+    expect(localProfile).toHaveBeenCalledWith("family:family-a", { nickname: "小林", avatarPath: "" })
+    expect(emitted).not.toHaveBeenCalled()
+  })
+
+  it("keeps login and profile saving blocked until the first privacy confirmation is accepted", async () => {
+    hasServiceConsent.mockReturnValue(false)
+    const sheet = setup()
+    expect(sheet.privacyVisible.value).toBe(true)
+    await sheet.authorizePhone({ detail: { code: "phone-code" } })
+    await sheet.saveProfile({ detail: { value: { nickname: "小林" } } })
+    expect(loginWithWechatPhone).not.toHaveBeenCalled()
+    expect(localProfile).not.toHaveBeenCalled()
+    expect(sheet.subscriptionVisible.value).toBe(false)
+    sheet.cancel()
+    expect(emitted).toHaveBeenCalledWith("cancelled")
+    expect(emitted.mock.calls.some(([event]) => event === "completed")).toBe(false)
+  })
+
   it("does not start phone login after unmount while waiting for the WeChat code", async () => {
     let finishCode: (value: { code: string }) => void = () => { throw new Error("WeChat login did not start") }
     login.mockImplementationOnce(options => { finishCode = options.success })
