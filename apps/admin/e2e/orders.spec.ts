@@ -24,7 +24,7 @@ async function installOrdersFixture(page: Page, existingResult?: "succeeded" | "
       ],
     } })
   })
-  await page.route(`${apiBase}/staff/orders/order-1/refunds`, async route => {
+  await page.route(`${apiBase}/staff/orders/order-1/wechat-refunds`, async route => {
     const body: unknown = route.request().postDataJSON()
     expect(body).toMatchObject({ lineIds: ["line-1"], reason: "学生临时无法参加", idempotencyKey: expect.any(String) })
     expect(body).not.toHaveProperty("amountFen")
@@ -32,15 +32,15 @@ async function installOrdersFixture(page: Page, existingResult?: "succeeded" | "
     refunds.push(refund)
     await route.fulfill({ json: { ...refund, orderId: order.id } })
   })
-  await page.route(`${apiBase}/staff/orders/order-1/refunds/*/local-result`, async route => {
+  await page.route(`${apiBase}/staff/orders/order-1/wechat-refunds/*/sync`, async route => {
     const body: unknown = route.request().postDataJSON()
     const refund = refunds.find(item => route.request().url().includes(`/${item.id}/`))
     expect(refund).toBeDefined()
-    if (!refund || typeof body !== "object" || body === null || !("outcome" in body) || (body.outcome !== "succeeded" && body.outcome !== "failed")) throw new Error("Unexpected refund processing request")
-    if (existingResult) expect(body.outcome).toBe(existingResult === "failed" ? "succeeded" : "failed")
-    refund.status = existingResult ?? body.outcome
+    if (!refund) throw new Error("Unexpected refund query")
+    expect(body).toEqual({})
+    refund.status = existingResult ?? "succeeded"
     refund.processedAt = "2026-09-22T01:05:00.000Z"
-    refund.failureMessage = refund.status === "failed" ? "处理失败" : null
+    refund.failureMessage = refund.status === "failed" ? "CLOSED" : null
     await route.fulfill({ json: { ...refund, orderId: order.id } })
   })
 }
@@ -53,10 +53,10 @@ async function createRefund(page: Page): Promise<void> {
   await page.getByRole("button", { name: "创建退款", exact: true }).click()
   await expect(page.getByRole("group", { name: "确认创建退款" })).toContainText("¥128.00")
   await page.getByRole("button", { name: "确认创建退款", exact: true }).click()
-  await expect(page.getByText("待处理", { exact: true })).toBeVisible()
+  await expect(page.getByText("退款处理中", { exact: true })).toBeVisible()
 }
 
-test("staff creates and processes a persisted partial refund with a wire fixture", async ({ page }, testInfo) => {
+test("staff creates and queries a persisted partial WeChat refund with a wire fixture", async ({ page }, testInfo) => {
   await installOrdersFixture(page)
   await page.goto("/orders")
   await page.getByRole("button", { name: "查看详情" }).click()
@@ -66,16 +66,14 @@ test("staff creates and processes a persisted partial refund with a wire fixture
   await createRefund(page)
   await page.reload()
   await page.getByRole("button", { name: "查看详情" }).click()
-  await expect(page.getByText("待处理", { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "处理成功", exact: true }).click()
-  await expect(page.getByRole("group", { name: "确认处理成功" })).toContainText("取消对应人员的名单并释放名额")
-  await page.getByRole("button", { name: "确认处理成功", exact: true }).click()
+  await expect(page.getByText("退款处理中", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "查询微信退款结果", exact: true }).click()
   await expect(page.getByText("已支付（部分退款）", { exact: true })).toBeVisible()
-  await expect(page.getByText("处理结果已保存，订单、名单和名额已更新。", { exact: true })).toBeVisible()
+  await expect(page.getByText("微信退款成功，订单、名单和名额已更新。", { exact: true })).toBeVisible()
   await page.reload()
   await page.getByRole("button", { name: "查看详情" }).click()
   await expect(page.getByText("已支付（部分退款）", { exact: true })).toBeVisible()
-  await expect(page.getByText("处理成功", { exact: true })).toBeVisible()
+  await expect(page.getByText("退款成功", { exact: true })).toBeVisible()
   await expect(page.getByLabel("选择取消 学生甲")).toBeDisabled()
   for (const width of [1280, 768, 375]) {
     await page.setViewportSize({ width, height: 900 })
@@ -84,14 +82,13 @@ test("staff creates and processes a persisted partial refund with a wire fixture
   }
 })
 
-test("failed processing retains history and permits a new refund request", async ({ page }) => {
-  await installOrdersFixture(page)
+test("a closed WeChat refund retains history and permits a new refund request", async ({ page }) => {
+  await installOrdersFixture(page, "failed")
   await page.goto("/orders")
   await page.getByRole("button", { name: "查看详情" }).click()
   await createRefund(page)
-  await page.getByRole("button", { name: "处理失败", exact: true }).click()
-  await page.getByRole("button", { name: "确认处理失败", exact: true }).click()
-  await expect(page.getByText("处理失败", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "查询微信退款结果", exact: true }).click()
+  await expect(page.getByText("退款失败", { exact: true })).toBeVisible()
   await expect(page.getByLabel("选择取消 学生甲")).toBeEnabled()
   await createRefund(page)
   await expect(page.getByRole("article", { name: "退款记录" })).toHaveCount(2)
@@ -105,12 +102,12 @@ test("orders read permission hides refund write actions including pending proces
   await installStaffAuthMock(page, ["orders.read"])
   await page.reload()
   await page.getByRole("button", { name: "查看详情" }).click()
-  await expect(page.getByText("待处理", { exact: true })).toBeVisible()
+  await expect(page.getByText("退款处理中", { exact: true })).toBeVisible()
   await expect(page.getByText("学生甲", { exact: true })).toBeVisible()
   await expect(page.getByLabel("退款原因（必填）")).toBeHidden()
   await expect(page.getByRole("checkbox")).toHaveCount(0)
   await expect(page.getByRole("button", { name: "创建退款", exact: true })).toBeHidden()
-  await expect(page.getByRole("button", { name: "处理成功", exact: true })).toBeHidden()
+  await expect(page.getByRole("button", { name: "查询微信退款结果", exact: true })).toBeHidden()
 })
 
 test("refund capability disabled hides refund write actions", async ({ page }) => {
@@ -129,32 +126,30 @@ test("refund execute permission alone does not expose order refund actions", asy
   await expect(page.getByRole("checkbox")).toHaveCount(0)
 })
 
-test("pending refund survives a non-JSON processing failure and can retry", async ({ page }) => {
+test("pending refund survives a non-JSON WeChat query failure and can retry", async ({ page }) => {
   await installOrdersFixture(page)
   await page.goto("/orders")
   await page.getByRole("button", { name: "查看详情" }).click()
   await createRefund(page)
-  const processingUrl = `${apiBase}/staff/orders/order-1/refunds/*/local-result`
+  const processingUrl = `${apiBase}/staff/orders/order-1/wechat-refunds/*/sync`
   await page.route(processingUrl, route => route.fulfill({ status: 502, contentType: "text/html", body: "Gateway unavailable" }), { times: 1 })
-  await page.getByRole("button", { name: "处理成功", exact: true }).click()
-  await page.getByRole("button", { name: "确认处理成功", exact: true }).click()
+  await page.getByRole("button", { name: "查询微信退款结果", exact: true }).click()
   await expect(page.getByRole("alert")).toContainText("订单服务响应格式不正确")
-  await expect(page.getByText("待处理", { exact: true })).toBeVisible()
-  await page.getByRole("button", { name: "确认处理成功", exact: true }).click()
+  await expect(page.getByText("退款处理中", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "查询微信退款结果", exact: true }).click()
   await expect(page.getByText("已支付（部分退款）", { exact: true })).toBeVisible()
 })
 
 for (const scenario of [
-  { submitted: "成功", status: "failed", message: "失败记录已保存，可重新选择人员创建退款。", history: "处理失败" },
-  { submitted: "失败", status: "succeeded", message: "处理结果已保存，订单、名单和名额已更新。", history: "处理成功" },
+  { status: "failed", message: "微信退款已关闭，可核对原因后重新发起。", history: "退款失败" },
+  { status: "succeeded", message: "微信退款成功，订单、名单和名额已更新。", history: "退款成功" },
 ] as const) {
-  test(`shows server final ${scenario.status} when a stale page submits ${scenario.submitted}`, async ({ page }) => {
+  test(`shows server final ${scenario.status} after querying a pending refund`, async ({ page }) => {
     await installOrdersFixture(page, scenario.status)
     await page.goto("/orders")
     await page.getByRole("button", { name: "查看详情" }).click()
     await createRefund(page)
-    await page.getByRole("button", { name: `处理${scenario.submitted}`, exact: true }).click()
-    await page.getByRole("button", { name: `确认处理${scenario.submitted}`, exact: true }).click()
+    await page.getByRole("button", { name: "查询微信退款结果", exact: true }).click()
     await expect(page.getByRole("status")).toHaveText(scenario.message)
     await expect(page.getByRole("article", { name: "退款记录" })).toContainText(scenario.history)
     switch (scenario.status) {
@@ -169,7 +164,7 @@ test("duplicate creation clicks are disabled while the request is pending", asyn
   let requestCount = 0
   let releaseRequest = (): void => {}
   const gate = new Promise<void>(resolve => { releaseRequest = resolve })
-  await page.route(`${apiBase}/staff/orders/order-1/refunds`, async route => { requestCount += 1; await gate; await route.fallback() })
+  await page.route(`${apiBase}/staff/orders/order-1/wechat-refunds`, async route => { requestCount += 1; await gate; await route.fallback() })
   await page.goto("/orders")
   await page.getByRole("button", { name: "查看详情" }).click()
   await page.getByLabel("选择取消 学生甲").check()
@@ -181,7 +176,7 @@ test("duplicate creation clicks are disabled while the request is pending", asyn
     await expect(page.getByLabel("选择取消 学生甲")).toBeDisabled()
     expect(requestCount).toBe(1)
   } finally { releaseRequest() }
-  await expect(page.getByText("待处理", { exact: true })).toBeVisible()
+  await expect(page.getByText("退款处理中", { exact: true })).toBeVisible()
   expect(requestCount).toBe(1)
 })
 

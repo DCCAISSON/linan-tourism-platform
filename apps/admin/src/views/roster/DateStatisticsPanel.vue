@@ -28,7 +28,7 @@ function clearResult(): void { result.value = undefined; error.value = "" }
 <template>
   <section v-if="allowed" class="roster-import-card date-statistics" aria-labelledby="date-statistics-title">
     <h3 id="date-statistics-title">按出行日期汇总</h3>
-    <p>按团期出发日期筛选，包含起止两天（北京时间）。金额为这些团期的累计支付与退款，不是日期区间内的资金流水。</p>
+    <p>按团期出发日期筛选，包含起止两天（北京时间）。金额为这些团期截至查询时的累计支付与成功退款，不是日期区间内的资金流水。</p>
     <form @submit.prevent="query">
       <fieldset :disabled="busy" class="date-statistics-fields">
         <label class="field">开始日期<input v-model="from" type="date" required @change="clearResult"></label>
@@ -42,12 +42,14 @@ function clearResult(): void { result.value = undefined; error.value = "" }
       <p role="status">共 {{ result.rows.length }} 个团期；未确认名单 {{ result.totals.confirmationMissing }} 个，未完成点名 {{ result.totals.attendanceIncomplete }} 个。已点名人数不代表全部实际出行人数。</p>
       <div class="roster-stat-grid">
         <article class="roster-stat-card"><span>已支付报名人数</span><strong>{{ result.totals.paidHeadcount }} 人</strong></article>
-        <article class="roster-stat-card"><span>支付成功金额</span><strong>{{ formatFen(result.totals.paymentAmountFen) }}</strong></article>
-        <article class="roster-stat-card"><span>退款成功金额</span><strong>{{ formatFen(result.totals.refundAmountFen) }}</strong></article>
+        <article class="roster-stat-card"><span>累计支付金额</span><strong>{{ formatFen(result.totals.paymentAmountFen) }}</strong></article>
+        <article class="roster-stat-card"><span>成功退款金额</span><strong>{{ formatFen(result.totals.refundAmountFen) }}</strong></article>
         <article class="roster-stat-card"><span>已点名实到人数</span><strong>{{ result.totals.presentHeadcount }} 人</strong></article>
       </div>
+      <p class="roster-state">累计支付保留已退款订单的原支付金额，不扣减退款；成功退款只计已完成的退款，不含处理中或失败的退款。</p>
       <p class="roster-state">报名人数沿用已付款且未取消名单；实到按当前确认名单的到场记录计数。无点名记录不视为已核实的零人出行。</p>
-      <div v-if="result.rows.length" class="roster-table-wrap"><table class="roster-table" aria-label="日期区间团期统计"><thead><tr><th>团期 / 学校</th><th>出发日期</th><th>已支付报名</th><th>支付成功</th><th>退款成功</th><th>已点名实到</th></tr></thead><tbody><tr v-for="row in result.rows" :key="row.sessionId"><td data-label="团期 / 学校">{{ row.code }} / {{ row.schoolName }}</td><td data-label="出发日期">{{ departureDate(row.startsAt) }}</td><td data-label="已支付报名">{{ row.paidHeadcount }} 人</td><td data-label="支付成功">{{ formatFen(row.paymentAmountFen) }}</td><td data-label="退款成功">{{ formatFen(row.refundAmountFen) }}</td><td data-label="已点名实到">{{ row.confirmationMissing ? '名单未确认' : `${row.presentHeadcount} 人${row.attendanceIncomplete ? '（点名未完成）' : ''}` }}</td></tr></tbody></table></div>
+      <p v-if="result.rows.length === 0" class="roster-state">当前日期和学校下没有团期，请调整出发日期或学校后重新查询。</p>
+      <div v-else class="roster-table-wrap"><table class="roster-table" aria-label="日期区间团期统计"><thead><tr><th>团期 / 学校</th><th>出发日期</th><th>已支付报名</th><th>累计支付</th><th>成功退款</th><th>已点名实到</th></tr></thead><tbody><tr v-for="row in result.rows" :key="row.sessionId"><td data-label="团期 / 学校">{{ row.code }} / {{ row.schoolName }}</td><td data-label="出发日期">{{ departureDate(row.startsAt) }}</td><td data-label="已支付报名">{{ row.paidHeadcount }} 人</td><td data-label="累计支付">{{ formatFen(row.paymentAmountFen) }}</td><td data-label="成功退款">{{ formatFen(row.refundAmountFen) }}</td><td data-label="已点名实到">{{ row.confirmationMissing ? '名单未确认' : `${row.presentHeadcount} 人${row.attendanceIncomplete ? '（点名未完成）' : ''}` }}</td></tr></tbody></table></div>
     </template>
   </section>
 </template>

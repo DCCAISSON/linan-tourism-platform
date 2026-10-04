@@ -90,7 +90,7 @@ async function openTravelers(page: Page, config: RealUatConfig): Promise<void> {
   await expect(page.getByRole("heading", { name: "来源、资格与冲突核对" })).toBeVisible()
   await page.getByLabel("团期").selectOption(config.tourSessionId)
   await selectConfiguredOrFirst(page.getByLabel("学校"), config.schoolId, "学校")
-  if (config.gradeId !== null) await page.getByLabel("年级").selectOption(config.gradeId)
+  if (config.gradeId !== null) await page.getByLabel("年级", { exact: true }).selectOption(config.gradeId)
   if (config.classId !== null) await page.getByLabel("班级").selectOption(config.classId)
   await page.getByRole("button", { name: "查询出行名单" }).click()
   await expect(page.locator(".roster-table-card")).toContainText(/出行人员|暂无人员|共/u)
@@ -101,7 +101,7 @@ async function openTransport(page: Page, config: RealUatConfig): Promise<void> {
   await expect(page.getByRole("heading", { name: "手工车辆分配与联系单导出" })).toBeVisible()
   await page.getByLabel("团期").selectOption(config.tourSessionId)
   await selectConfiguredOrFirst(page.getByLabel("学校/机构"), config.schoolId, "学校/机构")
-  if (config.gradeId !== null) await page.getByLabel("年级").selectOption(config.gradeId)
+  if (config.gradeId !== null) await page.getByLabel("年级", { exact: true }).selectOption(config.gradeId)
   if (config.classId !== null) await page.getByLabel("班级").selectOption(config.classId)
   await page.getByRole("button", { name: "读取安排" }).click()
   await expect(page.getByText("车辆计划版本")).toBeVisible()
@@ -120,14 +120,14 @@ async function openPretrip(page: Page, config: RealUatConfig): Promise<void> {
 async function openRefundApplications(page: Page): Promise<void> {
   await page.getByRole("link", { name: "退款申请" }).click()
   await expect(page.getByRole("heading", { name: "退款申请" })).toBeVisible()
-  await expect(page.getByText(/待审核：\d+ 笔/u)).toBeVisible()
-  await expect(page.getByText(/总申请：\d+ 笔/u)).toBeVisible()
+  await expect(page.getByText(/其中待审核 \d+ 笔/u)).toBeVisible()
+  await expect(page.getByText(/当前筛选：\d+ 笔/u)).toBeVisible()
 }
 
 async function openNotifications(page: Page, config: RealUatConfig): Promise<void> {
   await page.getByRole("link", { name: "通知管理" }).click()
   await expect(page.getByRole("heading", { name: "通知内容、接收人和发送记录" })).toBeVisible()
-  await page.getByLabel("团期 ID").fill(config.tourSessionId)
+  await page.getByRole("combobox", { name: "团期", exact: true }).selectOption(config.tourSessionId)
   await page.getByRole("button", { name: "读取团期通知" }).click()
   await expect(page.getByText("团期通知已读取。")).toBeVisible()
   await expect(page.getByRole("heading", { name: "内容版本" })).toBeVisible()

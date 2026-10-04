@@ -63,7 +63,7 @@
           <div><dt>紧急联系人</dt><dd>{{ detail.emergencyContactName || '未登记' }}</dd></div>
           <div><dt>紧急联系电话</dt><dd>{{ detail.emergencyContactPhone || '未登记' }}</dd></div>
           <div><dt>应付 / 已付</dt><dd>{{ formatFen(detail.amountFen) }} / {{ formatFen(detail.paidFen) }}</dd></div>
-          <div><dt>已退款 / 待处理</dt><dd>{{ formatFen(detail.refundSummary.refundedFen) }} / {{ formatFen(detail.refundSummary.pendingFen) }}</dd></div>
+          <div><dt>成功退款 / 处理中</dt><dd>{{ formatFen(detail.refundSummary.refundedFen) }} / {{ formatFen(detail.refundSummary.pendingFen) }}</dd></div>
         </dl>
         <OrderContractPanel v-if="canReadContract" :key="detail.id" :order-id="detail.id" />
         <div class="orders-section-heading"><h3>参加人员</h3><span>{{ detail.participants.length }} 人</span></div>
@@ -86,7 +86,7 @@
           </form>
           <p v-if="canManage && detail.status !== 'paid'" class="orders-state">当前订单不可创建退款。</p>
           <div v-if="confirmation?.kind === 'create'" class="orders-confirmation" role="group" aria-label="确认创建退款">
-            <p>确认对 {{ selectedLineIds.length }} 人创建 {{ formatFen(selectedAmountFen) }} 的退款请求？原因：{{ reason }}。创建后等待人工处理。</p>
+            <p>确认对 {{ selectedLineIds.length }} 人提交 {{ formatFen(selectedAmountFen) }} 的微信退款？原因：{{ reason }}。提交后请在退款记录中查看处理结果。</p>
             <div class="orders-refund-actions"><button type="button" class="orders-button" :disabled="refundBusy" @click="createRefund">确认创建退款</button><button type="button" class="orders-button orders-button--secondary" :disabled="refundBusy" @click="confirmation = undefined">返回修改</button></div>
           </div>
           <p v-if="refundError" class="orders-error" role="alert">{{ refundError }}</p>
@@ -94,10 +94,11 @@
           <h3 class="orders-history-title">退款记录</h3>
           <p v-if="detail.refundHistory.length === 0" class="orders-state">暂无退款记录。</p>
           <article v-for="refund in detail.refundHistory" :key="refund.id" class="orders-refund-record" aria-label="退款记录">
-            <div class="orders-section-heading"><strong>{{ refundText(refund.status) }}</strong><b class="orders-money">{{ formatFen(refund.amountFen) }}</b></div>
+            <div class="orders-section-heading"><strong>{{ refund.status === 'pending' && refund.failureMessage ? '退款待核对' : refundText(refund.status) }}</strong><b class="orders-money">{{ formatFen(refund.amountFen) }}</b></div>
             <p>人员：{{ refund.lines.map(line => line.displayName).join('、') }}</p><p>原因：{{ refund.reason }}</p><p v-if="refund.note">备注：{{ refund.note }}</p>
             <p>创建：{{ formatDate(refund.requestedAt) }}<template v-if="refund.processedAt"> · 处理：{{ formatDate(refund.processedAt) }}</template></p>
-            <p v-if="refund.failureMessage" class="orders-error">退款说明：{{ refund.failureMessage }}</p>
+            <p v-if="refund.failureMessage" class="orders-error">退款说明：{{ refund.failureMessage === 'CLOSED' ? '微信退款已关闭，请核对关闭原因后再处理。' : refund.failureMessage }}</p>
+            <p v-if="refund.status === 'pending'">{{ refund.failureMessage ? '请先核对微信支付商户平台的退款结果，再查询更新；核对完成前不要另行发起退款。' : '退款尚未完成，可查询微信退款结果更新进度。' }}</p>
             <div v-if="canManage && refund.status === 'pending'" class="orders-refund-actions"><button type="button" class="orders-button orders-button--secondary" :disabled="refundBusy" @click="syncRefund(refund.id)">{{ refundBusy ? "查询中..." : "查询微信退款结果" }}</button></div>
           </article>
         </div>
@@ -198,10 +199,10 @@ async function syncRefund(refundId: string): Promise<void> {
   finally { refundBusy.value = false }
 }
 function refundText(value: RefundHistoryItem["status"]): string {
-  switch (value) { case "pending": return "待处理"; case "succeeded": return "处理成功"; case "failed": return "处理失败" }
+  switch (value) { case "pending": return "退款处理中"; case "succeeded": return "退款成功"; case "failed": return "退款失败" }
 }
 function participantRefundText(value: StaffOrderDetail["participants"][number]["refundStatus"]): string {
-  switch (value) { case "none": return "未退款"; case "pending": return "退款待处理"; case "refunded": return "已退款"; case "failed": return "退款失败，可重试" }
+  switch (value) { case "none": return "未退款"; case "pending": return "退款处理中"; case "refunded": return "已退款"; case "failed": return "退款失败，需核对" }
 }
 function statusText(value: StaffOrder["status"]): string {
   switch (value) {

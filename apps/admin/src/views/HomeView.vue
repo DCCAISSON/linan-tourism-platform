@@ -1,7 +1,7 @@
 <template>
   <section class="workbench" aria-labelledby="home-title" :aria-busy="loading">
     <header class="workbench-heading">
-      <div><h2 id="home-title">工作台</h2><p>查看活动、近期团期和累计已付款数据。</p></div>
+      <div><h2 id="home-title">工作台</h2><p>查看活动、近期团期和当前已付款报名数据。</p></div>
       <button type="button" :disabled="loading" @click="load">{{ loading ? "刷新中..." : "刷新数据" }}</button>
     </header>
     <p v-if="loading" class="workbench-state" role="status">正在加载工作台...</p>
@@ -10,10 +10,10 @@
       <div class="workbench-stats" aria-label="业务统计">
         <article class="workbench-stat"><span>启用活动</span><strong>{{ summary.activeActivityCount }} 个</strong><small>当前启用的课程</small></article>
         <article class="workbench-stat workbench-stat--green"><span>近期团期</span><strong>{{ summary.upcomingSessionCount }} 个</strong><small>未来30天已发布团期</small></article>
-        <article class="workbench-stat"><span>累计已付款人数</span><strong data-testid="workbench-paid-headcount">{{ summary.paidHeadcount }} 人</strong><small>进入已付款名单的参加人员</small></article>
-        <article class="workbench-stat workbench-stat--money"><span>累计已付款金额</span><strong data-testid="workbench-paid-amount">{{ formatFen(summary.paidAmountFen) }}</strong><small>成功付款对应的人员费用</small></article>
+        <article class="workbench-stat"><span>当前已付款报名人数</span><strong data-testid="workbench-paid-headcount">{{ summary.paidHeadcount }} 人</strong><small>已付款且名单未取消的参加人员</small></article>
+        <article class="workbench-stat workbench-stat--money"><span>当前已付款报名金额</span><strong data-testid="workbench-paid-amount">{{ formatFen(summary.paidAmountFen) }}</strong><small>当前未取消名单对应的原报名费用</small></article>
       </div>
-      <p class="workbench-caption">统计更新：{{ dateTime(summary.generatedAt) }}。退款登记不改变已付款统计。</p>
+      <p class="workbench-caption">统计更新：{{ dateTime(summary.generatedAt) }}。人数与金额覆盖全部团期，不限于未来30天；取消名单不计入，金额不代表累计支付或资金流水。</p>
       <section class="workbench-card" aria-labelledby="upcoming-title">
         <div class="workbench-card-heading"><h3 id="upcoming-title">近期出发团期</h3><span>{{ summary.upcomingSessionCount }} 个</span></div>
         <p class="workbench-caption">范围：{{ dateTime(summary.upcomingFrom) }} 至 {{ dateTime(summary.upcomingUntil) }}，以服务器时间起算30天。</p>
