@@ -54,6 +54,7 @@ test("creates a dimension standard and records optional facts without automatic 
   await page.getByRole("button", { name: "保存标准草稿" }).click()
   await page.getByRole("button", { name: "确认此标准" }).click()
   await expect(page.getByText("标准已确认，可用于本团期评级。")).toBeVisible()
+  await page.locator(".admin-nav summary").filter({ hasText: "出团执行" }).click()
   await page.getByRole("link", { name: "学生评价", exact: true }).click()
   await page.getByRole("combobox", { name: "团期", exact: true }).selectOption("session-a")
   await page.getByRole("button", { name: "加载评价" }).click()

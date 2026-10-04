@@ -59,6 +59,10 @@ test("shows integrated navigation entries granted to the staff account", async (
 
   await page.goto("/home")
 
+  await expect(page.locator(".admin-nav summary")).toHaveCount(5)
+  for (const group of await page.locator(".admin-nav details").all()) {
+    if (await group.getAttribute("open") === null) await group.locator("summary").click()
+  }
   await expect(page.getByRole("link", { name: "出行人员" })).toBeVisible()
   await expect(page.getByRole("link", { name: "退款申请" })).toBeVisible()
   await expect(page.getByRole("link", { name: "行前配置" })).toBeVisible()
@@ -99,4 +103,39 @@ test("hides notification management without write and send permissions", async (
   await page.goto("/home")
 
   await expect(page.getByRole("link", { name: "通知管理" })).toHaveCount(0)
+  await expect(page.locator(".admin-nav summary")).toHaveText(["今日工作"])
+})
+
+test("keeps permitted navigation accessible after keyboard collapse and a page shortcut", async ({ page }) => {
+  await installStaffAuthMock(page, [
+    "workbench.read", "configuration.read", "roster.read", "orders.read", "refunds.review", "payments.reconcile",
+    "transport.read", "pretrip.write", "pretrip.school_confirm", "execution.read", "execution.manage", "health.read",
+    "evaluations.read", "evaluations.standard.write", "insurance.read", "media.read", "notifications.read",
+    "notifications.write", "notifications.send", "feedback.read", "crm.read", "business.read", "staff_accounts.manage",
+  ])
+  await page.route(apiBase + "/roster/workbench", route => route.fulfill({ json: {
+    generatedAt: "2026-10-04T00:00:00Z", upcomingFrom: "2026-10-04T00:00:00Z", upcomingUntil: "2026-11-03T00:00:00Z",
+    activeActivityCount: 0, upcomingSessionCount: 0, paidHeadcount: 0, paidAmountFen: 0, upcomingSessions: [],
+  } }))
+  await page.route(apiBase + "/staff/orders?**", route => route.fulfill({ json: { orders: [], total: 0, page: 1, pageSize: 20 } }))
+  await page.goto("/home")
+  const navigation = page.getByRole("navigation", { name: "主要菜单" })
+  await expect(navigation.locator("summary")).toHaveText(["今日工作", "研学运营", "出团执行", "客户服务", "系统管理"])
+  await expect(navigation.locator("details[open] summary")).toHaveText(["今日工作"])
+  for (const group of await navigation.locator("details").all()) {
+    if (await group.getAttribute("open") === null) await group.locator("summary").click()
+  }
+  await expect(navigation.getByRole("link")).toHaveCount(25)
+  const operations = navigation.locator("details").filter({ has: page.locator("summary", { hasText: "研学运营" }) })
+  await operations.locator("summary").focus()
+  await page.keyboard.press("Enter")
+  await expect(operations).not.toHaveAttribute("open")
+  await expect(navigation.getByRole("link", { name: "订单管理", exact: true })).toBeHidden()
+
+  await page.getByRole("link", { name: "查看订单与退款" }).click()
+
+  await expect(page).toHaveURL(/\/orders$/)
+  await expect(operations).toHaveAttribute("open")
+  await expect(navigation.getByRole("link", { name: "订单管理", exact: true })).toHaveAttribute("aria-current", "page")
+  await expect(page.getByText("没有符合条件的订单，请调整筛选条件。")).toBeVisible()
 })

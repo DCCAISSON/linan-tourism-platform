@@ -1,13 +1,13 @@
 ﻿# 云端测试部署
 
-本目录用于已备案域名下的受保护测试环境。当前环境只用于需求方点选和内部验收，使用虚构学校、家庭、人员、车辆和模拟支付数据；不得接入真实报名、真实收款、真实退款或图片直播生产数据。
+本目录保留云端受控环境的部署配置，目录名沿用早期测试阶段。2026-10-04 已在 HTTPS 环境部署 API 和管理后台，接入真实微信身份及微信支付 API v3，并有受控真实支付、退款记录。模拟数据演练必须在隔离环境执行，不能把当前云端当作纯模拟环境；正式团期开放、手机消息实收、保险及影像服务仍须分别完成业务验收。
 
 ## 运行结构
 
 - 程序目录：`/opt/linan-test/app`。
 - API 进程：`linan-test-api.service`，由 systemd 管理，工作目录为 `/opt/linan-test/app/apps/api`。
-- API 只监听服务器回环地址，管理后台通过 Nginx 受保护入口访问；ICP 备案完成后为受保护测试入口配置公网 HTTPS。
-- 业务库：云数据库测试库 `linan_platform_test`。
+- API 只监听服务器回环地址，管理后台通过 Nginx 受保护 HTTPS 入口访问；小程序 API 使用独立 HTTPS 域名和应用身份校验。
+- 业务库由受控 `DATABASE_URL` 指定，库名和本地 UAT 不得互换。本地 Compose 的空密码配置不用于云端。2026-10-04只读核验确认线上密码非空、环境文件权限为600；专用最小权限应用账号仍待配置和验证。
 - 后台构建时使用 `VITE_API_BASE_URL=/api`，由同源 Nginx 转发 API。
 - 公众官网由 `apps/site/dist` 提供，根域名和 `www` 不启用 Basic Auth。备案号、公安备案号和公开联系方式由构建环境变量注入，未提供时页面只显示待同步说明。
 
@@ -22,7 +22,7 @@ SITE_CONTACT_EMAIL='<公开业务邮箱>' \
 corepack pnpm --filter @linan/site build
 ```
 
-根域名上线前须将 `linantravel.cn` 和需要启用的 `www.linantravel.cn` 解析到服务器公网 IP，并重新签发包含根域名、`www`、`admin`、`api` 的证书，再替换 Nginx 配置并执行 `nginx -t`。未完成证书签发时不要提前启用根域名 HTTPS server block。
+新环境或域名变更时，须将 `linantravel.cn` 和需要启用的 `www.linantravel.cn` 解析到目标服务器，并签发覆盖根域名、`www`、`admin`、`api` 的证书，替换 Nginx 配置前执行 `nginx -t`。当前受控环境已有 HTTPS；以下要求用于重建或变更，不能据此判断线上仍在等待备案或证书。
 
 ## `/etc/linan-test/api.env` 必填项
 
@@ -30,20 +30,22 @@ corepack pnpm --filter @linan/site build
 
 ```bash
 DATABASE_URL=mysql://...
-NODE_ENV=development
+NODE_ENV=production
 HOST=127.0.0.1
 PORT=3000
-ADMIN_WEB_ORIGIN=http://127.0.0.1:8080
+ADMIN_WEB_ORIGIN=https://admin.linantravel.cn
 PERSON_DATA_ENCRYPTION_KEY_BASE64=<32-byte-random-base64>
-REVISION=<deployed-git-sha>
+REVISION=<deployed-source-or-manifest-revision>
 ```
 
-启用小程序体验版真实微信身份前，还需把服务切换到 `NODE_ENV=production`，安装正式 AppID/AppSecret，并使用 `nginx-miniapp-experience.conf` 让小程序可直接访问 API。该配置取消 API 域名的 Basic Auth，因此必须先确认开发身份头和模拟资金接口已由生产环境保护。
+当前真实微信身份使用 `NODE_ENV=production`、正式 AppID/AppSecret 及 `nginx-miniapp-experience.conf`。新环境启用前必须核对这些配置；API 域名不使用 Basic Auth，因此开发身份头和模拟资金接口必须被生产模式拒绝。
 
 ```bash
 WECHAT_MINIAPP_APP_ID=<正式AppID>
 WECHAT_MINIAPP_APP_SECRET=<正式AppSecret>
 ```
+
+微信支付启用项、商户参数、API v3 密钥和证书/公钥配置项见[根目录环境模板](../../.env.example)；模板不含实际凭据，不能仅设置开关便认为真实支付验收完成。
 
 首次创建测试主管理员时，还需要临时写入并执行 bootstrap，完成后可移除：
 
@@ -62,11 +64,11 @@ corepack pnpm --filter @linan/api staff:bootstrap-admin
 
 ## 当前发布验收口径
 
-- 当前迁移链路覆盖 23 个迁移文件，包含员工账号权限、统一出行人员、支付退款、车辆与行前、导游执行、评价反馈、保险、通知、影像、客户和商旅业务等表结构。
-- 演示价格由活动和团期配置；本轮小程序验收示例为 128 元/人、两人 256 元。退款按取消人员数计算，不接真实退款结算。
-- `GET /health` 必须返回 `revision`，其值必须等于本地最终提交和远端分支 HEAD。
+- 当前迁移链路包含 42 个迁移文件，空数据库全链路迁移已通过；已部署数据库按自己的迁移记录核对，不重复执行历史迁移。
+- 价格由活动和团期配置，订单保存明细及金额快照。金额以整数分计算，退款按明细分配和可退余额核对，不能按取消人数直接推算；真实退款以渠道确认结果为准。
+- `GET /health` 必须返回 `revision`，并通过发布清单追溯到已测试的源码提交及产物摘要。若 revision 是清单摘要，不要求其字面等于 Git SHA；每次发布必须记录二者映射，不能用随时变化的分支 HEAD 代替。
 - systemd 验收要求：`systemctl is-active linan-test-api` 和 `systemctl is-enabled linan-test-api` 均通过。
-- 本次启用受保护的公网 HTTPS 测试入口；不接真实微信支付/退款、主动通知或图片直播生产接口。
+- 2026-10-04 的 API/后台修复已部署，源文件与主分支 `5f2f57c` 对应；本次部署没有执行数据库迁移或恢复数据库。小程序 0.3.39 尚无上传成功回执，后续候选须单独记录上传结果，不能将服务器部署算作小程序已更新。
 
 ## 必验流程
 
@@ -75,12 +77,12 @@ corepack pnpm --filter @linan/api staff:bootstrap-admin
 3. 三类名单模板导入成功；重复导入跳过；逐行错误可见；导入不改变订单和已付款统计。
 4. 版本化告知书激活后，报名必须精确同意当前版本。
 5. 车辆安排保存、容量刚好通过、超载失败、九列 Excel 导出。
-6. 多人订单、模拟支付、按取消人数退款预览/模拟通过，模拟退款不结算、不修改名单。
+6. 隔离环境验证多人订单、模拟支付和明细退款分配；真实渠道验证必须限定已授权的订单、金额和次数，分别核对支付、退款、有效名单与名额，覆盖重复回调、分次及全额退款。不得在云端随意创建真实资金交易作探针。
 7. 失败探针：缺加密 key、过期/禁用账号、错误 workbook、stale notice、车辆 overload、服务重启恢复。
 
 ## 候选发布包与回滚口径
 
-禁止直接使用旧的 `git archive HEAD` 作为发布来源。Todo15 之后的候选发布必须基于“最终已测试提交”的完整 SHA：
+候选发布必须基于“最终已测试提交”的完整 SHA，不用旧包或含义不明的 `HEAD` 替代。仓库提供的源码归档入口为：
 
 ```bash
 bash deploy/cloud-test/prepare-release-candidate.sh <tested-commit-sha>
@@ -98,9 +100,9 @@ bash deploy/cloud-test/prepare-release-candidate.sh <tested-commit-sha>
 
 `reconcile-wechat-bill.mjs` 复用当前部署的 `WechatReconciliationService`，只下载账单、查询交易并保存对账结果，不发起支付或退款。每天北京时间 10:05 核对北京时间昨日；日期计算不依赖服务器时区。服务通过同一个 `flock` 锁串行执行，人工补跑也必须使用该锁。不要与后台针对同日的手动核对同时操作。
 
-这三个文件是待安装模板；仓库存在文件不代表线上已经启用。原 `linan-refund-bill-20260930.timer` 是一次性历史作业，保留其文件和结果，不覆盖为新的日程。
+2026-10-04 已安装并核对 runner、service、timer，timer 为 enabled/active，首次自然触发计划为 2026-10-05 10:05（北京时间）。手工经同一 flock 执行的 2026-10-03 账单核对返回 `NO_STATEMENT_EXIST`，未形成成功对账记录，不计零差异；商户仍须核对当日交易，之后确认自然触发及告警实收。原 `linan-refund-bill-20260930.timer` 为一次性历史作业，文件和结果保留。
 
-在已审核的候选源码根目录，由部署负责人安装：
+以下命令用于新环境安装或经审核的更新。已安装环境先核对现有文件、版本和日程，不重复覆盖；在已审核的候选源码根目录，由部署负责人执行：
 
 ```bash
 sudo install -d -o root -g root -m 700 /opt/linan-test/ops /var/lib/linan-wechat-bill-reconciliation

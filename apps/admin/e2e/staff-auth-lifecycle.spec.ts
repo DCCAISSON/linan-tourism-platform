@@ -64,6 +64,7 @@ test("staff first login changes password and sees only granted navigation", asyn
 
   await expect(page).toHaveURL(/home/)
   await expect(page.getByRole("link", { name: "工作台" })).toBeVisible()
+  await page.locator(".admin-nav summary").filter({ hasText: "研学运营" }).click()
   await expect(page.getByRole("link", { name: "订单管理" })).toBeVisible()
   await expect(page.getByRole("link", { name: "账号权限" })).toBeHidden()
   await page.screenshot({ path: testInfo.outputPath("staff-auth-lifecycle.png"), fullPage: true })
