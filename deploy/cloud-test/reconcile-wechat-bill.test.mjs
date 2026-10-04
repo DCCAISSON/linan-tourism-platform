@@ -7,17 +7,20 @@ import vm from 'node:vm'
 const source = await fs.readFile('deploy/cloud-test/reconcile-wechat-bill.mjs', 'utf8')
 const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'linan-bill-runner-'))
 const cases = []
-async function run(label, { argv = [], at = '2026-10-04T02:05:00Z', differenceCount = 0, errorCode, writeFails = false } = {}) {
-  const lines = [], calls = []
+async function run(label, { argv = [], at = '2026-10-04T02:05:00Z', differenceCount = 0, errorCode, noTransactions = false, verificationError, closeFails = false, writeFails = false } = {}) {
+  const lines = [], calls = [], checks = []
   let closed = false
   const child = { argv: ['node', 'runner.mjs', ...argv], env: {}, exitCode: 0 }
   class FrozenDate extends Date { constructor(...args) { super(...(args.length ? args : [at])) } static now() { return Date.parse(at) } }
   const context = vm.createContext({ process: child, Date: FrozenDate, console: { log: value => lines.push(value), error: value => lines.push(value) } })
   async function module(exports) { const m = new vm.SyntheticModule(Object.keys(exports), function () { for (const [name, value] of Object.entries(exports)) this.setExport(name, value) }, { context }); await m.link(() => {}); await m.evaluate(); return m }
   const main = new vm.SourceTextModule(source, { context, importModuleDynamically: async specifier => {
-    if (specifier.endsWith('configuration-database.service.js')) return module({ ConfigurationDatabaseService: class { async onModuleDestroy() { closed = true } } })
+    if (specifier.endsWith('configuration-database.service.js')) return module({ ConfigurationDatabaseService: class { async onModuleDestroy() { closed = true; if (closeFails) throw new Error('SECRET_MUST_NOT_APPEAR') } } })
     if (specifier.endsWith('wechat-pay.client.js')) return module({ WechatPayClient: class {} })
-    if (specifier.endsWith('wechat-reconciliation.service.js')) return module({ WechatReconciliationService: class { async reconcile(date) { calls.push(date); if (errorCode) throw { getResponse: () => ({ code: errorCode, message: 'SECRET_MUST_NOT_APPEAR' }) }; return { billDate: date, differenceCount, contentHash: 'a'.repeat(64) } } } })
+    if (specifier.endsWith('wechat-reconciliation.service.js')) return module({ WechatReconciliationService: class {
+      async reconcile(date) { calls.push(date); if (errorCode) throw { getResponse: () => ({ code: errorCode, message: 'SECRET_MUST_NOT_APPEAR' }) }; return { billDate: date, differenceCount, contentHash: 'a'.repeat(64) } }
+      async verifyNoTransactionsOn(date) { checks.push(date); if (verificationError) throw { getResponse: () => ({ code: verificationError, message: 'SECRET_MUST_NOT_APPEAR' }) }; return noTransactions }
+    } })
     throw new Error('unexpected import')
   } })
   await main.link(async specifier => {
@@ -31,7 +34,7 @@ async function run(label, { argv = [], at = '2026-10-04T02:05:00Z', differenceCo
   try { await main.evaluate() } catch (error) { thrown = error.message }
   assert.ok(!lines.join('\n').includes('SECRET_MUST_NOT_APPEAR'))
   const receipt = lines.filter(line => line.startsWith('{')).map(line => JSON.parse(line)).at(-1)
-  const result = { label, exitCode: child.exitCode, calls, closed, receipt, thrown }
+  const result = { label, exitCode: child.exitCode, calls, checks, closed, receipt, thrown }
   cases.push(result)
   return result
 }
@@ -57,6 +60,19 @@ try {
   assert.equal(unavailable.exitCode, 1); assert.equal(unavailable.receipt.completed, false); assert.equal(unavailable.closed, true)
   assert.equal(unavailable.receipt.code, 'wechat_bill_not_available')
   assert.equal('differenceCount' in unavailable.receipt, false); assert.equal('contentHash' in unavailable.receipt, false)
+  const noTrades = await run('no-statement-no-local-transactions', { errorCode: 'wechat_bill_not_available', noTransactions: true })
+  assert.equal(noTrades.exitCode, 0); assert.equal(noTrades.receipt.completed, false); assert.equal(noTrades.closed, true)
+  assert.equal(noTrades.receipt.code, 'no_statement_no_local_transactions')
+  assert.deepEqual(noTrades.checks, ['2026-10-03'])
+  assert.equal('differenceCount' in noTrades.receipt, false); assert.equal('contentHash' in noTrades.receipt, false)
+  assert.deepEqual(unavailable.checks, ['2026-10-03'])
+  assert.deepEqual(failed.checks, [])
+  const unverified = await run('unverified-local-transactions', { errorCode: 'wechat_bill_not_available', verificationError: 'wechat_bill_date_unverified' })
+  assert.equal(unverified.exitCode, 1); assert.equal(unverified.receipt.code, 'wechat_bill_date_unverified')
+  const closeFailed = await run('no-trades-close-failed', { errorCode: 'wechat_bill_not_available', noTransactions: true, closeFails: true })
+  assert.equal(closeFailed.exitCode, 1); assert.equal(closeFailed.receipt.code, 'database_close_failed')
+  const noTradesDisk = await run('no-trades-receipt-failed', { errorCode: 'wechat_bill_not_available', noTransactions: true, writeFails: true })
+  assert.equal(noTradesDisk.exitCode, 1); assert.equal(noTradesDisk.receipt.code, 'receipt_write_failed')
   const unsafe = await run('unsafe-error', { errorCode: 'SECRET_MUST_NOT_APPEAR with body' })
   assert.equal(unsafe.receipt.code, 'reconciliation_failed')
   const disk = await run('receipt-failure', { writeFails: true })

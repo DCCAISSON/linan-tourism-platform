@@ -5,7 +5,7 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import { makeId } from "../configuration/configuration.persistence.js"
 import { WechatPayClient } from "./wechat-pay.client.js"
 import { loadWechatPayConfig } from "./wechat-config.js"
-import { billDate } from "./wechat-parser.js"
+import { billDate, fenValue, record, textValue } from "./wechat-parser.js"
 import { parseTradeBill, type BillRow } from "./wechat-bill.parser.js"
 
 export type BillDifference = {
@@ -108,6 +108,55 @@ export class WechatReconciliationService {
     })
   }
 
+  async verifyNoTransactionsOn(dateValue: unknown): Promise<boolean> {
+    const date = billDate(dateValue)
+    const config = loadWechatPayConfig()
+    const manager = (await this.database.getDataSource()).manager
+    const payments = await manager.findBy(PaymentEntity, { channel: "wechat_pay" })
+    const refunds = await manager.findBy(WechatTransactionEntity, { kind: "refund" })
+    const unverified = new BadGatewayException({ code: "wechat_bill_date_unverified", message: "微信交易信息无法核实，不能认定当日无交易" })
+    for (const payment of payments) {
+      const resource = await this.client.request(`/v3/pay/transactions/out-trade-no/${encodeURIComponent(payment.paymentNo)}?mchid=${encodeURIComponent(config.merchantId)}`)
+      if (textValue(resource, "appid") !== config.appId || textValue(resource, "mchid") !== config.merchantId || textValue(resource, "out_trade_no") !== payment.paymentNo) throw unverified
+      switch (textValue(resource, "trade_state")) {
+        case "SUCCESS":
+        case "REFUND": {
+          const amount = record(resource["amount"])
+          if (payment.providerTransactionId !== null && textValue(resource, "transaction_id") !== payment.providerTransactionId) throw unverified
+          if (fenValue(amount, "total") !== payment.amountFen || textValue(amount, "currency") !== "CNY") throw unverified
+          if (providerBillDate(resource["success_time"]) === date) return false
+          break
+        }
+        case "NOTPAY":
+        case "CLOSED": {
+          if (payment.status === "succeeded" || payment.status === "refunded" || payment.providerTransactionId !== null || resource["success_time"] !== undefined || resource["transaction_id"] !== undefined) throw unverified
+          if (resource["amount"] !== undefined) {
+            const amount = record(resource["amount"])
+            if ((amount["total"] !== undefined && fenValue(amount, "total") !== payment.amountFen) || (amount["currency"] !== undefined && textValue(amount, "currency") !== "CNY")) throw unverified
+          }
+          break
+        }
+        default: throw unverified
+      }
+    }
+    const paymentsByOrder = new Map(payments.map(payment => [payment.orderId, payment]))
+    for (const refund of refunds) {
+      const payment = refund.orderId === null ? undefined : paymentsByOrder.get(refund.orderId)
+      if (refund.outRefundNo === null || payment === undefined) throw unverified
+      const resource = await this.client.request(`/v3/refund/domestic/refunds/${encodeURIComponent(refund.outRefundNo)}`)
+      const amount = record(resource["amount"])
+      if (refund.providerTransactionId !== null && textValue(resource, "refund_id") !== refund.providerTransactionId) throw unverified
+      if (textValue(resource, "out_refund_no") !== refund.outRefundNo || textValue(resource, "out_trade_no") !== payment.paymentNo || fenValue(amount, "refund") !== refund.amountFen || fenValue(amount, "total") !== payment.amountFen || textValue(amount, "currency") !== "CNY") throw unverified
+      switch (textValue(resource, "status")) {
+        case "SUCCESS": case "PROCESSING": case "CLOSED": case "ABNORMAL":
+          if (providerBillDate(resource["create_time"]) === date) return false
+          break
+        default: throw unverified
+      }
+    }
+    return true
+  }
+
   async get(dateValue: unknown): Promise<PaymentReconciliationResponse> {
     const date = billDate(dateValue)
     const manager = (await this.database.getDataSource()).manager
@@ -144,7 +193,8 @@ export class WechatReconciliationService {
 }
 
 function providerBillDate(value: unknown): string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value))) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(Date.parse(value))
+    || new Date(`${value.slice(0, 10)}T00:00:00Z`).toISOString().slice(0, 10) !== value.slice(0, 10)) {
     throw new BadGatewayException({ code: "wechat_bill_date_unverified", message: "微信交易日期无法核实，对账未保存" })
   }
   return new Date(Date.parse(value) + 8 * 60 * 60 * 1000).toISOString().slice(0, 10)
