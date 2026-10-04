@@ -82,6 +82,9 @@ describe.skipIf(databaseUrl === undefined)("Cumulative payment and refund statis
   })
 
   it("retains Beijing departure-day boundaries, multiple-session totals and school isolation independently of payment dates", async () => {
+    const baseline = await request(app.getHttpServer()).get("/roster/date-statistics").set(DEV_ADMIN_HEADERS)
+      .query({ from: "2027-02-01", until: "2027-02-01" }).expect(200)
+    const existingSessionIds = new Set<string>(baseline.body.rows.map((row: { readonly sessionId: string }) => row.sessionId))
     const catalogs = []
     for (const [suffix, startsAt, amount] of [
       ["before", "2027-01-31T15:59:59.999Z", 5],
@@ -97,9 +100,15 @@ describe.skipIf(databaseUrl === undefined)("Cumulative payment and refund statis
     }
     const summary = await request(app.getHttpServer()).get("/roster/date-statistics").set(DEV_ADMIN_HEADERS)
       .query({ from: "2027-02-01", until: "2027-02-01" }).expect(200)
-    expect(summary.body.rows.map((row: { readonly sessionId: string }) => row.sessionId)).toEqual(
+    expect(summary.body.rows.filter((row: { readonly sessionId: string }) => existingSessionIds.has(row.sessionId))).toEqual(baseline.body.rows)
+    expect(summary.body.rows.filter((row: { readonly sessionId: string }) => !existingSessionIds.has(row.sessionId))
+      .map((row: { readonly sessionId: string }) => row.sessionId)).toEqual(
       catalogs.filter(catalog => ["first", "last"].includes(catalog.suffix)).map(catalog => catalog.tourSessionId))
-    expect(summary.body.totals).toMatchObject({ paymentAmountFen: 304, refundAmountFen: 0, paidHeadcount: 2 })
+    expect(summary.body.totals).toMatchObject({
+      paymentAmountFen: baseline.body.totals.paymentAmountFen + 304,
+      refundAmountFen: baseline.body.totals.refundAmountFen,
+      paidHeadcount: baseline.body.totals.paidHeadcount + 2,
+    })
     const first = catalogs.find(catalog => catalog.suffix === "first")
     if (first === undefined) throw new Error("synthetic first-day catalog missing")
     expect((await statistics(first.schoolId)).body.totals).toMatchObject({ paymentAmountFen: 101, refundAmountFen: 0, paidHeadcount: 1 })

@@ -99,7 +99,7 @@ describe.skipIf(databaseUrl === undefined)("Activity content and operator workbe
     process.env["NODE_ENV"] = "production"
     try {
       const denied = await request(app.getHttpServer()).get("/roster/workbench").set(DEV_ADMIN_HEADERS).expect(401)
-      expect(denied.body.code).toBe("staff_identity_unavailable")
+      expect(denied.body.code).toBe("staff_identity_required")
     } finally {
       restoreNodeEnv(previous)
     }

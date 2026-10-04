@@ -101,7 +101,7 @@ describe.skipIf(databaseUrl === undefined)("same five travelers across confirmat
     await stage("draft-swapped")
     await attendance(f.guideTwo, f.studentA, "present").expect(409)
     await attendance(f.guideOne, f.studentA, "revoked").expect(409)
-    await post(dailyEndpoint, f.guideTwo, { reportDate: "2027-02-01", expectedVersion: 2, lodgingCheck: "草稿不写", mealStatus: "草稿不写", bodyStatus: "", note: "" }).expect(409)
+    await post(dailyEndpoint, f.guideTwo, { reportDate: "2027-02-01", expectedVersion: 2, correctionReason: "验证草稿分车禁止更正", lodgingCheck: "草稿不写", mealStatus: "草稿不写", bodyStatus: "", note: "" }).expect(409)
     await post(`/staff/execution/sessions/${session}/events`, f.guideTwo, { category: "objective", occurredAt: "2027-02-01T08:01:00.000Z", personRef: f.studentA, content: "草稿不得保存" }).expect(409)
     await get(`/transport/sessions/${session}/people-export.xlsx`, f.admin).expect(409)
     const staleGuide = await get(`/staff/execution/sessions/${session}`, f.guideTwo).expect(200)

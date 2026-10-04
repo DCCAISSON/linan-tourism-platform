@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { readFileSync } from "node:fs"
 import type { INestApplication } from "@nestjs/common"
 import request from "supertest"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { PretripAttachmentEntity } from "../src/domain/entities/pretrip-attachment.entity.js"
 import { MediaStorageService } from "../src/modules/media/media-storage.service.js"
 import { closeCatalogTripDatabase, createCatalogTripApp, dataSource, databaseUrl, initializeCatalogTripDatabase } from "./catalog-trip-fixture.js"
@@ -16,6 +16,7 @@ const docx = readFileSync(new URL("./fixtures/pretrip-attachments/synthetic-trip
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl9sAAAAASUVORK5CYII=", "base64")
 const input = { gatheringAt: null, gatheringPlace: "合成学校南门", travelMode: "group", itineraryNote: "携带水杯", contactName: "合成联系人", contactPhone: "19900000000", serviceContact: "服务台", noticeVersionId: null }
 const objects: string[] = []
+const cosConfigured = ["TENCENT_CLOUD_REGION", "TENCENT_CLOUD_COS_BUCKET", "TENCENT_CLOUD_SECRET_ID", "TENCENT_CLOUD_SECRET_KEY"].every((name) => (process.env[name]?.trim().length ?? 0) > 0)
 const previousEnvironment = { node: process.env["NODE_ENV"], origin: process.env["ADMIN_WEB_ORIGIN"], key: process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"] }
 let app: INestApplication
 let storage: MediaStorageService
@@ -28,7 +29,7 @@ let headers: Record<string, string> = {}
 let staffId = ""
 const family = familyHeader(scope, "a")
 
-describe.skipIf(databaseUrl === undefined)("pretrip attachment HTTP and real object storage", () => {
+describe.skipIf(databaseUrl === undefined)(`pretrip attachment HTTP with ${cosConfigured ? "real COS" : "in-memory object storage"}`, () => {
   beforeAll(async () => {
     if (databaseUrl === undefined || new URL(databaseUrl).hostname !== "127.0.0.1") throw new Error("Attachment tests require a local isolated database")
     process.env["NODE_ENV"] = "development"
@@ -37,6 +38,16 @@ describe.skipIf(databaseUrl === undefined)("pretrip attachment HTTP and real obj
     await initializeCatalogTripDatabase()
     app = await createCatalogTripApp()
     storage = app.get(MediaStorageService)
+    if (!cosConfigured) {
+      const storedBytes = new Map<string, Buffer>()
+      vi.spyOn(MediaStorageService.prototype, "putObject").mockImplementation(async ({ key, body }) => { storedBytes.set(key, Buffer.from(body)) })
+      vi.spyOn(MediaStorageService.prototype, "getObject").mockImplementation(async (key) => {
+        const body = storedBytes.get(key)
+        if (body === undefined) throw new Error("Test storage object missing")
+        return Buffer.from(body)
+      })
+      vi.spyOn(MediaStorageService.prototype, "deleteObject").mockImplementation(async (key) => { storedBytes.delete(key) })
+    }
     const catalog = await createCatalog(app, scope)
     const other = await createCatalog(app, `${scope}-other`)
     sessionId = catalog.tourSessionId
@@ -62,6 +73,7 @@ describe.skipIf(databaseUrl === undefined)("pretrip attachment HTTP and real obj
       await dataSource.manager.delete(PretripAttachmentEntity, { tourSessionId: sessionId })
     }
     if (app !== undefined) await app.close()
+    vi.restoreAllMocks()
     await closeCatalogTripDatabase()
     restore("NODE_ENV", previousEnvironment.node)
     restore("ADMIN_WEB_ORIGIN", previousEnvironment.origin)

@@ -51,7 +51,7 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
   beforeAll(initializeCatalogTripDatabase)
 
   beforeEach(async () => {
-    scope = createScope().replace("catalog-trip-", "todo14-")
+    scope = createScope().replace("catalog-trip-", "").replaceAll("-", "")
     identitySequence = 100
     wechatRequestReply = null
     process.stdout.write(`[todo14-scope:money-notifications] ${scope}\n`)
@@ -183,7 +183,8 @@ describe.skipIf(databaseUrl === undefined)("Remaining money and notifications DB
     if (line === undefined) throw new Error("refund fixture must include an order line")
     const paymentNo = paymentNumber("create-refund")
     const staff = await staffSession(`${scope}-refund-manager`, ["refunds.manage"])
-    await dataSource.query("insert into payments (id, organization_id, order_id, payment_no, provider_transaction_id, provider_event_id, status, amount_fen, channel, policy_version, created_at, updated_at) select ?, organization_id, id, ?, ?, ?, 'succeeded', amount_fen, 'wechat_pay', 'test', current_timestamp(6), current_timestamp(6) from orders where id = ?", [`payment-${scope}-create-refund`, paymentNo, `wx-${scope}-create-refund`, `wx-event-${scope}-create-refund`, order.id])
+    await dataSource.query("update payments set payment_no = ?, provider_transaction_id = ?, provider_event_id = ?, channel = 'wechat_pay' where order_id = ? and channel = 'local_mock'", [paymentNo, `wx-${scope}-create-refund`, `wx-event-${scope}-create-refund`, order.id])
+    await expect(dataSource.query("select status, amount_fen as amountFen, channel from payments where order_id = ?", [order.id])).resolves.toEqual([{ status: "succeeded", amountFen: order.amountFen, channel: "wechat_pay" }])
     await dataSource.query("insert into wechat_transactions (id, organization_id, kind, event_id, order_id, refund_request_id, out_trade_no, out_refund_no, provider_transaction_id, status, amount_fen, abnormal_reason, raw_payload, created_at, updated_at) select ?, organization_id, 'payment', ?, id, null, ?, null, ?, 'succeeded', amount_fen, null, json_object(), current_timestamp(6), current_timestamp(6) from orders where id = ?", [`wechat-payment-${scope}-create-refund`, `payment-event-${scope}-create-refund`, paymentNo, `wx-${scope}-create-refund`, order.id])
 
     // When
@@ -272,6 +273,12 @@ async function createTodo14App(bill: string, subscribeOrigin: string): Promise<I
           wechatRequestReply = null
           return reply
         }
+        if (path === `/v3/pay/transactions/out-trade-no/${paymentNumber("bill")}?mchid=${WECHAT_MCH_ID}`) {
+          return { success_time: `${BILL_DATE}T10:00:00+08:00` }
+        }
+        if (path === `/v3/refund/domestic/refunds/${merchantNumber("refund", `wx-refund-${scope}-bill`)}`) {
+          return { create_time: `${BILL_DATE}T10:02:00+08:00` }
+        }
         return {}
       },
     })
@@ -347,6 +354,14 @@ async function saveTransportPlan(target: INestApplication, catalog: CatalogFixtu
   await request(target.getHttpServer()).put(`/transport/sessions/${catalog.tourSessionId}/plan`).set(DEV_ADMIN_HEADERS).set("Origin", ORIGIN).send({
     vehicles: [{ sequence: 1, seatCapacity: 2, plateNumber: "", contactSnapshot: emptyContact(), allocations: [{ classId: catalog.classId, studentCount: 2, guardianCount: 0, teacherCount: 0, otherCount: 0, note: "" }] }],
   }).expect(200)
+  const people = await request(target.getHttpServer()).get(`/transport/sessions/${catalog.tourSessionId}/people-plan`).set(DEV_ADMIN_HEADERS).expect(200)
+  const unassigned: readonly { readonly personRef: string }[] = people.body.unassigned
+  expect(unassigned).toHaveLength(2)
+  const vehicleId: string | undefined = people.body.vehicles[0]?.id
+  if (vehicleId === undefined) throw new TypeError("transport fixture must have its vehicle")
+  await request(target.getHttpServer()).put(`/transport/sessions/${catalog.tourSessionId}/person-allocations`).set(DEV_ADMIN_HEADERS).set("Origin", ORIGIN)
+    .send({ expectedPlanVersion: people.body.planVersion, expectedRosterVersion: people.body.rosterVersion,
+      assignments: unassigned.map(person => ({ personRef: person.personRef, vehicleId })) }).expect(200)
 }
 
 async function confirmCurrentTransport(target: INestApplication, catalog: CatalogFixture) {
@@ -369,7 +384,7 @@ async function wechatRefundFixture(target: INestApplication, name: string) {
   const outRefundNo = merchantNumber("refund", refundRequestId)
   const requesterId = `${scope}-requester`
   await ensureStaffAccount(requesterId)
-  await dataSource.query("insert into payments (id, organization_id, order_id, payment_no, provider_transaction_id, provider_event_id, status, amount_fen, channel, policy_version, created_at, updated_at) select ?, organization_id, id, ?, ?, ?, 'succeeded', amount_fen, 'wechat_pay', 'test', current_timestamp(6), current_timestamp(6) from orders where id = ?", [`payment-${scope}-${name}`, paymentNo, `wx-${scope}-${name}`, `wx-event-${scope}-${name}`, order.id])
+  await dataSource.query("update payments set payment_no = ?, provider_transaction_id = ?, provider_event_id = ?, channel = 'wechat_pay' where order_id = ? and channel = 'local_mock'", [paymentNo, `wx-${scope}-${name}`, `wx-event-${scope}-${name}`, order.id])
   await dataSource.query("insert into refund_requests (id, organization_id, order_id, provider, idempotency_key, status, reason, note, amount_fen, requested_by_staff_id, processed_by_staff_id, failure_message, requested_at, processed_at, policy_version) select ?, organization_id, id, 'wechat_pay', ?, 'pending', 'wechat callback fixture', null, 1200, ?, null, null, current_timestamp(6), null, 'test' from orders where id = ?", [refundRequestId, `${scope}-${name}-refund`, requesterId, order.id])
   await dataSource.query("insert into refund_request_lines (id, organization_id, refund_request_id, order_line_id, amount_fen, policy_version) select ?, organization_id, ?, ?, 1200, 'test' from orders where id = ?", [`refund-line-${scope}-${name}`, refundRequestId, lines[0]?.id, order.id])
   await dataSource.query("insert into wechat_transactions (id, organization_id, kind, event_id, order_id, refund_request_id, out_trade_no, out_refund_no, provider_transaction_id, status, amount_fen, abnormal_reason, raw_payload, created_at, updated_at) select ?, organization_id, 'refund', ?, id, ?, null, ?, null, 'processing', 1200, null, json_object(), current_timestamp(6), current_timestamp(6) from orders where id = ?", [`wechat-tx-${scope}-${name}`, `seed-${scope}-${name}`, refundRequestId, outRefundNo, order.id])
@@ -548,7 +563,7 @@ async function cleanup(activeScope: string): Promise<void> {
   await dataSource.query("delete d from wechat_bill_differences d join wechat_bill_reconciliations r on r.id = d.reconciliation_id where r.bill_date = ?", [BILL_DATE])
   await dataSource.query("delete from wechat_bill_reconciliations where bill_date = ?", [BILL_DATE])
   await dataSource.query("delete transaction from wechat_transactions transaction join orders o on o.id = transaction.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?", [`family-${activeScope}%`])
-  await dataSource.query("delete line from refund_request_lines line join refund_requests request on request.id = line.refund_request_id where request.id like ?", [`%${activeScope}%`])
+  await dataSource.query("delete line from refund_request_lines line join refund_requests request on request.id = line.refund_request_id where request.id like ? or request.idempotency_key like ?", [`%${activeScope}%`, `%${activeScope}%`])
   await dataSource.query("delete from refund_applications where idempotency_key like ? or idempotency_key like ?", [`${activeScope}%`, `%${activeScope}%`])
   await dataSource.query("delete from refund_requests where id like ? or idempotency_key like ?", [`%${activeScope}%`, `%${activeScope}%`])
   await dataSource.query("delete line from refund_request_lines line join refund_requests request on request.id = line.refund_request_id join orders o on o.id = request.order_id join enrollments e on e.id = o.enrollment_id join families f on f.id = e.family_id where f.code like ?", [`family-${activeScope}%`])

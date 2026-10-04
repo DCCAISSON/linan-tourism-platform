@@ -47,10 +47,13 @@ describe.skipIf(databaseUrl === undefined)("Staff order review and local refund 
     const order = await createOrder(app, fixture, `${scope}-scoped`)
     const schoolHeaders = { "x-linan-dev-staff-id": "school-user", "x-linan-dev-staff-role": "school", "x-linan-dev-staff-school-id": "school-1" }
     const financeHeaders = { "x-linan-dev-staff-id": "finance-user", "x-linan-dev-staff-role": "finance" }
+    const guideHeaders = { "x-linan-dev-staff-id": "guide-user", "x-linan-dev-staff-role": "guide", "x-linan-dev-guide-tour-session-id": fixture.tourSessionId }
 
     await request(app.getHttpServer()).get("/staff/orders").expect(401)
     await request(app.getHttpServer()).get("/staff/orders").set(schoolHeaders).expect(403)
-    await request(app.getHttpServer()).get("/staff/orders").set(financeHeaders).expect(403)
+    await request(app.getHttpServer()).get("/staff/orders").set(guideHeaders).expect(403)
+    await request(app.getHttpServer()).get("/staff/orders").set(financeHeaders).expect(200)
+    await request(app.getHttpServer()).post(`/staff/orders/${order.id}/refund-preview`).set(financeHeaders).send({ lineIds: ["line-1"] }).expect(403)
     await request(app.getHttpServer()).get(`/staff/orders/${order.id}`).set(schoolHeaders).expect(403)
     await request(app.getHttpServer()).post(`/staff/orders/${order.id}/refund-preview`).set(schoolHeaders).send({ lineIds: ["line-1"] }).expect(403)
     await request(app.getHttpServer()).get("/staff/orders").set(DEV_ADMIN_HEADERS).query({ page: "0" }).expect(400)
@@ -61,7 +64,7 @@ describe.skipIf(databaseUrl === undefined)("Staff order review and local refund 
     process.env["NODE_ENV"] = "production"
     try {
       const response = await request(app.getHttpServer()).get("/staff/orders").set(DEV_ADMIN_HEADERS).expect(401)
-      expect(response.body.code).toBe("staff_identity_unavailable")
+      expect(response.body.code).toBe("staff_identity_required")
     } finally { restoreNodeEnv(previous) }
   })
 })

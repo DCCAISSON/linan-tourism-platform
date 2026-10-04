@@ -255,6 +255,7 @@ async function cleanupOperations(scope: string): Promise<void> {
   const sessionPattern = `session-${scope}%`
   const familyPattern = `family-${scope}%`
   const staffPattern = `%${scope}%`
+  await dataSource.query("delete n from notification_business_sources n join tour_sessions ts on ts.id = n.session_id where ts.code like ?", [sessionPattern])
   await dataSource.query("delete from audit_logs where organization_id in (select id from organizations where code like ?)", [`school-${scope}%`])
   await dataSource.query("delete h from execution_health_authorizations h join tour_sessions ts on ts.id = h.tour_session_id where ts.code like ?", [sessionPattern])
   await dataSource.query("delete e from execution_events e join tour_sessions ts on ts.id = e.tour_session_id where ts.code like ?", [sessionPattern])
