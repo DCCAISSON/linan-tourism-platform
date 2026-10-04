@@ -114,7 +114,7 @@ describe.skipIf(databaseUrl === undefined)("managed staff identity", () => {
     for (let index = 0; index < 5; index += 1) {
       await request(app.getHttpServer())
         .post("/staff/auth/login")
-        .send({ username: `locked-${scope}`, password: "Wrong1234567" })
+        .send({ username: `locked-${scope}`, password: "invalid" })
         .expect(401)
     }
 
@@ -129,7 +129,7 @@ describe.skipIf(databaseUrl === undefined)("managed staff identity", () => {
 
     const response = await request(app.getHttpServer())
       .post("/staff/auth/login")
-      .send({ username: `message-${scope}`, password: "Wrong1234567" })
+      .send({ username: `message-${scope}`, password: "invalid" })
       .expect(401)
 
     expect(response.body).toMatchObject({ code: "staff_login_failed", message: "账号或密码不正确" })
@@ -191,7 +191,7 @@ describe.skipIf(databaseUrl === undefined)("managed staff identity", () => {
 
     await request(app.getHttpServer())
       .post("/staff/auth/login")
-      .send({ username: `audit-${scope}`, password: "Wrong1234567" })
+      .send({ username: `audit-${scope}`, password: "invalid" })
       .expect(401)
     const login = await request(app.getHttpServer())
       .post("/staff/auth/login")
@@ -207,7 +207,7 @@ describe.skipIf(databaseUrl === undefined)("managed staff identity", () => {
     const serialized = JSON.stringify(rows)
     expect(rows.map((row) => row.action)).toEqual(expect.arrayContaining(["staff.login.failed", "staff.login.succeeded", "staff.logout"]))
     expect(serialized).not.toContain("Admin1234567")
-    expect(serialized).not.toContain("Wrong1234567")
+    expect(serialized).not.toContain("invalid")
   })
 })
 

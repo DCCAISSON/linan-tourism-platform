@@ -39,10 +39,10 @@ describe("Business input boundaries", () => {
   })
   it("accepts a versioned staff followup when the status means processing", () => {
     // Given / When / Then
-    expect(parseFollowup({ idempotencyKey: "followup-key-123", expectedVersion: 1, status: "processing", ownerStaffAccountId: "staff-a", note: "已电话联系，待确认日期" }).status).toBe("processing")
+    expect(parseFollowup({ idempotencyKey: "test-key", expectedVersion: 1, status: "processing", ownerStaffAccountId: "staff-a", note: "已电话联系，待确认日期" }).status).toBe("processing")
   })
   it("rejects a booking status when staff records a followup", () => {
     // Given / When / Then
-    expect(() => parseFollowup({ idempotencyKey: "followup-key-123", expectedVersion: 1, status: "paid", ownerStaffAccountId: "staff-a", note: "x" })).toThrow()
+    expect(() => parseFollowup({ idempotencyKey: "test-key", expectedVersion: 1, status: "paid", ownerStaffAccountId: "staff-a", note: "x" })).toThrow()
   })
 })

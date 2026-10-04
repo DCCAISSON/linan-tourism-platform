@@ -1,0 +1,8 @@
+# Intentionally invalid passwords used to assert HTTP 401 for isolated staff accounts.
+# Scope each exception to the historical commit, path, rule and exact line.
+8b24ad0f02066ade0af06c845bafec39a2a183ec:apps/api/test/staff-iam.e2e-spec.ts:generic-api-key:94
+8b24ad0f02066ade0af06c845bafec39a2a183ec:apps/api/test/staff-iam.e2e-spec.ts:generic-api-key:160
+d74111e982afd8e74c3ecd063c8bd4b9b479b1d8:apps/api/test/staff-iam.e2e-spec.ts:generic-api-key:132
+# Idempotency keys passed to parseFollowup unit tests; never used as credentials.
+4f1f2adee19e79b265cb8af3747676cd71550fb0:apps/api/src/modules/business/business.parser.spec.ts:generic-api-key:42
+4f1f2adee19e79b265cb8af3747676cd71550fb0:apps/api/src/modules/business/business.parser.spec.ts:generic-api-key:46
