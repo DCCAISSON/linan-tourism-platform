@@ -14,16 +14,17 @@ export type PersonDailySnapshot = {
   readonly createdAt: string; readonly updatedAt: string
 }
 
+@Index("recorded_by", ["recordedBy"])
 @Entity({ name: "execution_person_daily_revisions" })
 @Index("uq_execution_daily_revision", ["reportId", "version"], { unique: true })
 @Index("idx_execution_daily_revision_session", ["tourSessionId"])
 export class ExecutionPersonDailyRevisionEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
-  @ForeignKey(() => ExecutionPersonDailyReportEntity, { name: "fk_person_daily_revision_report", onDelete: "RESTRICT", onUpdate: "CASCADE" })
+  @ForeignKey(() => ExecutionPersonDailyReportEntity, { name: "execution_person_daily_revisions_ibfk_1", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "report_id", type: "varchar", length: 64 })
   reportId = ""
-  @ForeignKey(() => TourSessionEntity, { name: "fk_person_daily_revision_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
+  @ForeignKey(() => TourSessionEntity, { name: "execution_person_daily_revisions_ibfk_2", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
   @Column({ name: "person_ref", type: "varchar", length: 128 })
@@ -32,7 +33,7 @@ export class ExecutionPersonDailyRevisionEntity {
   reportDate = ""
   @Column({ type: "int" })
   version = 1
-  @ForeignKey(() => StaffAccountEntity, { name: "fk_person_daily_revision_actor", onDelete: "RESTRICT", onUpdate: "CASCADE" })
+  @ForeignKey(() => StaffAccountEntity, { name: "execution_person_daily_revisions_ibfk_3", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "recorded_by", type: "varchar", length: 64 })
   recordedBy = ""
   @Column({ name: "correction_reason", type: "varchar", length: 1000 })

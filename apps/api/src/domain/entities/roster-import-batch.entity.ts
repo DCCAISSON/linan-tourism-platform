@@ -45,16 +45,16 @@ export class RosterImportBatchEntity {
   @Column({ name: "created_by", type: "varchar", length: 64 })
   createdBy = ""
 
-  @Column({ name: "total_rows", type: "int", unsigned: true })
+  @Column({ name: "total_rows", type: "int", unsigned: true, default: 0 })
   totalRows = 0
 
-  @Column({ name: "imported_count", type: "int", unsigned: true })
+  @Column({ name: "imported_count", type: "int", unsigned: true, default: 0 })
   importedCount = 0
 
-  @Column({ name: "duplicate_count", type: "int", unsigned: true })
+  @Column({ name: "duplicate_count", type: "int", unsigned: true, default: 0 })
   duplicateCount = 0
 
-  @Column({ name: "error_count", type: "int", unsigned: true })
+  @Column({ name: "error_count", type: "int", unsigned: true, default: 0 })
   errorCount = 0
 
   @Column({ name: "policy_version", type: "varchar", length: 64 })

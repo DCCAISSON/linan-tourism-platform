@@ -13,6 +13,7 @@ import { FamilyMemberEntity } from "./family-member.entity.js"
 import { FamilyEntity } from "./family.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 
+@Index("idx_enrollment_participants_identity_hash", ["identityHashSnapshot"])
 @Entity({ name: "enrollment_participants" })
 @Index("uq_enrollment_participants_enrollment_member", ["enrollmentId", "familyMemberId"], {
   unique: true,
@@ -59,7 +60,7 @@ export class EnrollmentParticipantEntity {
   @Column({ name: "display_name_snapshot", type: "varchar", length: 120 })
   displayNameSnapshot = ""
 
-  @Column({ name: "participant_kind_snapshot", type: "varchar", length: 16 })
+  @Column({ name: "participant_kind_snapshot", type: "varchar", length: 16, default: "student" })
   participantKindSnapshot: "student" | "adult" = "student"
 
   @Column({ name: "grade_id_snapshot", type: "varchar", length: 64, nullable: true })
@@ -92,7 +93,7 @@ export class EnrollmentParticipantEntity {
   @Column({ name: "phone_masked_snapshot", type: "varchar", length: 32, nullable: true })
   phoneMaskedSnapshot: string | null = null
 
-  @Column({ name: "person_data_key_version_snapshot", type: "varchar", length: 16 })
+  @Column({ name: "person_data_key_version_snapshot", type: "varchar", length: 16, default: "v1" })
   personDataKeyVersionSnapshot = "v1"
 
   @Column({ name: "policy_version", type: "varchar", length: 64 })

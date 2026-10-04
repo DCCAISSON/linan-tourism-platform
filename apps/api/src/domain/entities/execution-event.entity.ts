@@ -1,5 +1,6 @@
 ﻿import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
 import { TourSessionEntity } from "./tour-session.entity.js"
+import { StaffAccountEntity } from "./staff-account.entity.js"
 
 @Entity({ name: "execution_events" })
 @Index("idx_execution_events_session", ["tourSessionId", "occurredAt"])
@@ -7,7 +8,7 @@ import { TourSessionEntity } from "./tour-session.entity.js"
 export class ExecutionEventEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
-  @ForeignKey(() => TourSessionEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => TourSessionEntity, { name: "fk_execution_events_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
   @Column({ name: "person_ref", type: "varchar", length: 128, nullable: true })
@@ -22,12 +23,15 @@ export class ExecutionEventEntity {
   publicSummary = ""
   @Column({ name: "public_approved", type: "boolean", default: false })
   publicApproved = false
+  @ForeignKey(() => StaffAccountEntity, { name: "fk_execution_events_approved_by", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "public_approved_by", type: "varchar", length: 64, nullable: true })
   publicApprovedBy: string | null = null
   @Column({ name: "public_approved_at", type: "datetime", precision: 6, nullable: true })
   publicApprovedAt: Date | null = null
+  @ForeignKey(() => StaffAccountEntity, { name: "fk_execution_events_created_by", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "created_by", type: "varchar", length: 64 })
   createdBy = ""
+  @ForeignKey(() => StaffAccountEntity, { name: "fk_execution_events_updated_by", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "updated_by", type: "varchar", length: 64 })
   updatedBy = ""
   @Column({ type: "int", default: 1 })

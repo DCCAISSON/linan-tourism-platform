@@ -1,4 +1,4 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
 
 export type WechatBillDifferenceKind = "matched" | "wechat_only" | "local_only" | "amount_mismatch" | "refund_mismatch"
 
@@ -33,6 +33,7 @@ export class WechatBillDifferenceEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
 
+  @ForeignKey(() => WechatBillReconciliationEntity, { name: "fk_wechat_bill_differences_reconciliation", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "reconciliation_id", type: "varchar", length: 64 })
   reconciliationId = ""
 

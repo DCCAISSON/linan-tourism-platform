@@ -1,12 +1,13 @@
 ﻿import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
 import { TourSessionEntity } from "./tour-session.entity.js"
+import { StaffAccountEntity } from "./staff-account.entity.js"
 
 @Entity({ name: "execution_daily_reports" })
 @Index("uq_execution_daily_report_day", ["tourSessionId", "reportDate"], { unique: true })
 export class ExecutionDailyReportEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
-  @ForeignKey(() => TourSessionEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => TourSessionEntity, { name: "fk_execution_daily_report_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
   @Column({ name: "report_date", type: "varchar", length: 10 })
@@ -23,10 +24,12 @@ export class ExecutionDailyReportEntity {
   publicSummary = ""
   @Column({ name: "public_approved", type: "boolean", default: false })
   publicApproved = false
+  @ForeignKey(() => StaffAccountEntity, { name: "fk_execution_daily_report_approved_by", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "public_approved_by", type: "varchar", length: 64, nullable: true })
   publicApprovedBy: string | null = null
   @Column({ name: "public_approved_at", type: "datetime", precision: 6, nullable: true })
   publicApprovedAt: Date | null = null
+  @ForeignKey(() => StaffAccountEntity, { name: "fk_execution_daily_report_updated_by", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "updated_by", type: "varchar", length: 64 })
   updatedBy = ""
   @Column({ type: "int", default: 1 })

@@ -1,5 +1,6 @@
 ﻿import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
 import { TourSessionEntity } from "./tour-session.entity.js"
+import { OrderEntity } from "./order.entity.js"
 
 @Entity({ name: "execution_health_authorizations" })
 @Index("uq_execution_health_authorization_person", ["tourSessionId", "personRef"], { unique: true })
@@ -7,11 +8,12 @@ import { TourSessionEntity } from "./tour-session.entity.js"
 export class ExecutionHealthAuthorizationEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
-  @ForeignKey(() => TourSessionEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => TourSessionEntity, { name: "fk_execution_health_authorization_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
   @Column({ name: "person_ref", type: "varchar", length: 128 })
   personRef = ""
+  @ForeignKey(() => OrderEntity, { name: "fk_execution_health_authorization_order", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "order_id", type: "varchar", length: 64 })
   orderId = ""
   @Column({ name: "family_actor_id", type: "varchar", length: 64 })

@@ -6,7 +6,7 @@ export type ExecutionNodeType = "attendance" | "breakfast" | "lunch" | "dinner" 
 @Index("idx_execution_node_session", ["tourSessionId", "reportDate"])
 export class ExecutionPlanNodeEntity {
   @PrimaryColumn({ type: "varchar", length: 64 }) id = ""
-  @ForeignKey(() => TourSessionEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => TourSessionEntity, { name: "execution_plan_nodes_ibfk_1", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 }) tourSessionId = ""
   @Column({ name: "report_date", type: "varchar", length: 10 }) reportDate = ""
   @Column({ type: "varchar", length: 16 }) type: ExecutionNodeType = "attendance"

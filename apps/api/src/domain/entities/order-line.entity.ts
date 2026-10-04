@@ -4,6 +4,7 @@ import { EnrollmentParticipantEntity } from "./enrollment-participant.entity.js"
 import { OrderEntity } from "./order.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 
+@Index("idx_order_lines_identity_hash", ["identityHashSnapshot"])
 @Entity({ name: "order_lines" })
 @Index("uq_order_lines_order_participant", ["orderId", "enrollmentParticipantId"], {
   unique: true,
@@ -41,7 +42,7 @@ export class OrderLineEntity {
   @Column({ name: "display_name_snapshot", type: "varchar", length: 120 })
   displayNameSnapshot = ""
 
-  @Column({ name: "participant_kind_snapshot", type: "varchar", length: 16 })
+  @Column({ name: "participant_kind_snapshot", type: "varchar", length: 16, default: "student" })
   participantKindSnapshot: "student" | "adult" = "student"
 
   @Column({ name: "grade_name_snapshot", type: "varchar", length: 120, nullable: true })
@@ -68,7 +69,7 @@ export class OrderLineEntity {
   @Column({ name: "phone_masked_snapshot", type: "varchar", length: 32, nullable: true })
   phoneMaskedSnapshot: string | null = null
 
-  @Column({ name: "person_data_key_version_snapshot", type: "varchar", length: 16 })
+  @Column({ name: "person_data_key_version_snapshot", type: "varchar", length: 16, default: "v1" })
   personDataKeyVersionSnapshot = "v1"
 
   @Column({ name: "amount_fen", type: "int", unsigned: true })

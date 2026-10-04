@@ -1,3 +1,4 @@
+import { NoticeVersionEntity } from "./notice-version.entity.js"
 import {
   DOMAIN_POLICY_VERSION,
   TOUR_SESSION_STATUS,
@@ -15,6 +16,7 @@ import {
 import { CatalogItemEntity } from "./catalog-item.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
 
+@Index("idx_tour_sessions_active_notice", ["activeNoticeId"])
 @Entity({ name: "tour_sessions" })
 @Index("uq_tour_sessions_org_code", ["organizationId", "code"], { unique: true })
 @Index("idx_tour_sessions_catalog_item", ["catalogItemId"])
@@ -68,6 +70,7 @@ export class TourSessionEntity {
   @Column({ name: "enrollment_scope_json", type: "json", nullable: true })
   enrollmentScopeJson: import("../../modules/configuration/configuration.scope.js").EnrollmentScope = null
 
+  @ForeignKey(() => NoticeVersionEntity, { name: "fk_tour_sessions_active_notice", onDelete: "SET NULL", onUpdate: "CASCADE" })
   @Column({ name: "active_notice_id", type: "varchar", length: 64, nullable: true })
   activeNoticeId: string | null = null
 

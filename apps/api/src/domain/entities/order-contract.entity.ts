@@ -1,4 +1,9 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn } from "typeorm"
+import { EnrollmentEntity } from "./enrollment.entity.js"
+import { FamilyEntity } from "./family.entity.js"
+import { OrderEntity } from "./order.entity.js"
+import { OrganizationEntity } from "./organization.entity.js"
+import { TourSessionEntity } from "./tour-session.entity.js"
 
 @Entity({ name: "order_contracts" })
 @Index("uq_order_contracts_order", ["orderId"], { unique: true })
@@ -6,18 +11,23 @@ export class OrderContractEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
 
+  @ForeignKey(() => OrganizationEntity, { name: "fk_order_contracts_org", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "organization_id", type: "varchar", length: 64 })
   organizationId = ""
 
+  @ForeignKey(() => TourSessionEntity, { name: "fk_order_contracts_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
 
+  @ForeignKey(() => FamilyEntity, { name: "fk_order_contracts_family", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "family_id", type: "varchar", length: 64 })
   familyId = ""
 
+  @ForeignKey(() => EnrollmentEntity, { name: "fk_order_contracts_enrollment", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "enrollment_id", type: "varchar", length: 64 })
   enrollmentId = ""
 
+  @ForeignKey(() => OrderEntity, { name: "fk_order_contracts_order", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "order_id", type: "varchar", length: 64 })
   orderId = ""
 

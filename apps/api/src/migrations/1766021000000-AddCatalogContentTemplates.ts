@@ -13,7 +13,7 @@ export class AddCatalogContentTemplates1766021000000 implements MigrationInterfa
       created_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
       updated_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
       PRIMARY KEY (id)
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await runner.query(`ALTER TABLE catalog_items
       ADD template_id varchar(64) NULL,
       ADD INDEX idx_catalog_items_template (template_id),

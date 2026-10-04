@@ -22,7 +22,7 @@ export class StaffAccountPermissionEntity {
   @CreateDateColumn({ name: "created_at", type: "datetime", precision: 6 })
   createdAt = new Date(0)
 
-  @ManyToOne(() => StaffAccountEntity, (account) => account.permissions)
+  @ManyToOne(() => StaffAccountEntity, (account) => account.permissions, { createForeignKeyConstraints: false })
   @JoinColumn({ name: "staff_account_id" })
   account: StaffAccountEntity | null = null
 }

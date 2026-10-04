@@ -3,15 +3,16 @@ import { TourSessionEntity } from "./tour-session.entity.js"
 import { ExecutionPlanNodeEntity, type ExecutionNodeType } from "./execution-plan-node.entity.js"
 import type { PersonRef } from "../../modules/travelers/travelers.types.js"
 
+@Index("node_id", ["nodeId"])
 @Entity({ name: "execution_occurrences" })
 @Index("uq_execution_occurrence_revision", ["rootId", "version"], { unique: true })
 @Index("idx_execution_occurrence_session", ["tourSessionId", "reportDate"])
 export class ExecutionOccurrenceEntity {
   @PrimaryColumn({ type: "varchar", length: 64 }) id = ""
-  @ForeignKey(() => TourSessionEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => TourSessionEntity, { name: "execution_occurrences_ibfk_1", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 }) tourSessionId = ""
   @Column({ name: "root_id", type: "varchar", length: 64 }) rootId = ""
-  @ForeignKey(() => ExecutionPlanNodeEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => ExecutionPlanNodeEntity, { name: "execution_occurrences_ibfk_2", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "node_id", type: "varchar", length: 64, nullable: true }) nodeId: string | null = null
   @Column({ name: "node_version", type: "int", nullable: true }) nodeVersion: number | null = null
   @Column({ name: "person_ref", type: "varchar", length: 128 }) personRef: PersonRef = "paid:"

@@ -13,14 +13,14 @@ export class AddRecipientInvitations1766022000000 implements MigrationInterface 
       UNIQUE KEY uq_recipient_invite_token (token_hash), UNIQUE KEY uq_recipient_invite_authorization (authorization_id),
       CONSTRAINT fk_recipient_invite_order FOREIGN KEY (order_id) REFERENCES orders(id),
       CONSTRAINT fk_recipient_invite_authorization FOREIGN KEY (authorization_id) REFERENCES notification_recipient_authorizations(id)
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
     await runner.query(`CREATE TABLE recipient_template_consents (
       id varchar(64) NOT NULL PRIMARY KEY, authorization_id varchar(64) NOT NULL, template_id varchar(128) NOT NULL,
       status varchar(16) NOT NULL, version int unsigned NOT NULL DEFAULT 1,
       updated_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
       UNIQUE KEY uq_recipient_template_consent (authorization_id, template_id),
       CONSTRAINT fk_recipient_consent_authorization FOREIGN KEY (authorization_id) REFERENCES notification_recipient_authorizations(id)
-    ) ENGINE=InnoDB`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
   }
   async down(runner: QueryRunner): Promise<void> {
     await runner.query("DROP TABLE recipient_template_consents")

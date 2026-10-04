@@ -14,11 +14,11 @@ export class NotificationBusinessSourceEntity {
   @Column({ type: "varchar", length: 32 })
   kind: "order_created" | "pretrip_updated" = "order_created"
 
-  @ForeignKey(() => TourSessionEntity, { name: "fk_notification_source_session", onDelete: "RESTRICT" })
+  @ForeignKey(() => TourSessionEntity, { name: "fk_notification_source_session", onDelete: "NO ACTION", onUpdate: "NO ACTION" })
   @Column({ name: "session_id", type: "varchar", length: 64 })
   sessionId = ""
 
-  @ForeignKey(() => OrderEntity, { name: "fk_notification_source_order", onDelete: "RESTRICT" })
+  @ForeignKey(() => OrderEntity, { name: "fk_notification_source_order", onDelete: "NO ACTION", onUpdate: "NO ACTION" })
   @Column({ name: "order_id", type: "varchar", length: 64, nullable: true })
   orderId: string | null = null
 
@@ -34,7 +34,7 @@ export class NotificationBusinessSourceEntity {
   @Column({ name: "body_text", type: "text" })
   bodyText = ""
 
-  @ForeignKey(() => NotificationDeliveryTaskEntity, { name: "fk_notification_source_task", onDelete: "RESTRICT" })
+  @ForeignKey(() => NotificationDeliveryTaskEntity, { name: "fk_notification_source_task", onDelete: "NO ACTION", onUpdate: "NO ACTION" })
   @Column({ name: "linked_task_id", type: "varchar", length: 64, nullable: true })
   linkedTaskId: string | null = null
 

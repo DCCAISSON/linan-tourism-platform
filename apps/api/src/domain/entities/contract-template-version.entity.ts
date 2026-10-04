@@ -1,4 +1,6 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn } from "typeorm"
+import { OrganizationEntity } from "./organization.entity.js"
+import { TourSessionEntity } from "./tour-session.entity.js"
 import type { ContractKind } from "../../modules/contracts/contracts.types.js"
 
 @Entity({ name: "contract_template_versions" })
@@ -7,9 +9,11 @@ export class ContractTemplateVersionEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
 
+  @ForeignKey(() => OrganizationEntity, { name: "fk_contract_templates_org", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "organization_id", type: "varchar", length: 64 })
   organizationId = ""
 
+  @ForeignKey(() => TourSessionEntity, { name: "fk_contract_templates_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
 

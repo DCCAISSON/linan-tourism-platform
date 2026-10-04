@@ -1,4 +1,5 @@
-import { Column, Entity, ForeignKey, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { Column, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { TransportConfirmationEntity } from "./transport-confirmation.entity.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
 
 export type TransportDocumentSnapshot = {
@@ -17,6 +18,7 @@ export type TransportDocumentSnapshot = {
   readonly materialChecklist: string
 }
 
+@Index("idx_transport_plans_current_confirmation", ["currentConfirmationId"])
 @Entity({ name: "transport_plans" })
 export class TransportPlanEntity {
   @ForeignKey(() => TourSessionEntity, { name: "fk_transport_plans_tour_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
@@ -29,6 +31,7 @@ export class TransportPlanEntity {
   @Column({ name: "document_snapshot_json", type: "json", nullable: true })
   documentSnapshotJson: TransportDocumentSnapshot | null = null
 
+  @ForeignKey(() => TransportConfirmationEntity, { name: "fk_transport_plans_current_confirmation", onDelete: "SET NULL", onUpdate: "CASCADE" })
   @Column({ name: "current_confirmation_id", type: "varchar", length: 64, nullable: true })
   currentConfirmationId: string | null = null
 

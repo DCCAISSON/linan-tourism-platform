@@ -1,4 +1,5 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { TourSessionEntity } from "./tour-session.entity.js"
 import type { ServiceFeedbackSource, ServiceFeedbackStatus } from "../../modules/feedback/feedback.types.js"
 
 @Entity({ name: "service_feedback" })
@@ -8,6 +9,7 @@ export class ServiceFeedbackEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
 
+  @ForeignKey(() => TourSessionEntity, { name: "fk_service_feedback_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
 

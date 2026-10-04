@@ -1,5 +1,6 @@
 ﻿import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
 import { TourSessionEntity } from "./tour-session.entity.js"
+import { StaffAccountEntity } from "./staff-account.entity.js"
 import { TransportSessionVehicleEntity } from "./transport-session-vehicle.entity.js"
 
 @Entity({ name: "execution_attendance" })
@@ -8,10 +9,10 @@ import { TransportSessionVehicleEntity } from "./transport-session-vehicle.entit
 export class ExecutionAttendanceEntity {
   @PrimaryColumn({ type: "varchar", length: 64 })
   id = ""
-  @ForeignKey(() => TourSessionEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => TourSessionEntity, { name: "fk_execution_attendance_session", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "tour_session_id", type: "varchar", length: 64 })
   tourSessionId = ""
-  @ForeignKey(() => TransportSessionVehicleEntity, { onDelete: "RESTRICT" })
+  @ForeignKey(() => TransportSessionVehicleEntity, { name: "fk_execution_attendance_vehicle", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "vehicle_id", type: "varchar", length: 64 })
   vehicleId = ""
   @Column({ name: "person_ref", type: "varchar", length: 128 })
@@ -24,6 +25,7 @@ export class ExecutionAttendanceEntity {
   groupJoined = false
   @Column({ type: "varchar", length: 500 })
   note = ""
+  @ForeignKey(() => StaffAccountEntity, { name: "fk_execution_attendance_updated_by", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "updated_by", type: "varchar", length: 64 })
   updatedBy = ""
   @Column({ type: "int", default: 1 })

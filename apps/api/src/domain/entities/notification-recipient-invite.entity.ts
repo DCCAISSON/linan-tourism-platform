@@ -7,13 +7,13 @@ import { NotificationRecipientAuthorizationEntity } from "./notification-recipie
 @Index("uq_recipient_invite_authorization", ["authorizationId"], { unique: true })
 export class NotificationRecipientInviteEntity {
   @PrimaryColumn({ type: "varchar", length: 64 }) id = ""
-  @ForeignKey(() => OrderEntity, { name: "fk_recipient_invite_order", onDelete: "RESTRICT" })
+  @ForeignKey(() => OrderEntity, { name: "fk_recipient_invite_order", onDelete: "NO ACTION", onUpdate: "NO ACTION" })
   @Column({ name: "order_id", type: "varchar", length: 64 }) orderId = ""
   @Column({ name: "inviter_actor_id", type: "varchar", length: 128 }) inviterActorId = ""
   @Column({ name: "token_hash", type: "char", length: 64 }) tokenHash = ""
   @Column({ name: "expires_at", type: "datetime", precision: 6 }) expiresAt = new Date(0)
   @Column({ name: "authorization_deadline", type: "datetime", precision: 6 }) authorizationDeadline = new Date(0)
-  @ForeignKey(() => NotificationRecipientAuthorizationEntity, { name: "fk_recipient_invite_authorization", onDelete: "RESTRICT" })
+  @ForeignKey(() => NotificationRecipientAuthorizationEntity, { name: "fk_recipient_invite_authorization", onDelete: "NO ACTION", onUpdate: "NO ACTION" })
   @Column({ name: "authorization_id", type: "varchar", length: 64, nullable: true }) authorizationId: string | null = null
   @Column({ name: "confirmed_at", type: "datetime", precision: 6, nullable: true }) confirmedAt: Date | null = null
   @Column({ name: "revoked_at", type: "datetime", precision: 6, nullable: true }) revokedAt: Date | null = null
@@ -24,7 +24,7 @@ export class NotificationRecipientInviteEntity {
 @Index("uq_recipient_template_consent", ["authorizationId", "templateId"], { unique: true })
 export class RecipientTemplateConsentEntity {
   @PrimaryColumn({ type: "varchar", length: 64 }) id = ""
-  @ForeignKey(() => NotificationRecipientAuthorizationEntity, { name: "fk_recipient_consent_authorization", onDelete: "RESTRICT" })
+  @ForeignKey(() => NotificationRecipientAuthorizationEntity, { name: "fk_recipient_consent_authorization", onDelete: "NO ACTION", onUpdate: "NO ACTION" })
   @Column({ name: "authorization_id", type: "varchar", length: 64 }) authorizationId = ""
   @Column({ name: "template_id", type: "varchar", length: 128 }) templateId = ""
   @Column({ type: "varchar", length: 16 }) status: "active" | "rejected" | "consumed" = "rejected"

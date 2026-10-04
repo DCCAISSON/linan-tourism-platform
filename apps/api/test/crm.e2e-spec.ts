@@ -1,12 +1,10 @@
 import type { INestApplication } from "@nestjs/common"
 import { Test, type TestingModule } from "@nestjs/testing"
 import request from "supertest"
-import { DataSource, type QueryRunner } from "typeorm"
+import type { DataSource } from "typeorm"
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import { AuditLogEntity, OrganizationEntity } from "../src/domain/entities/index.js"
-import { CrmCustomerEntity } from "../src/domain/entities/crm-customer.entity.js"
-import { CrmFollowupEntity } from "../src/domain/entities/crm-followup.entity.js"
-import { AddCrm1765962000000 } from "../src/migrations/1765962000000-AddCrm.js"
+import { createDomainDataSource } from "../src/domain/data-source.js"
 import { CrmModule } from "../src/modules/crm/crm.module.js"
 import { ConfigurationDatabaseService } from "../src/modules/configuration/configuration-database.service.js"
 const databaseUrl = process.env["DOMAIN_TEST_DATABASE_URL"]
@@ -24,34 +22,6 @@ function requireDatabaseUrl(): string {
 }
 
 
-async function prepareCrmE2eSchema(dataSource: DataSource): Promise<void> {
-  const queryRunner = dataSource.createQueryRunner()
-  await queryRunner.connect()
-  try {
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS organizations (
-      id varchar(64) NOT NULL, code varchar(64) NOT NULL, name varchar(120) NOT NULL,
-      created_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-      updated_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-      PRIMARY KEY(id), UNIQUE KEY uq_organizations_code(code)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
-    await queryRunner.query(`CREATE TABLE IF NOT EXISTS audit_logs (
-      id varchar(64) NOT NULL, organization_id varchar(64) NOT NULL, actor_id varchar(64) NOT NULL,
-      action varchar(120) NOT NULL, target_type varchar(120) NOT NULL, target_id varchar(128) NOT NULL,
-      metadata json NULL, created_at datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-      PRIMARY KEY(id), KEY idx_audit_logs_org_created(organization_id, created_at)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
-    await recreateCrmTables(queryRunner)
-  } finally {
-    await queryRunner.release()
-  }
-}
-
-async function recreateCrmTables(queryRunner: QueryRunner): Promise<void> {
-  await queryRunner.query("DROP TABLE IF EXISTS crm_followups")
-  await queryRunner.query("DROP TABLE IF EXISTS crm_customers")
-  await new AddCrm1765962000000().up(queryRunner)
-}
-
 describe.skipIf(databaseUrl === undefined)("CRM staff API", () => {
   let app: INestApplication
   let scope: string
@@ -62,17 +32,9 @@ describe.skipIf(databaseUrl === undefined)("CRM staff API", () => {
   beforeAll(async () => {
     previousPersonDataKey = process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"]
     process.env["PERSON_DATA_ENCRYPTION_KEY_BASE64"] = Buffer.alloc(32, 25).toString("base64")
-    crmDataSource = new DataSource({
-      type: "mysql",
-      charset: "utf8mb4",
-      synchronize: false,
-      migrationsRun: false,
-      migrationsTableName: "typeorm_migrations",
-      entities: [AuditLogEntity, OrganizationEntity, CrmCustomerEntity, CrmFollowupEntity],
-      url: requireDatabaseUrl(),
-    })
+    crmDataSource = createDomainDataSource(requireDatabaseUrl())
     await crmDataSource.initialize()
-    await prepareCrmE2eSchema(crmDataSource)
+    await crmDataSource.runMigrations()
   })
 
   beforeEach(async () => {
@@ -97,8 +59,6 @@ describe.skipIf(databaseUrl === undefined)("CRM staff API", () => {
 
   afterAll(async () => {
     if (crmDataSource.isInitialized) {
-      await crmDataSource.query("DROP TABLE IF EXISTS crm_followups")
-      await crmDataSource.query("DROP TABLE IF EXISTS crm_customers")
       await crmDataSource.destroy()
     }
     if (previousPersonDataKey === undefined) {

@@ -24,7 +24,7 @@ export class StaffAccountScopeEntity {
   @CreateDateColumn({ name: "created_at", type: "datetime", precision: 6 })
   createdAt = new Date(0)
 
-  @ManyToOne(() => StaffAccountEntity, (account) => account.scopes)
+  @ManyToOne(() => StaffAccountEntity, (account) => account.scopes, { createForeignKeyConstraints: false })
   @JoinColumn({ name: "staff_account_id" })
   account: StaffAccountEntity | null = null
 }

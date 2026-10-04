@@ -1,11 +1,16 @@
 import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
+import { OrganizationEntity } from "./organization.entity.js"
+import { StaffAccountEntity } from "./staff-account.entity.js"
+import { BusinessProductEntity } from "./business-product.entity.js"
 import { CrmCustomerEntity } from "./crm-customer.entity.js"
 import type { InquiryStatus } from "../../modules/business/business.types.js"
 @Entity({ name: "business_inquiries" })
 @Index("uq_business_inquiries_replay", ["productId", "idempotencyKey"], { unique: true })
 export class BusinessInquiryEntity {
   @PrimaryColumn({ type: "varchar", length: 64 }) id = ""
+  @ForeignKey(() => BusinessProductEntity, { name: "fk_business_inquiries_product", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "product_id", type: "varchar", length: 64 }) productId = ""
+  @ForeignKey(() => OrganizationEntity, { name: "fk_business_inquiries_org", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "organization_id", type: "varchar", length: 64 }) organizationId = ""
   @ForeignKey(() => CrmCustomerEntity, { name: "fk_business_inquiry_customer", onDelete: "RESTRICT", onUpdate: "CASCADE" })
   @Column({ name: "customer_id", type: "varchar", length: 64, nullable: true }) customerId: string | null = null
@@ -17,6 +22,7 @@ export class BusinessInquiryEntity {
   @Column({ type: "varchar", length: 32 }) phone = ""
   @Column({ type: "text" }) request = ""
   @Column({ type: "varchar", length: 24 }) status: InquiryStatus = "inquiry"
+  @ForeignKey(() => StaffAccountEntity, { name: "fk_business_inquiries_owner", onDelete: "RESTRICT", onUpdate: "NO ACTION" })
   @Column({ name: "owner_staff_account_id", type: "varchar", length: 64, nullable: true }) ownerStaffAccountId: string | null = null
   @Column({ type: "int", default: 1 }) version = 1
   @CreateDateColumn({ name: "created_at", type: "datetime", precision: 6 }) createdAt = new Date(0)
