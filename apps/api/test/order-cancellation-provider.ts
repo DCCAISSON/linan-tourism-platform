@@ -11,6 +11,7 @@ export function deferred() {
 export async function createCancellationProvider() {
   const keys = generateKeyPairSync("rsa", { modulusLength: 2048 })
   const states = new Map<string, string>()
+  const refunds = new Map<string, { status: string; refundFen: number; totalFen: number }>()
   const calls: string[] = []
   const failure = { close: false, closeAfterCommit: false, wrongApp: false }
   let gate: { readonly operation: string; readonly entered: ReturnType<typeof deferred>; readonly released: ReturnType<typeof deferred> } | undefined
@@ -33,6 +34,14 @@ export async function createCancellationProvider() {
   }
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1")
+    if (url.pathname.startsWith("/v3/refund/domestic/refunds/")) {
+      calls.push("refund-query")
+      const number = decodeURIComponent(url.pathname.split("/").at(-1) ?? "")
+      const refund = refunds.get(number)
+      if (refund === undefined) return respond(response, 404, { code: "RESOURCE_NOT_EXISTS" })
+      return respond(response, 200, { out_refund_no: number, refund_id: `provider-${number}`,
+        status: refund.status, amount: { refund: refund.refundFen, total: refund.totalFen } })
+    }
     const operation = url.pathname.endsWith("/jsapi") ? "create" : url.pathname.endsWith("/close") ? "close" : "query"
     calls.push(operation)
     const chunks: Buffer[] = []
@@ -60,7 +69,7 @@ export async function createCancellationProvider() {
   const address = server.address()
   if (address === null || typeof address === "string") throw new TypeError("fixture must bind TCP")
   return {
-    config: { ...config, apiOrigin: `http://127.0.0.1:${address.port}` }, states, calls, failure,
+    config: { ...config, apiOrigin: `http://127.0.0.1:${address.port}` }, states, refunds, calls, failure,
     block(operation: "create" | "close") {
       const entered = deferred(), released = deferred()
       gate = { operation, entered, released }
@@ -72,6 +81,19 @@ export async function createCancellationProvider() {
       cipher.setAAD(Buffer.from(associatedData))
       const resource = JSON.stringify({ appid: config.appId, mchid: config.merchantId, out_trade_no: paymentNo,
         transaction_id: `tx-${eventId}`, trade_state: "SUCCESS", amount: { total: amountFen, currency: "CNY" } })
+      const ciphertext = Buffer.concat([cipher.update(resource), cipher.final(), cipher.getAuthTag()]).toString("base64")
+      const body = JSON.stringify({ id: eventId, resource: { algorithm: "AEAD_AES_256_GCM", ciphertext, nonce, associated_data: associatedData } })
+      return { body, headers: signedHeaders(body) }
+    },
+    refundCallback(number: string, eventId: string) {
+      const refund = refunds.get(number)
+      if (refund === undefined) throw new TypeError("refund fixture must exist")
+      const nonce = randomBytes(12).toString("hex").slice(0, 12), associatedData = "refund-test"
+      const cipher = createCipheriv("aes-256-gcm", Buffer.from(config.apiV3Key), Buffer.from(nonce))
+      cipher.setAAD(Buffer.from(associatedData))
+      const resource = JSON.stringify({ mchid: config.merchantId, out_refund_no: number,
+        refund_id: `provider-${number}`, refund_status: refund.status,
+        amount: { refund: refund.refundFen, total: refund.totalFen } })
       const ciphertext = Buffer.concat([cipher.update(resource), cipher.final(), cipher.getAuthTag()]).toString("base64")
       const body = JSON.stringify({ id: eventId, resource: { algorithm: "AEAD_AES_256_GCM", ciphertext, nonce, associated_data: associatedData } })
       return { body, headers: signedHeaders(body) }

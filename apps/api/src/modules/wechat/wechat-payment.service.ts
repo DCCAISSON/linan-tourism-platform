@@ -1,7 +1,7 @@
 import { DOMAIN_POLICY_VERSION, ENROLLMENT_STATUS, ORDER_STATUS, PAYMENT_STATUS, REFUND_PROVIDER, ROSTER_STATUS } from "@linan/contracts"
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { createHash } from "node:crypto"
-import type { EntityManager } from "typeorm"
+import { In, type EntityManager } from "typeorm"
 import {
   EnrollmentEntity,
   OrderEntity,
@@ -172,7 +172,7 @@ export class WechatPaymentService {
       const request = await manager.findOneBy(RefundRequestEntity, { id: current.refundRequestId })
       if (request === null) throw new NotFoundException({ code: "not_found", message: "退款申请不存在" })
       const payment = current.orderId === null ? null : await manager.findOneBy(PaymentEntity, {
-        orderId: current.orderId, channel: WECHAT_PROVIDER, status: PAYMENT_STATUS.succeeded,
+        orderId: current.orderId, channel: WECHAT_PROVIDER, status: In([PAYMENT_STATUS.succeeded, PAYMENT_STATUS.refunded]),
       })
       current.providerTransactionId = resource.refundId
       current.amountFen = resource.refundFen
@@ -187,6 +187,15 @@ export class WechatPaymentService {
         return toStaffRefundResponse(manager, request)
       }
       current.abnormalReason = null
+      if (request.status === "succeeded") {
+        current.status = "succeeded"
+        if (request.failureMessage !== null) {
+          request.failureMessage = null
+          await manager.save(request)
+        }
+        await manager.save(current)
+        return toStaffRefundResponse(manager, request)
+      }
       if (resource.refundStatus === "SUCCESS") current.status = "succeeded"
       else if (resource.refundStatus === "PROCESSING") current.status = "processing"
       else if (resource.refundStatus === "ABNORMAL") current.status = "abnormal"
@@ -236,11 +245,12 @@ export class WechatPaymentService {
         id: makeId("wechat-tx"), organizationId: payment.organizationId, kind: "payment",
         orderId: order.id, refundRequestId: null, outTradeNo: resource.outTradeNo, outRefundNo: null,
       })
+      const capacityExceeded = transaction.abnormalReason === "tour_session_full_after_paid"
       transaction.eventId = eventId
       transaction.providerTransactionId = resource.transactionId
-      transaction.status = status === PAYMENT_STATUS.succeeded ? "succeeded" : "failed"
+      transaction.status = capacityExceeded ? "abnormal" : status === PAYMENT_STATUS.succeeded ? "succeeded" : "failed"
       transaction.amountFen = resource.amountFen
-      transaction.abnormalReason = null
+      transaction.abnormalReason = capacityExceeded ? "tour_session_full_after_paid" : null
       transaction.rawPayload = resource
       await manager.save(transaction)
       if (resource.currency !== "CNY" || resource.amountFen !== payment.amountFen || resource.amountFen !== order.amountFen) {
@@ -249,6 +259,7 @@ export class WechatPaymentService {
         await manager.save(transaction)
         return
       }
+      if (payment.status === PAYMENT_STATUS.refunded) return
       payment.providerTransactionId = resource.transactionId
       payment.providerEventId = eventId
       payment.status = status
@@ -292,7 +303,7 @@ export class WechatPaymentService {
         const payment = transaction.orderId === null ? null : await manager.findOneBy(PaymentEntity, {
           orderId: transaction.orderId,
           channel: WECHAT_PROVIDER,
-          status: PAYMENT_STATUS.succeeded,
+          status: In([PAYMENT_STATUS.succeeded, PAYMENT_STATUS.refunded]),
         })
         const mismatch = refundCallbackMismatch(resource, refundRequest, payment)
         if (mismatch !== null) {
@@ -300,6 +311,14 @@ export class WechatPaymentService {
           transaction.abnormalReason = mismatch
           await manager.save(transaction)
           return
+        }
+        transaction.abnormalReason = null
+        if (refundRequest?.status === "succeeded") {
+          transaction.status = "succeeded"
+          if (refundRequest.failureMessage !== null) {
+            refundRequest.failureMessage = null
+            await manager.save(refundRequest)
+          }
         }
       }
       await manager.save(transaction)
