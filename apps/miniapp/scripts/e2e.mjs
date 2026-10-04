@@ -62,7 +62,10 @@ try {
   }
 } finally {
   miniProgram?.disconnect()
-  if (projectOpened) await runCli(["close", "--project", projectPath], 60_000)
+  if (projectOpened) {
+    try { await runCli(["close", "--project", projectPath], 60_000) }
+    catch { console.warn("E2E cleanup warning: WeChat DevTools close failed; continuing cleanup.") }
+  }
   if (serverStarted) {
     fixture.catalogBlocked = false
     server.closeAllConnections()
