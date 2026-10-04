@@ -93,3 +93,48 @@ bash deploy/cloud-test/prepare-release-candidate.sh <tested-commit-sha>
 - 工作区干净。若仍有未提交或未追踪源码，脚本失败，因为这些内容不会进入 `git archive`。
 
 候选包 manifest 记录 archive sha256、目标候选目录 `/opt/linan-test/app-candidate-<short-sha>`、当前目录 `/opt/linan-test/app` 和回滚提示。实际发布时应先保留 `/opt/linan-test/app-backup-<short-sha>`，再切换候选目录；失败只回滚应用目录和服务版本，不盲目 down 数据库迁移。
+
+## 日常微信账单核对
+
+`reconcile-wechat-bill.mjs` 复用当前部署的 `WechatReconciliationService`，只下载账单、查询交易并保存对账结果，不发起支付或退款。每天北京时间 10:05 核对北京时间昨日；日期计算不依赖服务器时区。服务通过同一个 `flock` 锁串行执行，人工补跑也必须使用该锁。不要与后台针对同日的手动核对同时操作。
+
+这三个文件是待安装模板；仓库存在文件不代表线上已经启用。原 `linan-refund-bill-20260930.timer` 是一次性历史作业，保留其文件和结果，不覆盖为新的日程。
+
+在已审核的候选源码根目录，由部署负责人安装：
+
+```bash
+sudo install -d -o root -g root -m 700 /opt/linan-test/ops /var/lib/linan-wechat-bill-reconciliation
+sudo install -o root -g root -m 600 deploy/cloud-test/reconcile-wechat-bill.mjs /opt/linan-test/ops/reconcile-wechat-bill.mjs
+sudo install -o root -g root -m 644 deploy/cloud-test/linan-wechat-bill-reconciliation.service /etc/systemd/system/linan-wechat-bill-reconciliation.service
+sudo install -o root -g root -m 644 deploy/cloud-test/linan-wechat-bill-reconciliation.timer /etc/systemd/system/linan-wechat-bill-reconciliation.timer
+sudo /opt/node-v22.23.2-linux-x64/bin/node --check /opt/linan-test/ops/reconcile-wechat-bill.mjs
+sudo systemd-analyze verify /etc/systemd/system/linan-wechat-bill-reconciliation.service /etc/systemd/system/linan-wechat-bill-reconciliation.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now linan-wechat-bill-reconciliation.timer
+sudo systemctl show linan-wechat-bill-reconciliation.timer -p ActiveState -p NextElapseUSecRealtime
+```
+
+安装前确认上述 Node、flock、受控环境文件和当前 API 编译产物实际存在；安装后将源文件摘要、候选版本及 `NextElapseUSecRealtime` 记入部署回执。系统重启后的 `Persistent=true` 只补触发一次，runner 仍核对当时的昨日，不会自动补齐停机期间全部日期。财务须逐日核对缺口，按批准日期补跑：
+
+```bash
+sudo /usr/bin/flock --nonblock --conflict-exit-code 75 /run/lock/linan-wechat-bill-reconciliation.lock /opt/node-v22.23.2-linux-x64/bin/node --env-file=/etc/linan-test/api.env /opt/linan-test/ops/reconcile-wechat-bill.mjs YYYY-MM-DD
+```
+
+占位日期须替换为已结束的实际账单日；当天、未来、非法日期直接拒绝。相同日期复用现有后端按账单日更新结果的逻辑，不新增付款或退款；每次运行摘要追加到 root 受控的 `/var/lib/linan-wechat-bill-reconciliation/YYYY-MM-DD.jsonl`，保留重跑与失败历史。摘要只记日期、时间、账单摘要、差异数和错误码，不记订单号、人员或凭据。摘要不再把差异记录中的金额求和冒充整日支付/退款总额。
+
+|退出码|含义|处理|
+|---|---|---|
+|0|核对完成且差异为零|核对后台账单日及摘要，记录当日完成。|
+|2|核对完成但存在差异|财务在后台逐条核对；不得自动确认或重新退款。|
+|1|日期、账单下载、查询、连接关闭或回执写入失败|部署负责人查看脱敏错误码；账单缺失不能按零交易成功处理，修复后按原日期补跑。|
+|75|已有作业持锁|确认正在运行者和目标日期；结束后检查是否已经产生本日结果。|
+
+每日核查同时查看 `systemctl show linan-wechat-bill-reconciliation.service -p Result -p ExecMainStatus`、`journalctl -u linan-wechat-bill-reconciliation.service --since today --no-pager -o cat`、目标日期 jsonl 及后台对账结果。退出 0、timer active 都不能单独证明连续日期无遗漏。超时或进程被杀时以 systemd 失败记录为准，可能尚未写入 jsonl。
+
+告警沿用现有运维渠道，由运维负责人确认“作业失败、差异非零、逾期无结果”的接收人和处理时限，再做一次无真实资金的失败告警实收验证。本模板不发送消息、不新增收费监控，也不宣称告警已经送达。财务复核人与运维当班人未指定前，此项交接仍未完成。
+
+暂停只停用新 timer：`sudo systemctl disable --now linan-wechat-bill-reconciliation.timer`；不删除对账记录、历史作业或备份。应用回滚需核对当前 API 编译产物兼容性后再恢复日程。
+
+本地调度回归：从仓库根目录运行 `node --experimental-vm-modules deploy/cloud-test/reconcile-wechat-bill.test.mjs`。它验证真实 runner 的日期、退出码和脱敏回执，微信服务使用合成返回，不访问真实账单或生产数据库。
+
+恢复应用时必须配对备份时点、实际部署产物及迁移记录。10月3日的83表快照不能直接配对后续89表版本；本轮隔离验证已用线上产物执行四项待执行迁移后，再以只读账号启动应用、读取学校/课程/团期并核对原金额和关联查询。升级只在隔离副本先验证；不要在生产盲目重放历史迁移。数据库恢复、独立密钥副本可取得、媒体读回、各角色实际接手分别留回执。

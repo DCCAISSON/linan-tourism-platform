@@ -1,0 +1,11 @@
+[Unit]
+Description=Reconcile the previous Shanghai calendar day's WeChat bill
+Wants=network-online.target
+After=network-online.target linan-test-api.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/linan-test/app/apps/api
+ExecStart=/usr/bin/flock --nonblock --conflict-exit-code 75 /run/lock/linan-wechat-bill-reconciliation.lock /opt/node-v22.23.2-linux-x64/bin/node --env-file=/etc/linan-test/api.env /opt/linan-test/ops/reconcile-wechat-bill.mjs
+TimeoutStartSec=300
+UMask=0077
