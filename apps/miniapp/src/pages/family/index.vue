@@ -39,12 +39,17 @@ async function load(): Promise<void> {
   try {
     const [saved, schools] = await Promise.all([api.listEnrollmentMembers(), api.listSchools()])
     if (generation !== loadGeneration || sessionToken !== getWechatSessionToken()) return
+    const gradeRequests = new Map<string, ReturnType<typeof api.listGrades>>()
+    const classRequests = new Map<string, ReturnType<typeof api.listClasses>>()
     const loadedMembers = await Promise.all(saved.map(async (member) => {
       if (member.participantKind === "adult" || member.schoolId === null) {
         return { ...member, schoolName: "成人参加人", gradeName: "无需填写年级", className: "无需填写班级" }
       }
-      const grades = await api.listGrades(member.schoolId)
-      const classes = member.gradeId === null ? [] : await api.listClasses(member.gradeId)
+      const gradeRequest = gradeRequests.get(member.schoolId) ?? api.listGrades(member.schoolId)
+      gradeRequests.set(member.schoolId, gradeRequest)
+      const classRequest = member.gradeId === null ? Promise.resolve([]) : classRequests.get(member.gradeId) ?? api.listClasses(member.gradeId)
+      if (member.gradeId !== null) classRequests.set(member.gradeId, classRequest)
+      const [grades, classes] = await Promise.all([gradeRequest, classRequest])
       return { ...member, schoolName: schools.find((school) => school.id === member.schoolId)?.name ?? "学校信息待完善", gradeName: grades.find((grade) => grade.id === member.gradeId)?.name ?? "年级待完善", className: classes.find((item) => item.id === member.classId)?.name ?? "班级待完善" }
     }))
     if (generation !== loadGeneration || sessionToken !== getWechatSessionToken()) return

@@ -20,7 +20,9 @@ let token: string | undefined
 let onShow: () => void
 const api = {
   listEnrollmentMembers: vi.fn(async (): Promise<readonly unknown[]> => []),
-  listSchools: vi.fn(async () => []),
+  listSchools: vi.fn(async (): Promise<readonly { id: string; name: string }[]> => []),
+  listGrades: vi.fn(async (_schoolId: string): Promise<readonly { id: string; name: string }[]> => []),
+  listClasses: vi.fn(async (_gradeId: string): Promise<readonly { id: string; name: string }[]> => []),
   listOrders: vi.fn(async (): Promise<readonly unknown[]> => []),
   loginWithWechatCode: vi.fn(async () => undefined),
   loginWithWechatPhone: vi.fn(async () => ({ token: "logged-in-token", familyCode: "family-a", expiresAt: "2026-10-03T00:00:00.000Z", phoneVerified: true })),
@@ -61,6 +63,9 @@ beforeEach(() => {
   token = undefined
   api.logoutWechat.mockResolvedValue(undefined)
   api.listEnrollmentMembers.mockResolvedValue([])
+  api.listSchools.mockResolvedValue([])
+  api.listGrades.mockResolvedValue([])
+  api.listClasses.mockResolvedValue([])
   api.listOrders.mockResolvedValue([])
   api.loginWithWechatCode.mockImplementation(async () => { token = "logged-in-token" })
   api.loginWithWechatPhone.mockImplementation(async () => {
@@ -130,6 +135,35 @@ describe("settings logout", () => {
     expect(logoutSession).toHaveBeenCalledOnce()
     expect(page.loggingOut.value).toBe(false)
   })
+})
+
+it("loads shared school labels once per family refresh and reads fresh labels again", async () => {
+  token = "session-a"
+  const page = setupSfc<PrivatePage>("pages/family/index.vue")
+  page.authenticated.value = true
+  api.listEnrollmentMembers.mockResolvedValue([
+    { id: "child-a", participantKind: "student", schoolId: "school-a", gradeId: "grade-a", classId: "class-a" },
+    { id: "child-b", participantKind: "student", schoolId: "school-a", gradeId: "grade-a", classId: "class-b" },
+    { id: "child-c", participantKind: "student", schoolId: "school-b", gradeId: "grade-b", classId: "class-c" },
+    { id: "adult-a", participantKind: "adult", schoolId: "school-c", gradeId: null, classId: null },
+  ])
+  api.listSchools.mockResolvedValue([{ id: "school-a", name: "演示甲校" }, { id: "school-b", name: "演示乙校" }])
+  api.listGrades.mockImplementation(async id => [{ id: id === "school-a" ? "grade-a" : "grade-b", name: "五年级" }])
+  api.listClasses.mockImplementation(async id => id === "grade-a" ? [{ id: "class-a", name: "一班" }, { id: "class-b", name: "二班" }] : [{ id: "class-c", name: "三班" }])
+  await page.load()
+  expect(api.listGrades.mock.calls).toEqual([["school-a"], ["school-b"]])
+  expect(api.listClasses.mock.calls).toEqual([["grade-a"], ["grade-b"]])
+  expect(page.members?.value).toEqual([
+    expect.objectContaining({ id: "child-a", schoolName: "演示甲校", gradeName: "五年级", className: "一班" }),
+    expect.objectContaining({ id: "child-b", schoolName: "演示甲校", gradeName: "五年级", className: "二班" }),
+    expect.objectContaining({ id: "child-c", schoolName: "演示乙校", gradeName: "五年级", className: "三班" }),
+    expect.objectContaining({ id: "adult-a", schoolName: "成人参加人" }),
+  ])
+  api.listClasses.mockResolvedValue([{ id: "class-a", name: "更新后一班" }])
+  await page.load()
+  expect(api.listGrades).toHaveBeenCalledTimes(4)
+  expect(api.listClasses).toHaveBeenCalledTimes(4)
+  expect(page.members?.value[0]).toMatchObject({ className: "更新后一班" })
 })
 
 describe.each(["family", "orders"])("%s private page", (pageName) => {
