@@ -59,9 +59,9 @@ test("staff account actions remain usable as mobile cards", async ({ page }, tes
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375)
 
   await card.getByRole("button", { name: "重置密码" }).click()
-  expect(resetCalled).toBe(true)
+  await expect.poll(() => resetCalled).toBe(true)
   await card.getByRole("button", { name: "停用" }).click()
-  expect(disableCalled).toBe(true)
+  await expect.poll(() => disableCalled).toBe(true)
   await page.screenshot({ path: testInfo.outputPath("staff-account-mobile-cards.png"), fullPage: true })
 })
 test("staff account table remains available on desktop", async ({ page }, testInfo) => {
