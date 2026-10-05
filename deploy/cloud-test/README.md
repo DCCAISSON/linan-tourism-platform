@@ -84,7 +84,7 @@ corepack pnpm --filter @linan/api staff:bootstrap-admin
 - 价格由活动和团期配置，订单保存明细及金额快照。金额以整数分计算，退款按明细分配和可退余额核对，不能按取消人数直接推算；真实退款以渠道确认结果为准。
 - `GET /health` 必须返回 `revision`，并通过发布清单追溯到已测试的源码提交及产物摘要。若 revision 是清单摘要，不要求其字面等于 Git SHA；每次发布必须记录二者映射，不能用随时变化的分支 HEAD 代替。
 - systemd 验收要求：`systemctl is-active linan-test-api` 和 `systemctl is-enabled linan-test-api` 均通过。
-- 最近已验证部署记录：2026-10-04 22:59（北京时间）API/后台修复部署成功，revision 为源码提交 `1c232953bf51b34a3d6e1a0d2eca108d827b12f2`；与 [PR #3](https://github.com/DCCAISSON/linan-tourism-platform/pull/3) 合并提交 `9ae709daba86c8e265697ecf1e021dcbeb930ebd` 文件树相同。[该提交四项 CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37211261091) 均通过。该次部署未执行数据库迁移或恢复数据库，财务记录数量、金额及摘要保持一致。[实时主分支](https://github.com/DCCAISSON/linan-tourism-platform/tree/main) 后续变化不自动代表服务器已更新。
+- 本轮变更见 [PR #4](https://github.com/DCCAISSON/linan-tourism-platform/pull/4)。最近已验证部署记录：2026-10-05 01:34（北京时间）API、管理后台及账单 runner 发布成功，revision 为源码提交 `20c32f5ad688f92c4a1b86d926920c0824dddae9`，[该源码四项 CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37220504419) 均通过。本次发布未执行数据库迁移或恢复数据库，财务记录数量、金额及行摘要保持一致，最小权限账号和定时日程未变；三个后台静态文件均返回 200 且摘要匹配。后续源码与部署的对应以发布清单为准，[实时主分支](https://github.com/DCCAISSON/linan-tourism-platform/tree/main)变化不会自动更新服务器。
 - 小程序 0.3.40 开发版上传及预览成功，冻结产物和上传回执已核验；尚未设为体验版、提审或正式发布。开发者工具原生界面验证通过，手机实际手机号授权、订阅实收和正确跳转仍待验收。服务器部署不能代替小程序发布，CI 不能代替真实外部服务验收。
 
 ## 必验流程
@@ -117,7 +117,9 @@ bash deploy/cloud-test/prepare-release-candidate.sh <tested-commit-sha>
 
 `reconcile-wechat-bill.mjs` 复用当前部署的 `WechatReconciliationService`，下载账单、查询交易；取得账单后才保存对账结果，不发起支付或退款。每天北京时间 10:05 核对北京时间昨日；日期计算不依赖服务器时区。服务通过同一个 `flock` 锁串行执行，人工补跑也必须使用该锁。不要与后台针对同日的手动核对同时操作。
 
-2026-10-04 已安装并核对 runner、service、timer，timer 为 enabled/active，首次自然触发计划为 2026-10-05 10:05（北京时间）。手工经同一 flock 执行的 2026-10-03 账单核对返回 `NO_STATEMENT_EXIST`，未形成成功对账记录，不计零差异；商户仍须核对当日交易，之后确认自然触发及告警实收。原 `linan-refund-bill-20260930.timer` 为一次性历史作业，文件和结果保留。
+2026-10-04 已安装并核对 runner、service、timer，timer 为 enabled/active；10月5日 01:34 更新 runner 后日程保持不变，首次自然触发计划为当日 10:05（北京时间）。截至 01:35 的本次核验尚未自然触发，告警实收仍待验收。原 `linan-refund-bill-20260930.timer` 为一次性历史作业，文件和结果保留。
+
+2026-10-05 01:35 已对 10月3日执行真实渠道只读核查：微信仍无该日账单，本系统全部 4 笔候选支付（含 1 笔待支付）及 4 笔退款均完成查单，8 个响应全部通过验签。1 次账单请求加 8 次查单均为 GET，结果为 `no_statement_no_local_transactions`、`completed=false`，确认这些候选记录在 10月3日没有支付成功或退款受理。核查前后七张相关表的行摘要一致，三个只读事务均已回滚、连接已关闭，没有生产写入或成功对账记录。该结论不能扩大为商户全部来源无交易，也不计零差异；如需商户全量结论，仍须核对商户平台全部交易来源。
 
 以下命令用于新环境安装或经审核的更新。已安装环境先核对现有文件、版本和日程，不重复覆盖；在已审核的候选源码根目录，由部署负责人执行：
 
