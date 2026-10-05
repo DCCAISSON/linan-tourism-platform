@@ -19,7 +19,7 @@ import {
   type LoadState, type PageMode,
 } from "../../enrollment-flow"
 import {
-  createLocalMemberCode, memberFieldAnchor, readContactFieldError, readFirstEnrollmentInvalidTarget, readMemberFieldError,
+  createLocalMemberCode, readContactFieldError, readFirstEnrollmentInvalidTarget, readMemberFieldError,
   type ContactFieldName, type MemberFieldName,
 } from "../../enrollment-validation"
 import { readableError, readPickerIndex, readStateTone, stateLabel } from "./page-helpers"
@@ -299,7 +299,6 @@ export function useEnrollmentPage() {
     memberToEdit.value = memberId
     backToEdit()
     await nextTick()
-    scrollToEnrollmentAnchor(memberFieldAnchor(memberId, "displayName"))
   }
 
   async function retryGrades(): Promise<void> {

@@ -7,13 +7,15 @@ import { describe, expect, it, vi } from "vitest"
 import * as validation from "../src/enrollment-validation"
 import * as flow from "../src/enrollment-flow"
 
-function setup(name: string, page: object, scroll = vi.fn()) {
+const componentProxy = { component: "EnrollmentMembersSection" }
+
+function setup(name: string, page: object, runtime: object = { pageScrollTo: vi.fn() }) {
   const { descriptor } = parse(readFileSync(new URL(`../src/pages/index/${name}.vue`, import.meta.url), "utf8"))
   const compiled = compileScript(descriptor, { id: name })
   const code = transpileModule(compiled.content, { compilerOptions: { module: ModuleKind.CommonJS } }).outputText
   const exports: Record<string, unknown> = {}
-  runInNewContext(code, { exports, uni: { pageScrollTo: scroll }, require: (module: string) => {
-    if (module === "vue") return vue
+  runInNewContext(code, { exports, uni: runtime, require: (module: string) => {
+    if (module === "vue") return { ...vue, getCurrentInstance: () => ({ proxy: componentProxy }) }
     if (module.endsWith("enrollment-validation")) return validation
     if (module.endsWith("enrollment-flow")) return flow
     return {}
@@ -111,16 +113,30 @@ describe("enrollment participant summaries", () => {
     expect(component.isMemberCollapsed(member)).toBe(false)
   })
 
-  it("opens the member requested from review after the form remounts", () => {
+  it.each([0, 175])("opens the member after remount and scrolls using its component position at page offset %s", async (scrollTop) => {
     // Given
     const { member, page } = memberFixture()
     Object.assign(member, { fromCommonList: true, remoteMemberId: "saved" })
     page.memberToEdit.value = member.id
+    const scroll = vi.fn()
+    const reads: (() => void)[] = []
+    const scopedQuery = {
+      select: vi.fn(() => ({ boundingClientRect: (callback: (rect: { readonly top: number }) => void) => { reads.push(() => callback({ top: 640 })) } })),
+      selectViewport: vi.fn(() => ({ scrollOffset: (callback: (offset: { readonly scrollTop: number }) => void) => { reads.push(() => callback({ scrollTop })) } })),
+      exec: vi.fn(() => { for (const read of reads) read() }),
+    }
+    const query = { in: vi.fn(() => scopedQuery) }
+    const createSelectorQuery = vi.fn(() => query)
     // When
-    const component = setup("EnrollmentMembersSection", page)
+    const component = setup("EnrollmentMembersSection", page, { pageScrollTo: scroll, createSelectorQuery })
     // Then
     expect(component.isMemberCollapsed(member)).toBe(false)
     expect(page.memberToEdit.value).toBeNull()
+    expect(createSelectorQuery).not.toHaveBeenCalled()
+    await vue.nextTick()
+    expect(query.in).toHaveBeenCalledWith(componentProxy)
+    expect(scopedQuery.select).toHaveBeenCalledWith("#enrollment-member-demo-displayName")
+    expect(scroll).toHaveBeenCalledWith({ scrollTop: 640 + scrollTop, duration: 200 })
   })
 
   it("opens an invalid saved summary without changing the selected person", async () => {
@@ -202,7 +218,7 @@ describe("enrollment review groups", () => {
   it.each(["enrollment-school-field", "enrollment-session-field", "enrollment-members-field", "enrollment-member-demo-displayName", "enrollment-contact-name-field", "enrollment-emergency-field", "enrollment-agreement-field"])("returns to editing before scrolling to %s", async (anchor) => {
     const scroll = vi.fn()
     const backToEdit = vi.fn()
-    const component = setup("EnrollmentReview", { backToEdit }, scroll)
+    const component = setup("EnrollmentReview", { backToEdit }, { pageScrollTo: scroll })
     const pending = component.editSection(anchor)
     expect(backToEdit).toHaveBeenCalledOnce()
     expect(scroll).not.toHaveBeenCalled()

@@ -359,7 +359,7 @@ describe("saved member placement summaries", () => {
       expect(page.pageMode.value).toBe("editing")
       expect(scroll).not.toHaveBeenCalled()
       await editing
-      expect(scroll).toHaveBeenCalledWith({ selector: "#enrollment-member-saved-displayName", duration: 200 })
+      expect(scroll).not.toHaveBeenCalled()
     } finally {
       vi.unstubAllGlobals()
     }

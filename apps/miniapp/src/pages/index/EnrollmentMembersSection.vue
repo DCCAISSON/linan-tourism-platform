@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watchEffect } from "vue"
+import { getCurrentInstance, nextTick, ref, watchEffect } from "vue"
 import type { FamilyMember } from "../../enrollment-flow"
 import { memberFieldAnchor, readMemberFieldError } from "../../enrollment-validation"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
@@ -7,6 +7,7 @@ import type { useEnrollmentPage } from "./useEnrollmentPage"
 const props = defineProps<{
   readonly page: ReturnType<typeof useEnrollmentPage>
 }>()
+const instance = getCurrentInstance()
 
 const {
   addMember,
@@ -36,6 +37,19 @@ watchEffect(() => {
     if (memberToEdit.value === member.id) {
       expandMember(member)
       memberToEdit.value = null
+      void nextTick(() => {
+        const query = uni.createSelectorQuery().in(instance?.proxy)
+        let targetTop: number | undefined
+        query.select(`#${memberFieldAnchor(member.id, "displayName")}`).boundingClientRect((rect) => {
+          if (rect && !Array.isArray(rect) && typeof rect.top === "number") targetTop = rect.top
+        })
+        query.selectViewport().scrollOffset((offset) => {
+          if (targetTop !== undefined && !Array.isArray(offset) && typeof offset.scrollTop === "number") {
+            uni.pageScrollTo({ scrollTop: targetTop + offset.scrollTop, duration: 200 })
+          }
+        })
+        query.exec()
+      })
     }
   }
 })
