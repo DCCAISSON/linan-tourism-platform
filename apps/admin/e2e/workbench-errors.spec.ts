@@ -5,6 +5,7 @@ const apiBase = "http://127.0.0.1:3000"
 
 test("shows denied workbench data as an error and permits retry", async ({ page }) => {
   await installStaffAuthMock(page)
+  await page.route(apiBase + "/staff/order-changes", route => route.fulfill({ json: [] }))
   await page.route(apiBase + "/roster/workbench", route => route.fulfill({ status: 403, json: { message: "无权查看工作台" } }))
   await page.goto("/home")
   await expect(page.getByRole("alert")).toContainText("无权查看工作台")

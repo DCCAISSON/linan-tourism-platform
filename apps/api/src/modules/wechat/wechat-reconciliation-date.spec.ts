@@ -87,7 +87,7 @@ describe("微信账单按官方业务日期选择本地记录", () => {
     expect(save).not.toHaveBeenCalledWith(WechatBillReconciliationEntity, expect.anything())
   })
 
-  it.each([undefined, "invalid", "2026-09-28T12:00:00"])("官方日期无法核实时终止对账：%s", async (success_time) => {
+  it.each([undefined, "invalid", "2026-09-28T12:00:00", "2026-02-30T12:00:00+08:00", "2026-09-28T24:00:00+08:00"])("官方日期无法核实时终止对账：%s", async (success_time) => {
     const { service, request, transaction } = await fixture([payment("paid")])
     request.mockResolvedValue({ success_time })
     await expect(service.reconcile("2026-09-28")).rejects.toThrow()

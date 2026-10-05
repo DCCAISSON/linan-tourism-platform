@@ -207,10 +207,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue"
-import { getCurrentStaff } from "@/api/auth"
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { useRoute, useRouter } from "vue-router"
+import { getCurrentStaff, type StaffScope } from "@/api/auth"
 import { listClasses, listGrades, listSchools, listTourSessions } from "@/api/configuration"
 import type { Grade, School, SchoolClass, TourSession } from "@/api/configuration"
+import { pendingSessionNavigationKey, type PendingSessionNavigation } from "@/layouts/session-navigation"
 import {
   confirmTransportPlan,
   downloadTransportPlan,
@@ -229,6 +231,15 @@ type EditableAllocation = { localId: string; classId: string; studentCount: numb
 type EditableVehicle = { localId: string; sequence: number; seatCapacity: number; plateNumber: string; contactSnapshot: { driverName: string; driverPhone: string; guideName: string; guidePhone: string; teacherName: string; teacherPhone: string }; allocations: EditableAllocation[] }
 
 const sessions = ref<readonly TourSession[]>([])
+const route = useRoute()
+const router = useRouter()
+const pagePath = route.path
+const scopes = ref<readonly StaffScope[]>([])
+let optionsReady = false
+let queryUpdates = 0
+const pendingSession = inject(pendingSessionNavigationKey, ref<PendingSessionNavigation>())
+let navigationToken: symbol | undefined
+let sessionRevision = 0
 const schools = ref<readonly School[]>([])
 const grades = ref<readonly Grade[]>([])
 const classes = ref<readonly SchoolClass[]>([])
@@ -284,6 +295,7 @@ const peopleRows = computed(() => peoplePlan.value === null ? [] : [
 ])
 
 watch(tourSessionId, () => {
+  sessionRevision += 1
   const session = sessions.value.find((item) => item.id === tourSessionId.value)
   schoolId.value = session?.organizationId ?? ""
 	  vehicles.value = []
@@ -292,13 +304,55 @@ watch(tourSessionId, () => {
   peoplePlan.value = null
   peopleAssignments.value = {}
   suggestion.value = null
-	})
+  planVersion.value = 1
+  loadingPlan.value = false; saving.value = false; savingPeople.value = false; confirming.value = false; suggesting.value = false
+  formError.value = ""
+  void writeSessionQuery()
+}, { flush: "sync" })
 watch(schoolId, async () => { gradeId.value = ""; classId.value = ""; classes.value = []; await loadGrades() })
 watch(gradeId, async () => { classId.value = ""; await loadClasses() })
 
 onMounted(async () => {
-  await Promise.all([loadOptions(), loadPermissions()])
+  try {
+    await Promise.all([loadOptions(), loadPermissions()])
+    optionsReady = true
+    readSessionQuery()
+  } catch (caught) { formError.value = readableTransportError(caught) }
 })
+onBeforeUnmount(() => {
+  sessionRevision += 1
+  if (pendingSession.value?.token === navigationToken) pendingSession.value = undefined
+})
+watch(() => route.query["tourSessionId"], readSessionQuery)
+
+function readSessionQuery(): void {
+  if (!optionsReady || route.path !== pagePath || queryUpdates > 0) return
+  tourSessionId.value = permittedSession(route.query["tourSessionId"])?.id ?? ""
+  void writeSessionQuery()
+}
+async function writeSessionQuery(): Promise<void> {
+  if (!optionsReady || route.path !== pagePath) return
+  const current = permittedSession(tourSessionId.value)?.id
+  if (route.query["tourSessionId"] === current && pendingSession.value?.path !== pagePath) return
+  const query = { ...route.query }
+  if (current === undefined) delete query["tourSessionId"]
+  else query["tourSessionId"] = current
+  queryUpdates += 1
+  const token = Symbol()
+  navigationToken = token
+  pendingSession.value = { path: pagePath, tourSessionId: current, token }
+  try { await router.replace({ query }) }
+  finally {
+    queryUpdates -= 1
+    if (pendingSession.value?.token === token) pendingSession.value = undefined
+  }
+}
+function permittedSession(id: unknown): TourSession | undefined {
+  const session = sessions.value.find(row => row.id === id)
+  return session !== undefined && scopes.value.some(scope => scope.kind === "all"
+    || (scope.kind === "tour_session" && scope.id === session.id)
+    || ((scope.kind === "school" || scope.kind === "organization") && scope.id === session.organizationId)) ? session : undefined
+}
 
 async function loadOptions(): Promise<void> {
   loadingOptions.value = true
@@ -309,48 +363,57 @@ async function loadOptions(): Promise<void> {
 
 async function loadPermissions(): Promise<void> {
   const staff = await getCurrentStaff()
+  scopes.value = staff.scopes
   canWrite.value = staff.permissionKeys.includes("transport.write")
   canExport.value = staff.permissionKeys.includes("transport.export")
 }
 
 async function loadGrades(): Promise<void> {
-  if (schoolId.value === "") return
+  const requestedSchool = schoolId.value
+  if (requestedSchool === "") { grades.value = []; loadingGrades.value = false; return }
   loadingGrades.value = true
-  try { grades.value = await listGrades(schoolId.value) }
-  catch (caught) { formError.value = readableTransportError(caught) }
-  finally { loadingGrades.value = false }
+  try { const rows = await listGrades(requestedSchool); if (requestedSchool === schoolId.value) grades.value = rows }
+  catch (caught) { if (requestedSchool === schoolId.value) formError.value = readableTransportError(caught) }
+  finally { if (requestedSchool === schoolId.value) loadingGrades.value = false }
 }
 
 async function loadClasses(): Promise<void> {
-  if (gradeId.value === "") return
+  const requestedGrade = gradeId.value
+  if (requestedGrade === "") { classes.value = []; loadingClasses.value = false; return }
   loadingClasses.value = true
-  try { classes.value = await listClasses(gradeId.value) }
-  catch (caught) { formError.value = readableTransportError(caught) }
-  finally { loadingClasses.value = false }
+  try { const rows = await listClasses(requestedGrade); if (requestedGrade === gradeId.value) classes.value = rows }
+  catch (caught) { if (requestedGrade === gradeId.value) formError.value = readableTransportError(caught) }
+  finally { if (requestedGrade === gradeId.value) loadingClasses.value = false }
 }
 
 async function loadPlan(): Promise<void> {
   if (tourSessionId.value === "") return
+  const requestRevision = sessionRevision
   loadingPlan.value = true
   formError.value = ""
 	  try {
-    applyPlan(await getTransportPlan(tourSessionId.value))
+    const plan = await getTransportPlan(tourSessionId.value)
+    if (requestRevision !== sessionRevision) return
+    applyPlan(plan)
     await loadPeoplePlan()
   }
-	  catch (caught) { formError.value = readableTransportError(caught) }
-  finally { loadingPlan.value = false }
+	  catch (caught) { if (requestRevision === sessionRevision) formError.value = readableTransportError(caught) }
+  finally { if (requestRevision === sessionRevision) loadingPlan.value = false }
 }
 
 async function submitPlan(): Promise<void> {
   if (tourSessionId.value === "") return
+  const requestRevision = sessionRevision
   saving.value = true
   formError.value = ""
 	  try {
-    applyPlan(await saveTransportPlan(tourSessionId.value, { vehicles: vehicles.value.map(toPayloadVehicle), documentSnapshot: documentSnapshot.value }))
+    const plan = await saveTransportPlan(tourSessionId.value, { vehicles: vehicles.value.map(toPayloadVehicle), documentSnapshot: documentSnapshot.value })
+    if (requestRevision !== sessionRevision) return
+    applyPlan(plan)
     await loadPeoplePlan()
   }
-	  catch (caught) { formError.value = readableTransportError(caught) }
-  finally { saving.value = false }
+	  catch (caught) { if (requestRevision === sessionRevision) formError.value = readableTransportError(caught) }
+  finally { if (requestRevision === sessionRevision) saving.value = false }
 }
 
 async function exportPlan(): Promise<void> {
@@ -394,56 +457,64 @@ function applyPlan(plan: TransportPlan): void {
 
 async function loadPeoplePlan(): Promise<void> {
   if (tourSessionId.value === "") return
+  const requestRevision = sessionRevision
   const nextPlan = await getTransportPeoplePlan(tourSessionId.value)
+  if (requestRevision !== sessionRevision) return
   applyPeoplePlan(nextPlan)
 }
 
 async function savePeopleAssignments(): Promise<void> {
   if (tourSessionId.value === "" || peoplePlan.value === null) return
+  const requestRevision = sessionRevision
   savingPeople.value = true
   formError.value = ""
   try {
-    applyPeoplePlan(await saveTransportAssignments(tourSessionId.value, {
+    const plan = await saveTransportAssignments(tourSessionId.value, {
       expectedPlanVersion: peoplePlan.value.planVersion,
       expectedRosterVersion: peoplePlan.value.rosterVersion,
       assignments: Object.entries(peopleAssignments.value)
         .filter((entry) => entry[1] !== "")
         .flatMap((entry) => isPersonRef(entry[0]) ? [{ personRef: entry[0], vehicleId: entry[1] }] : []),
-    }))
-  } catch (caught) { formError.value = readableTransportError(caught) }
-  finally { savingPeople.value = false }
+    })
+    if (requestRevision === sessionRevision) applyPeoplePlan(plan)
+  } catch (caught) { if (requestRevision === sessionRevision) formError.value = readableTransportError(caught) }
+  finally { if (requestRevision === sessionRevision) savingPeople.value = false }
 }
 
 async function confirmPeoplePlan(): Promise<void> {
   if (tourSessionId.value === "" || peoplePlan.value === null) return
+  const requestRevision = sessionRevision
   confirming.value = true
   formError.value = ""
   try {
-    applyPeoplePlan(await confirmTransportPlan(tourSessionId.value, {
+    const plan = await confirmTransportPlan(tourSessionId.value, {
       expectedPlanVersion: peoplePlan.value.planVersion,
       expectedRosterVersion: peoplePlan.value.rosterVersion,
-    }))
-  } catch (caught) { formError.value = readableTransportError(caught) }
-  finally { confirming.value = false }
+    })
+    if (requestRevision === sessionRevision) applyPeoplePlan(plan)
+  } catch (caught) { if (requestRevision === sessionRevision) formError.value = readableTransportError(caught) }
+  finally { if (requestRevision === sessionRevision) confirming.value = false }
 }
 
 async function suggestPeoplePlan(): Promise<void> {
   if (tourSessionId.value === "" || peoplePlan.value === null) return
+  const requestRevision = sessionRevision
   suggesting.value = true
   formError.value = ""
   try {
     const availableSeatsBySequence = sequenceMap((vehicle) => vehicle.seatCapacity)
     const reservedSeatsBySequence = sequenceMap(() => reservedSeats.value)
     const staffSeatsBySequence = sequenceMap(() => staffSeats.value)
-    suggestion.value = await suggestTransportAssignments(tourSessionId.value, {
+    const result = await suggestTransportAssignments(tourSessionId.value, {
       availableSeatsBySequence,
       reservedSeatsBySequence,
       staffSeatsBySequence,
       keepFamilyTogether: keepFamilyTogether.value,
       allowClassSplit: allowClassSplit.value,
     })
-  } catch (caught) { formError.value = readableTransportError(caught) }
-  finally { suggesting.value = false }
+    if (requestRevision === sessionRevision) suggestion.value = result
+  } catch (caught) { if (requestRevision === sessionRevision) formError.value = readableTransportError(caught) }
+  finally { if (requestRevision === sessionRevision) suggesting.value = false }
 }
 
 function applyPeoplePlan(plan: TransportPeoplePlan): void {

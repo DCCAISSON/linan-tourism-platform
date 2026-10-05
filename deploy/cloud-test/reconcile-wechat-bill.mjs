@@ -20,13 +20,20 @@ if (process.argv[2] === "--help") {
     const { WechatPayClient } = await import(base + "wechat/wechat-pay.client.js")
     const { WechatReconciliationService } = await import(base + "wechat/wechat-reconciliation.service.js")
     database = new ConfigurationDatabaseService()
-    const result = await new WechatReconciliationService(database, new WechatPayClient()).reconcile(date)
-    receipt = {
-      checkedAt: new Date().toISOString(), billDate: result.billDate, completed: true,
-      code: result.differenceCount === 0 ? "matched" : "differences_found",
-      differenceCount: result.differenceCount, contentHash: result.contentHash,
+    const reconciliation = new WechatReconciliationService(database, new WechatPayClient())
+    try {
+      const result = await reconciliation.reconcile(date)
+      receipt = {
+        checkedAt: new Date().toISOString(), billDate: result.billDate, completed: true,
+        code: result.differenceCount === 0 ? "matched" : "differences_found",
+        differenceCount: result.differenceCount, contentHash: result.contentHash,
+      }
+      if (result.differenceCount !== 0) process.exitCode = 2
+    } catch (error) {
+      const response = typeof error?.getResponse === "function" ? error.getResponse() : null
+      if (response?.code !== "wechat_bill_not_available" || !await reconciliation.verifyNoTransactionsOn(date)) throw error
+      receipt = { checkedAt: new Date().toISOString(), billDate: date, completed: false, code: "no_statement_no_local_transactions" }
     }
-    if (result.differenceCount !== 0) process.exitCode = 2
   } catch (error) {
     const response = typeof error?.getResponse === "function" ? error.getResponse() : null
     const code = response?.code

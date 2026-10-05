@@ -1,10 +1,19 @@
-import { computed, onMounted, reactive, ref, watch } from "vue"
-import { useRoute } from "vue-router"
+import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue"
+import { useRoute, useRouter } from "vue-router"
+import { getCurrentStaff, type StaffScope } from "@/api/auth"
 import { listCatalogItems, listClasses, listGrades, listSchools, listTourSessions, readableApiError } from "@/api/configuration"
 import type { CatalogItem, Grade, School, SchoolClass, TourSession } from "@/api/configuration"
+import { pendingSessionNavigationKey, type PendingSessionNavigation } from "@/layouts/session-navigation"
 
 export function useRosterFilters() {
   const route = useRoute()
+  const router = useRouter()
+  const pagePath = route.path
+  const scopes = ref<readonly StaffScope[]>([])
+  let optionsReady = false
+  let queryUpdates = 0
+  const pendingSession = inject(pendingSessionNavigationKey, ref<PendingSessionNavigation>())
+  let navigationToken: symbol | undefined
   const filters = reactive({ tourSessionId: "", schoolId: "", gradeId: "", classId: "" })
   const schools = ref<readonly School[]>([])
   const grades = ref<readonly Grade[]>([])
@@ -25,15 +34,49 @@ export function useRosterFilters() {
     optionsLoading.value = true
     optionsError.value = ""
     try {
-      const [schoolRows, sessionRows, catalogRows] = await Promise.all([listSchools(), listTourSessions(), listCatalogItems()])
+      const [schoolRows, sessionRows, catalogRows, staff] = await Promise.all([listSchools(), listTourSessions(), listCatalogItems(), getCurrentStaff()])
       schools.value = schoolRows
       sessions.value = sessionRows
       catalog.value = catalogRows
-      const fromLink = route.query["tourSessionId"]
-      if (filters.tourSessionId === "" && typeof fromLink === "string" && sessionRows.some(row => row.id === fromLink)) filters.tourSessionId = fromLink
+      scopes.value = staff.scopes
+      optionsReady = true
+      readSessionQuery()
     } catch (caught) { optionsError.value = readableApiError(caught) }
     finally { optionsLoading.value = false }
   }
+  function readSessionQuery(): void {
+    if (!optionsReady || route.path !== pagePath || queryUpdates > 0) return
+    const session = permittedSession(route.query["tourSessionId"])
+    filters.tourSessionId = session?.id ?? ""
+    if (session !== undefined && filters.schoolId !== "" && filters.schoolId !== session.organizationId) filters.schoolId = ""
+    void writeSessionQuery()
+  }
+  async function writeSessionQuery(): Promise<void> {
+    if (!optionsReady || route.path !== pagePath) return
+    const current = permittedSession(filters.tourSessionId)?.id
+    if (route.query["tourSessionId"] === current && pendingSession.value?.path !== pagePath) return
+    const query = { ...route.query }
+    if (current === undefined) delete query["tourSessionId"]
+    else query["tourSessionId"] = current
+    queryUpdates += 1
+    const token = Symbol()
+    navigationToken = token
+    pendingSession.value = { path: pagePath, tourSessionId: current, token }
+    try { await router.replace({ query }) }
+    finally {
+      queryUpdates -= 1
+      if (pendingSession.value?.token === token) pendingSession.value = undefined
+    }
+  }
+  function permittedSession(id: unknown): TourSession | undefined {
+    const session = sessions.value.find(row => row.id === id)
+    return session !== undefined && scopes.value.some(scope => scope.kind === "all"
+      || (scope.kind === "tour_session" && scope.id === session.id)
+      || ((scope.kind === "school" || scope.kind === "organization") && scope.id === session.organizationId)) ? session : undefined
+  }
+  watch(() => route.query["tourSessionId"], readSessionQuery)
+  watch(() => filters.tourSessionId, () => { void writeSessionQuery() }, { flush: "sync" })
+  onBeforeUnmount(() => { if (pendingSession.value?.token === navigationToken) pendingSession.value = undefined })
   async function loadGrades(): Promise<void> {
     const schoolId = filters.schoolId
     gradeError.value = ""

@@ -64,7 +64,7 @@ test("shows integrated navigation entries granted to the staff account", async (
     if (await group.getAttribute("open") === null) await group.locator("summary").click()
   }
   await expect(page.getByRole("link", { name: "出行人员" })).toBeVisible()
-  await expect(page.getByRole("link", { name: "退款申请" })).toBeVisible()
+  await expect(page.getByRole("link", { name: "退款申请", exact: true })).toBeVisible()
   await expect(page.getByRole("link", { name: "行前配置" })).toBeVisible()
   await expect(page.getByRole("link", { name: "学校行前签认" })).toBeVisible()
   await expect(page.getByRole("link", { name: "通知管理" })).toBeVisible()
