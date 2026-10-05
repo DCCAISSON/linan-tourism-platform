@@ -29,6 +29,7 @@
       </header>
 
       <main class="admin-content">
+        <SessionWorkspace v-if="sessionPaths.includes(route.path) && permissionKeys.length" :session-id="currentSessionId" :links="workspaceLinks" :permissions="permissionKeys" :scopes="scopes" />
         <router-view />
       </main>
     </section>
@@ -39,20 +40,26 @@
 import { computed, onMounted, provide, ref, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
 
-import { getCurrentStaff, logoutStaff, type StaffPermissionKey } from "@/api/auth"
+import { getCurrentStaff, logoutStaff, type StaffPermissionKey, type StaffScope } from "@/api/auth"
 import { enabledPlatformCapabilities, getCapabilities, type PlatformCapabilities } from "@/api/capabilities"
 import { routeNames } from "@/router/routes"
 import { pendingSessionNavigationKey, type PendingSessionNavigation } from "./session-navigation"
+import SessionWorkspace from "./SessionWorkspace.vue"
 
 const router = useRouter()
 const route = useRoute()
 const permissionKeys = ref<readonly StaffPermissionKey[]>([])
+const scopes = ref<readonly StaffScope[]>([])
 const capabilities = ref<PlatformCapabilities>(enabledPlatformCapabilities)
 const canOpenRefundApplications = ref(false)
 const collapsedGroups = ref<string[]>(["今日工作", "研学运营", "出团执行", "客户服务", "系统管理"])
-const sessionPaths = ["/roster", "/travelers", "/transport", "/pretrip"]
+const sessionPaths = ["/roster", "/travelers", "/transport", "/pretrip", "/insurance", "/notifications", "/execution/management", "/evaluations", "/session-archives"]
 const pendingSession = ref<PendingSessionNavigation>()
 provide(pendingSessionNavigationKey, pendingSession)
+const currentSessionId = computed(() => {
+  const id = pendingSession.value?.path === route.path ? pendingSession.value.tourSessionId : route.query["tourSessionId"]
+  return typeof id === "string" ? id : undefined
+})
 function navigationTarget(path: string) {
   const tourSessionId = pendingSession.value?.path === route.path ? pendingSession.value.tourSessionId : route.query["tourSessionId"]
   return sessionPaths.includes(route.path) && sessionPaths.includes(path) && typeof tourSessionId === "string"
@@ -96,6 +103,7 @@ const navigationGroups = computed(() => [
     { to: "/staff-accounts", label: "账号权限", visible: hasPermission("staff_accounts.manage") },
   ] },
 ].map(group => ({ ...group, items: group.items.filter(item => item.visible) })).filter(group => group.items.length > 0))
+const workspaceLinks = computed(() => navigationGroups.value.flatMap(group => group.items).filter(item => sessionPaths.includes(item.to)))
 
 watch([() => route.path, navigationGroups], () => {
   const activeGroup = navigationGroups.value.find(group => group.items.some(item => route.path === item.to || route.path.startsWith(`${item.to}/`)))
@@ -113,6 +121,7 @@ function toggleGroup(label: string, event: Event): void {
 onMounted(async () => {
   const [staff, platformCapabilities] = await Promise.all([getCurrentStaff(), getCapabilities()])
   permissionKeys.value = staff.permissionKeys
+  scopes.value = staff.scopes
   capabilities.value = platformCapabilities
   canOpenRefundApplications.value = hasPermission("refunds.review") || (hasPermission("refunds.execute") && platformCapabilities.wechatRefundEnabled)
 })

@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await page.route(`${apiBase}/roster/workbench`, route => route.fulfill({ json: summary }))
 })
 
-test("shows actionable counts without treating approved changes as completed", async ({ page }, testInfo) => {
+test("shows submitted tasks before statistics and separates approved changes", async ({ page }, testInfo) => {
   // Given
   await installStaffAuthMock(page, ["workbench.read", "refunds.review", "orders.read"])
   await page.route(`${apiBase}/staff/refund-applications?status=submitted`, route => route.fulfill({ json: [refund] }))
@@ -18,14 +18,21 @@ test("shows actionable counts without treating approved changes as completed", a
   // When
   await page.goto("/home")
   // Then
-  await expect(page.getByRole("heading", { name: "待处理事项" })).toBeVisible()
+  const tasks = page.getByRole("region", { name: "今日待办" })
+  await expect(tasks).toBeVisible()
   await expect(page.getByTestId("task-refunds")).toContainText("1 项")
   await expect(page.getByTestId("task-changes-review")).toContainText("1 项")
   await expect(page.getByTestId("task-changes-approved")).toContainText("1 项")
   await expect(page.getByTestId("task-changes-approved")).toContainText("人员变更已通过")
-  await expect(page.getByText("包含此前提交的申请；审核通过不代表实际办理完成，请结合处理记录核实。")).toBeVisible()
+  await expect(tasks.getByTestId("task-changes-approved")).toHaveCount(0)
+  await expect(page.getByRole("region", { name: "已通过申请" }).getByTestId("task-changes-approved")).toBeVisible()
+  await expect(tasks).toContainText("仅统计待审核申请，包含此前提交的申请。")
+  expect(await tasks.evaluate(element => {
+    const statistics = document.querySelector('[aria-label="业务统计"]')
+    return statistics !== null && Boolean(element.compareDocumentPosition(statistics) & Node.DOCUMENT_POSITION_FOLLOWING)
+  })).toBe(true)
   await expect(page.getByTestId("workbench-paid-amount")).toHaveText("¥200.00")
-  for (const width of [375, 768, 1280]) {
+  for (const width of [375, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 })
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
     await page.screenshot({ path: testInfo.outputPath(`workbench-tasks-${width}.png`), fullPage: true })
@@ -89,11 +96,32 @@ test("does not fetch or expose tasks beyond the staff permissions or scope", asy
   expect(requests).toEqual([])
   await page.setViewportSize({ width: 375, height: 900 })
   await page.screenshot({ path: testInfo.outputPath("workbench-no-permission-375.png"), fullPage: true })
-  await page.route(`${apiBase}/staff/auth/me`, route => route.fulfill({ json: { actorId: "limited", kind: "school", forcePasswordChange: false, permissionKeys: ["workbench.read", "refunds.review", "orders.read"], scopes: [{ kind: "school", id: "school-1" }] } }))
+  await page.route(`${apiBase}/staff/auth/me`, route => route.fulfill({ json: { actorId: "limited", kind: "school", forcePasswordChange: false, permissionKeys: ["workbench.read", "refunds.review", "orders.read", "roster.read"], scopes: [{ kind: "school", id: "school-1" }] } }))
   await page.reload()
   await expect(page.getByTestId("workbench-paid-amount")).toBeVisible()
   await expect(page.getByTestId("task-refunds")).toHaveCount(0)
   await expect(page.getByTestId("task-changes-review")).toHaveCount(0)
+  await expect(page.getByRole("region", { name: "工作台", exact: true }).getByRole("link")).toHaveCount(0)
   expect(requests).toEqual([])
   await page.screenshot({ path: testInfo.outputPath("workbench-limited-scope-375.png"), fullPage: true })
 })
+
+for (const wechatRefundEnabled of [false, true]) {
+  test(`respects the refund execution capability when it is ${wechatRefundEnabled}`, async ({ page }) => {
+    // Given
+    const requests: string[] = []
+    await installStaffAuthMock(page, ["workbench.read", "refunds.execute"], { wechatPaymentEnabled: true, wechatRefundEnabled, paymentReconciliationEnabled: true })
+    await page.route(`${apiBase}/staff/refund-applications?status=submitted`, route => { requests.push(route.request().url()); return route.fulfill({ json: [refund] }) })
+    // When
+    await page.goto("/home")
+    // Then
+    await expect(page.getByTestId("workbench-paid-amount")).toBeVisible()
+    if (wechatRefundEnabled) {
+      await expect(page.getByTestId("task-refunds")).toContainText("1 项")
+      expect(requests).toHaveLength(1)
+    } else {
+      await expect(page.getByTestId("task-refunds")).toHaveCount(0)
+      expect(requests).toEqual([])
+    }
+  })
+}

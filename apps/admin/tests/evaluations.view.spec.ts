@@ -1,4 +1,5 @@
-import { createApp, nextTick } from "vue"
+import { createApp, h, nextTick } from "vue"
+import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import EvaluationsView from "@/views/EvaluationsView.vue"
 import EvaluationStandardsView from "@/views/EvaluationStandardsView.vue"
@@ -19,7 +20,7 @@ describe("individual manual evaluations", () => {
       if (path.endsWith("/batch")) { saved.push(JSON.parse(String(init?.body))); return Response.json([]) }
       return Response.json({ organizationId: "school", standards: [standard], students, evaluations: [] })
     }))
-    const app = mount(EvaluationsView)
+    const app = await mount(EvaluationsView)
     await load("加载评价")
     expect(document.body.textContent).toContain("应评 2 人 · 已评 0 人 · 未评 2 人")
     expect(document.querySelector('[aria-label="选择全部学生"]')).toBeNull()
@@ -49,7 +50,7 @@ describe("individual manual evaluations", () => {
       if (path.endsWith("/evaluations/sessions")) return Response.json([{ id: "private-session-id", code: "第一团", title: "本校山水研学", organizationId: "school-a" }])
       return Response.json([{ personRef: "paid:a", displayName: "学生甲", gradeName: "五年级", className: "一班", gradeCode: "A", gradeLabel: "优秀" }])
     }))
-    const app = mount(EvaluationsView)
+    const app = await mount(EvaluationsView)
     await vi.waitFor(() => expect(document.body.textContent).toContain("本校山水研学"))
     // When the school selects the displayed session and loads the report.
     setValue(control("团期"), "private-session-id")
@@ -70,7 +71,7 @@ describe("individual manual evaluations", () => {
       calls.push(String(input))
       return Response.json(String(input).includes("/staff/auth/") ? { actorId: "staff", displayName: "工作人员", kind: "administrator", forcePasswordChange: false, permissionKeys: permissions, scopes: [{ kind: "all", id: null }] } : [])
     }))
-    const app = mount(EvaluationStandardsView)
+    const app = await mount(EvaluationStandardsView)
     await load("加载标准")
     expect(control("A 等级说明").value).toBe("优秀")
     expect(control("B 等级说明").value).toBe("合格")
@@ -88,10 +89,12 @@ describe("individual manual evaluations", () => {
   })
 })
 
-function mount(component: typeof EvaluationsView | typeof EvaluationStandardsView) {
+async function mount(component: typeof EvaluationsView | typeof EvaluationStandardsView) {
   const host = document.createElement("div")
   document.body.append(host)
-  const app = createApp(component)
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/evaluations", component }] })
+  await router.push("/evaluations")
+  const app = createApp({ render: () => h(RouterView) }).use(router)
   app.mount(host)
   return app
 }

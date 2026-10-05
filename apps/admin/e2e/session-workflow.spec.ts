@@ -19,13 +19,13 @@ test("keeps the selected session through roster, transport and pretrip without w
   await page.goto("/roster?tourSessionId=session-1")
   await expect(page.getByRole("combobox", { name: "团期", exact: true })).toHaveValue("session-1")
   // When
-  await page.getByRole("link", { name: "车辆安排", exact: true }).click()
+  await page.getByRole("navigation", { name: "主要菜单" }).getByRole("link", { name: "车辆安排", exact: true }).click()
   // Then
   await expect(page).toHaveURL(/\/transport\?tourSessionId=session-1/)
   await expect(page.getByRole("combobox", { name: "团期", exact: true })).toHaveValue("session-1")
   await page.getByRole("combobox", { name: "团期", exact: true }).selectOption("session-2")
   await expect(page).toHaveURL(/tourSessionId=session-2/)
-  await page.getByRole("link", { name: "行前配置", exact: true }).click()
+  await page.getByRole("navigation", { name: "主要菜单" }).getByRole("link", { name: "行前配置", exact: true }).click()
   await expect(page).toHaveURL(/\/pretrip\?tourSessionId=session-2/)
   await expect(page.getByRole("combobox", { name: "团期", exact: true })).toHaveValue("session-2")
   await page.reload()
@@ -35,12 +35,12 @@ test("keeps the selected session through roster, transport and pretrip without w
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width)
     await page.screenshot({ path: testInfo.outputPath(`pretrip-context-${width}.png`), fullPage: true })
   }
-  await page.getByRole("link", { name: "名单统计", exact: true }).click()
+  await page.getByRole("navigation", { name: "主要菜单" }).getByRole("link", { name: "名单统计", exact: true }).click()
   await expect(page).toHaveURL(/\/roster\?tourSessionId=session-2/)
   await expect(page.getByRole("combobox", { name: "团期", exact: true })).toHaveValue("session-2")
   await page.getByRole("combobox", { name: "团期", exact: true }).selectOption("")
   await expect(page).not.toHaveURL(/tourSessionId/)
-  await page.getByRole("link", { name: "车辆安排", exact: true }).click()
+  await page.getByRole("navigation", { name: "主要菜单" }).getByRole("link", { name: "车辆安排", exact: true }).click()
   await expect(page).toHaveURL(/\/transport$/)
   await expect(page.getByRole("combobox", { name: "团期", exact: true })).toHaveValue("")
   expect(writes).toEqual([])
@@ -72,7 +72,7 @@ test("does not carry a manually chosen unauthorized session into another page", 
   await expect(page).not.toHaveURL(/tourSessionId/)
   await page.getByRole("button", { name: "读取配置", exact: true }).click()
   await expect(page.getByText("无权读取该团期", { exact: true })).toBeVisible()
-  await page.getByRole("link", { name: "车辆安排", exact: true }).click()
+  await page.getByRole("navigation", { name: "主要菜单" }).getByRole("link", { name: "车辆安排", exact: true }).click()
   await expect(page.getByRole("combobox", { name: "团期", exact: true })).toHaveValue("")
 })
 
@@ -82,7 +82,7 @@ for (const path of ["/roster", "/travelers", "/transport", "/pretrip"]) {
     await page.goto(`${path}?tourSessionId=session-1`)
     const selection = page.getByRole("combobox", { name: "团期", exact: true })
     await expect(selection).toHaveValue("session-1")
-    await expect(page.getByRole("link", { name: "行前配置", exact: true })).toBeVisible()
+    await expect(page.getByRole("navigation", { name: "主要菜单" }).getByRole("link", { name: "行前配置", exact: true })).toBeVisible()
     let release: (() => void) | undefined
     let delayed = false
     const pending = new Promise<void>(resolve => { release = resolve })
@@ -94,7 +94,7 @@ for (const path of ["/roster", "/travelers", "/transport", "/pretrip"]) {
       // When
       await selection.selectOption("session-2")
       await expect.poll(() => delayed).toBe(true)
-      await page.getByRole("link", { name: path === "/pretrip" ? "车辆安排" : "行前配置", exact: true }).click()
+      await page.getByRole("navigation", { name: "主要菜单" }).getByRole("link", { name: path === "/pretrip" ? "车辆安排" : "行前配置", exact: true }).click()
       // Then
       await expect(page).toHaveURL(new RegExp(`${path === "/pretrip" ? "/transport" : "/pretrip"}\\?tourSessionId=session-2`))
       await expect(selection).toHaveValue("session-2")

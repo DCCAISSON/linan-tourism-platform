@@ -81,6 +81,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue"
+import { useSessionQuery } from "@/layouts/useSessionQuery"
 import { getCurrentStaff } from "@/api/auth"
 import { batchEvaluate, confirmEvaluationSession, downloadEvaluationReport, listEvaluationSessions, loadEvaluationDashboard, loadSchoolEvaluations, reviseEvaluation, type EvaluationDashboard, type EvaluationRow, type EvaluationSession, type SchoolEvaluationRow } from "@/api/evaluations"
 import { readableRosterError } from "@/api/roster.errors"
@@ -88,6 +89,7 @@ import "@/styles/evaluations.css"
 
 const sessionId = ref("")
 const sessions = ref<readonly EvaluationSession[]>([])
+const sessionQuery = useSessionQuery(sessionId, id => sessions.value.some(row => row.id === id), () => busy.value)
 const loadingSessions = ref(true)
 const loadedSessionId = ref("")
 const dashboard = ref<EvaluationDashboard>()
@@ -112,7 +114,7 @@ const students = computed(() => dashboard.value?.students.map((student) => ({ ..
 const pendingStudents = computed(() => students.value.filter((student) => student.evaluation?.gradeCode == null))
 const hasPendingGrades = computed(() => students.value.some((student) => student.evaluation?.gradeCode != null && student.evaluation.confirmedAt === null))
 onMounted(async () => {
-  try { sessions.value = await listEvaluationSessions() }
+  try { sessions.value = await listEvaluationSessions(); sessionQuery.initialize() }
   catch (cause) { error.value = readableRosterError(cause) }
   finally { loadingSessions.value = false }
 })
@@ -120,6 +122,7 @@ watch(standardId, () => {
   if (!activeStandard.value) form.gradeCode = null
   dimensionFacts.value = activeStandard.value?.dimensions.map((dimension) => ({ ...dimension, observation: "" })) ?? []
 }, { flush: "sync" })
+watch(sessionId, () => { dashboard.value = undefined; schoolRows.value = undefined; loadedSessionId.value = ""; loadedOrganizationId.value = ""; error.value = ""; message.value = ""; resetForm() }, { flush: "sync" })
 
 function observationLabel(row: EvaluationRow, code: string): string {
   return dashboard.value?.standards.find((standard) => standard.id === row.standardId)?.dimensions.find((dimension) => dimension.code === code)?.label ?? "观察项目"
@@ -143,6 +146,9 @@ function edit(student: typeof students.value[number]): void {
   dimensionFacts.value = activeStandard.value?.dimensions.map((dimension) => ({ ...dimension, observation: row.dimensionObservations.find((item) => item.code === dimension.code)?.observation ?? "" })) ?? []
 }
 async function load(): Promise<void> {
+  const id = sessionId.value.trim()
+  const organizationId = reportOrganizationId.value.trim()
+  const revision = sessionQuery.revision.value
   busy.value = true
   error.value = ""
   message.value = ""
@@ -150,21 +156,25 @@ async function load(): Promise<void> {
   schoolRows.value = undefined
   try {
     const staff = await getCurrentStaff()
+    if (revision !== sessionQuery.revision.value) return
     schoolMode.value = !staff.permissionKeys.includes("evaluations.read") && staff.permissionKeys.includes("evaluations.school_report")
     if (schoolMode.value) {
-      schoolRows.value = await loadSchoolEvaluations(sessionId.value.trim(), reportOrganizationId.value.trim())
-      loadedOrganizationId.value = reportOrganizationId.value.trim()
-      loadedSessionId.value = sessionId.value.trim()
+      const rows = await loadSchoolEvaluations(id, organizationId)
+      if (revision !== sessionQuery.revision.value) return
+      schoolRows.value = rows
+      loadedOrganizationId.value = organizationId
+      loadedSessionId.value = id
       return
     }
-    const result = await loadEvaluationDashboard(sessionId.value.trim())
+    const result = await loadEvaluationDashboard(id)
+    if (revision !== sessionQuery.revision.value) return
     canWrite.value = staff.permissionKeys.includes("evaluations.write")
     canConfirm.value = staff.permissionKeys.includes("evaluations.confirm")
     canExport.value = staff.permissionKeys.includes("evaluations.school_report")
     dashboard.value = result
-    loadedSessionId.value = sessionId.value.trim()
+    loadedSessionId.value = id
     resetForm()
-  } catch (cause) { error.value = readableRosterError(cause) }
+  } catch (cause) { if (revision === sessionQuery.revision.value) error.value = readableRosterError(cause) }
   finally { busy.value = false }
 }
 async function save(): Promise<void> {

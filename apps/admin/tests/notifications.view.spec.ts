@@ -1,4 +1,5 @@
-import { createApp, nextTick } from "vue"
+import { createApp, h, nextTick } from "vue"
+import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import NotificationsView from "@/views/NotificationsView.vue"
 
@@ -19,7 +20,7 @@ describe("notification admin page policies", () => {
 
   it("clears loaded data when the selected session changes", async () => {
     stubResponses()
-    const app = mountPage()
+    const app = await mountPage()
     await loadSession("session-1")
     expect(document.body.textContent).toContain("集合提醒")
 
@@ -47,7 +48,7 @@ describe("notification admin page policies", () => {
       if (url.endsWith("/sessions/session-1")) return Response.json({ ...session, sources: [{ id: "source-1", kind: "order_created", orderId: "order-1", sourceVersion: 1, title: "报名订单已创建", bodyText: "请核对订单", createdAt: "2026-09-28", linkedTaskId: null, status: "pending", authorizationIds: ["authorization-1"] }] })
       return originalFetch(input, init)
     }))
-    const app = mountPage()
+    const app = await mountPage()
     await loadSession("session-1")
     buttonByText("填写通知并处理").click()
     await nextTick()
@@ -69,7 +70,7 @@ describe("notification admin page policies", () => {
 
   it("enables retry from target state and shows the attempt target policy", async () => {
     stubResponses()
-    const app = mountPage()
+    const app = await mountPage()
     await loadSession("session-1")
     buttonByText("task-1").click()
     await vi.waitFor(() => expect(document.body.textContent).toContain("任务 task-1"))
@@ -80,7 +81,7 @@ describe("notification admin page policies", () => {
 
   it("shows persisted fields and rejects invalid field names without JSON editing", async () => {
     stubResponses()
-    const app = mountPage()
+    const app = await mountPage()
     await loadSession("session-1")
     expect(document.body.textContent).toContain("学校南门")
     expect(document.body.textContent).not.toContain("模板数据 JSON")
@@ -97,7 +98,7 @@ describe("notification admin page policies", () => {
 
   it("hides mutations when a reader has no write or send permission", async () => {
     stubResponses(false)
-    const app = mountPage()
+    const app = await mountPage()
     await loadSession("session-1")
     expect(document.body.textContent).not.toContain("创建内容版本")
     buttonByText("task-1").click()
@@ -124,7 +125,7 @@ describe("notification admin page policies", () => {
       }
       return originalFetch(input, init)
     }))
-    const app = mountPage()
+    const app = await mountPage()
     await loadSession("session-1")
     const checkbox = controlByLabel("林女士")
     checkbox.click()
@@ -154,10 +155,12 @@ function stubResponses(canMutate = true): void {
   }))
 }
 
-function mountPage() {
+async function mountPage() {
   const root = document.createElement("div")
   document.body.append(root)
-  const app = createApp(NotificationsView)
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/notifications", component: NotificationsView }] })
+  await router.push("/notifications")
+  const app = createApp({ render: () => h(RouterView) }).use(router)
   app.mount(root)
   return app
 }

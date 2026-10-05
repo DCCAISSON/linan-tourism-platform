@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue"
+import { useSessionQuery } from "@/layouts/useSessionQuery"
 import { getCurrentStaff } from "../api/auth"
 import { approvePersonDailySummary, downloadExecutionRecords, getExecutionManagementSession, listExecutionManagementSessions, listPersonDailyHistory, readableExecutionError, type DailyMealStatus, type ExecutionManagementSession, type GuideSessionSummary, type ManagementPersonDaily, type PersonDailyRevision } from "../api/execution"
 import GuideAssignmentPanel from "./GuideAssignmentPanel.vue"
@@ -7,6 +8,7 @@ import ExecutionNodesPanel from "./ExecutionNodesPanel.vue"
 
 const sessions = ref<readonly GuideSessionSummary[]>([])
 const sessionId = ref("")
+const sessionQuery = useSessionQuery(sessionId, id => sessions.value.some(row => row.id === id), () => busy.value || downloading.value)
 const session = ref<ExecutionManagementSession | null>(null)
 const busy = ref(false)
 const downloading = ref(false)
@@ -30,18 +32,23 @@ async function initialize(): Promise<void> {
     canPublish.value = staff.permissionKeys.includes("execution.publish")
     if (!canManage.value) { error.value = "无权查看执行管理，请联系管理员。"; return }
     sessions.value = await listExecutionManagementSessions()
+    sessionQuery.initialize()
   } catch (cause) { error.value = readableExecutionError(cause) }
   finally { busy.value = false }
 }
 async function loadSession(): Promise<void> {
   if (!sessionId.value || !canManage.value) return
+  const id = sessionId.value
+  const revision = sessionQuery.revision.value
   busy.value = true
   error.value = ""
   session.value = null
   try {
-    session.value = await getExecutionManagementSession(sessionId.value)
-    summaries.value = Object.fromEntries(session.value.personDailyReports.map(report => [report.id, report.publicSummary]))
-  } catch (cause) { error.value = readableExecutionError(cause) }
+    const loaded = await getExecutionManagementSession(id)
+    if (revision !== sessionQuery.revision.value) return
+    session.value = loaded
+    summaries.value = Object.fromEntries(loaded.personDailyReports.map(report => [report.id, report.publicSummary]))
+  } catch (cause) { if (revision === sessionQuery.revision.value) error.value = readableExecutionError(cause) }
   finally { busy.value = false }
 }
 async function approve(report: ManagementPersonDaily): Promise<void> {
@@ -67,7 +74,7 @@ async function loadHistory(reportId: string): Promise<void> {
   catch (cause) { error.value = readableExecutionError(cause) }
   finally { busy.value = false }
 }
-watch(sessionId, () => { session.value = null; summaries.value = {}; dailyHistory.value = {}; notice.value = ""; error.value = "" })
+watch(sessionId, () => { session.value = null; summaries.value = {}; dailyHistory.value = {}; notice.value = ""; error.value = "" }, { flush: "sync" })
 onMounted(() => { void initialize() })
 </script>
 

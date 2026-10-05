@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
+import { useSessionQuery } from "@/layouts/useSessionQuery"
 import { archiveError, archiveLabels, createArchive, downloadArchive, listArchiveSessions, listArchives, type ArchiveKey, type ArchiveSession, type ArchiveSummary } from "../api/session-archives"
 
 const sessions = ref<readonly ArchiveSession[]>([])
 const sessionId = ref("")
+const sessionQuery = useSessionQuery(sessionId, id => sessions.value.some(row => row.id === id), () => busy.value)
 const selected = ref<ArchiveKey[]>([])
 const archives = ref<readonly ArchiveSummary[]>([])
 const busy = ref(false)
@@ -15,15 +17,17 @@ const time = (value: string): string => new Date(value).toLocaleString("zh-CN", 
 
 async function initialize(): Promise<void> {
   busy.value = true; error.value = ""
-  try { sessions.value = await listArchiveSessions() }
+  try { sessions.value = await listArchiveSessions(); sessionQuery.initialize() }
   catch (cause) { error.value = archiveError(cause) }
   finally { busy.value = false }
 }
 async function load(): Promise<void> {
   if (!sessionId.value) return
+  const id = sessionId.value
+  const revision = sessionQuery.revision.value
   busy.value = true; error.value = ""; loaded.value = false
-  try { archives.value = await listArchives(sessionId.value); loaded.value = true }
-  catch (cause) { error.value = archiveError(cause) }
+  try { const rows = await listArchives(id); if (revision === sessionQuery.revision.value) { archives.value = rows; loaded.value = true } }
+  catch (cause) { if (revision === sessionQuery.revision.value) error.value = archiveError(cause) }
   finally { busy.value = false }
 }
 async function create(): Promise<void> {
@@ -42,7 +46,7 @@ async function download(archive: ArchiveSummary): Promise<void> {
   catch (cause) { error.value = archiveError(cause) }
   finally { busy.value = false }
 }
-watch(sessionId, () => { selected.value = []; archives.value = []; loaded.value = false; notice.value = ""; error.value = "" })
+watch(sessionId, () => { selected.value = []; archives.value = []; loaded.value = false; notice.value = ""; error.value = "" }, { flush: "sync" })
 onMounted(() => { void initialize() })
 </script>
 

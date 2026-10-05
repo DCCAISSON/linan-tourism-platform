@@ -113,7 +113,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue"
+import { computed, onMounted, ref, watch } from "vue"
+import { useSessionQuery } from "@/layouts/useSessionQuery"
 import { getCurrentStaff } from "@/api/auth"
 import { listTourSessions } from "@/api/configuration"
 import type { TourSession } from "@/api/configuration"
@@ -123,6 +124,7 @@ import "@/styles/insurance.css"
 
 const sessions = ref<readonly TourSession[]>([])
 const tourSessionId = ref("")
+const sessionQuery = useSessionQuery(tourSessionId, id => sessions.value.some(row => row.id === id), () => loading.value || working.value)
 const companyTemplateName = ref("")
 const preview = ref<InsurancePreview | null>(null)
 const batch = ref<InsuranceBatch | null>(null)
@@ -146,22 +148,31 @@ const resultDisabled = computed(() => batch.value === null || working.value || !
 const changeDisabled = computed(() => batch.value === null || diff.value?.rosterChanged !== true || working.value || note.value.trim() === "" || !canWrite.value)
 
 onMounted(async () => {
-  sessions.value = await listTourSessions()
-  const staff = await getCurrentStaff()
-  const permissions: readonly string[] = staff.permissionKeys
-  canWrite.value = permissions.includes("insurance.write")
+  try {
+    const [rows, staff] = await Promise.all([listTourSessions(), getCurrentStaff()])
+    sessions.value = rows.filter(row => staff.scopes.some(scope => scope.kind === "all" || scope.kind === "tour_session" && scope.id === row.id || (scope.kind === "school" || scope.kind === "organization") && scope.id === row.organizationId))
+    canWrite.value = staff.permissionKeys.includes("insurance.write")
+    sessionQuery.initialize()
+  } catch (caught) { error.value = readableInsuranceError(caught) }
 })
+watch(tourSessionId, () => {
+  preview.value = null; batch.value = null; diff.value = null; message.value = ""; error.value = ""
+  companyTemplateName.value = ""; receiptReference.value = ""; policyNumber.value = ""; coverageStart.value = ""; coverageEnd.value = ""; note.value = ""; sensitiveExport.value = false
+}, { flush: "sync" })
 
 async function loadWorkspace(): Promise<void> {
   if (tourSessionId.value === "") return
+  const id = tourSessionId.value
+  const revision = sessionQuery.revision.value
   loading.value = true
   error.value = ""
   message.value = ""
   diff.value = null
   try {
-    preview.value = await getInsurancePreview(tourSessionId.value)
-    batch.value = await getLatestInsuranceBatch(tourSessionId.value)
-  } catch (caught) { error.value = readableInsuranceError(caught) }
+    const [loadedPreview, loadedBatch] = await Promise.all([getInsurancePreview(id), getLatestInsuranceBatch(id)])
+    if (revision !== sessionQuery.revision.value) return
+    preview.value = loadedPreview; batch.value = loadedBatch
+  } catch (caught) { if (revision === sessionQuery.revision.value) error.value = readableInsuranceError(caught) }
   finally { loading.value = false }
 }
 

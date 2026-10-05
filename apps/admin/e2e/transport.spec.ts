@@ -47,7 +47,7 @@ test("plans transport vehicles manually and exports the contact sheet", async ({
   })
 
   await page.goto("/transport")
-  await page.getByLabel("团期").selectOption("session-1")
+  await page.getByLabel("团期", { exact: true }).selectOption("session-1")
   await expect(page.getByLabel("学校/机构")).toHaveValue("school-1")
   await page.getByLabel("年级", { exact: true }).selectOption("grade-1")
   await page.getByLabel("班级").selectOption("class-1")
@@ -95,6 +95,7 @@ test("plans transport vehicles manually and exports the contact sheet", async ({
 
 async function installOptions(page: Parameters<typeof installStaffAuthMock>[0]): Promise<void> {
   const collections = {
+    "/catalog-items": [{ id: "catalog-1", title: "地质研学" }],
     "/schools": [{ id: "school-1", name: "临安实验小学", code: "school-1" }],
     "/tour-sessions": [{ id: "session-1", organizationId: "school-1", catalogItemId: "catalog-1", code: "2026-大明山演示", startsAt: "2026-05-09T00:00:00.000Z", endsAt: "2026-05-09T08:00:00.000Z", enrollmentOpensAt: "2026-04-01T00:00:00.000Z", enrollmentClosesAt: "2026-05-01T00:00:00.000Z", status: "published", priceFen: 19500, capacity: 500, activeNoticeId: null, activeNotice: null, policyVersion: "v1" }],
     "/schools/school-1/grades": [{ id: "grade-1", organizationId: "school-1", name: "一年级", code: "grade-1", status: "active" }],
