@@ -9,6 +9,7 @@ import { ConfigurationDatabaseService } from "../configuration/configuration-dat
 import { hasDevStaffHeader, resolveDevelopmentStaff } from "./dev-staff-access.development.js"
 import type { StaffPermissionKey, StaffScope } from "./staff-permissions.js"
 import { hashToken, STAFF_SESSION_COOKIE } from "./staff-session-token.js"
+import { recordRequestActor } from "../../request-observability.js"
 
 export type StaffAccessRequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -38,7 +39,9 @@ export class DevStaffAccessService {
   async resolve(headers: StaffAccessRequestHeaders, options: ResolveOptions = { allowPasswordChange: false }): Promise<StaffAccess> {
     const token = readCookie(headers, STAFF_SESSION_COOKIE)
     if (token !== undefined) {
-      return await this.resolveSession(token, options)
+      const access = await this.resolveSession(token, options)
+      recordRequestActor(access.actorId)
+      return access
     }
 
     if (hasDevStaffHeader(headers)) {

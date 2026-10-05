@@ -25,6 +25,7 @@ import {
   verifyStaffPassword,
 } from "./staff-password.js"
 import { hashToken } from "./staff-session-token.js"
+import { recordRequestActor } from "../../request-observability.js"
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000
 const LOCK_MS = 15 * 60 * 1000
@@ -97,6 +98,7 @@ export class StaffAuthService {
       revokedAt: null,
     })
     await recordStaffAccountAudit(this.database, this.audit, account, "staff.login.succeeded", account.id)
+    recordRequestActor(account.id)
     return { token, expiresAt, account }
   }
 
@@ -107,10 +109,12 @@ export class StaffAuthService {
     const dataSource = await this.database.getDataSource()
     const session = await dataSource.getRepository(StaffSessionEntity).findOneBy({ tokenHash: hashToken(token) })
     if (session !== null) {
+      const currentSession = session.revokedAt === null && session.expiresAt.getTime() > Date.now()
       session.revokedAt = new Date()
       await dataSource.getRepository(StaffSessionEntity).save(session)
       const account = await this.findAccount(session.staffAccountId)
       await recordStaffAccountAudit(this.database, this.audit, account, "staff.logout", session.staffAccountId)
+      if (currentSession) recordRequestActor(account.id)
     }
   }
 

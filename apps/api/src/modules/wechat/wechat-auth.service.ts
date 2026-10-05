@@ -4,6 +4,7 @@ import { FamilyEntity, WechatFamilySessionEntity, WechatIdentityEntity } from ".
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import { makeId } from "../configuration/configuration.persistence.js"
 import { createWechatSessionToken, hashPhone, hashWechatIdentity, hashWechatSessionToken, WECHAT_SESSION_TTL_MS } from "./wechat-session-token.js"
+import { recordRequestActor } from "../../request-observability.js"
 
 type Code2SessionResponse = {
   readonly openid: string
@@ -108,6 +109,7 @@ export class WechatAuthService {
       expiresAt,
       revokedAt: null,
     })
+    recordRequestActor(hashes.openidHash)
     return { token, familyCode, expiresAt: expiresAt.toISOString() }
   }
 
@@ -124,6 +126,7 @@ export class WechatAuthService {
       const token = createWechatSessionToken()
       const expiresAt = new Date(Date.now() + WECHAT_SESSION_TTL_MS)
       await manager.save(WechatFamilySessionEntity, { id: makeId("wechat-session"), organizationId: family?.organizationId ?? null, familyId: family?.id ?? null, familyCode, openidHash: hashes.openidHash, unionidHash: hashes.unionidHash, tokenHash: hashWechatSessionToken(token), phoneHash, phoneVerified: true, expiresAt, revokedAt: null })
+      recordRequestActor(hashes.openidHash)
       return { token, familyCode, expiresAt: expiresAt.toISOString(), phoneVerified: true }
     })
   }
@@ -150,7 +153,10 @@ export class WechatAuthService {
     if (token === undefined) throw new UnauthorizedException({ code: "identity_required", message: "wechat session is required" })
     const dataSource = await this.database.getDataSource()
     const session = await dataSource.getRepository(WechatFamilySessionEntity).findOneBy({ tokenHash: hashWechatSessionToken(token) })
-    if (session !== null && session.revokedAt === null && session.expiresAt.getTime() > Date.now()) return session
+    if (session !== null && session.revokedAt === null && session.expiresAt.getTime() > Date.now()) {
+      recordRequestActor(session.openidHash)
+      return session
+    }
     throw new UnauthorizedException({ code: "identity_required", message: "wechat session is expired" })
   }
 }
