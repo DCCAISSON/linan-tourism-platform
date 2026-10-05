@@ -18,8 +18,6 @@ const sessionChoices = computed(() => activitySessionChoices(trips.value, sessio
 const detailState = computed(() => state.value === "ready" && trip.value === undefined ? "empty" : state.value)
 const sections = [
   { id: "introduction", title: "活动介绍" },
-  { id: "itinerary", title: "行程安排" },
-  { id: "fees", title: "费用说明" },
   { id: "notice", title: "报名须知" },
   { id: "refund", title: "退费说明" },
 ] as const
@@ -85,6 +83,32 @@ function cancelEnrollmentLogin(): void { loginSheetVisible.value = false }
           </button>
         </view>
       </view>
+      <view id="activity-itinerary" class="detail-inline-section">
+        <text class="section-heading">行程安排</text>
+        <template v-if="trip.session.activeNotice">
+          <view class="itinerary-facts">
+            <text class="detail-line">目的地：{{ trip.session.activeNotice.contentJson.destination }}</text>
+            <text class="detail-line">集合地点：{{ trip.session.activeNotice.contentJson.departurePlace }}</text>
+            <text class="detail-line">用餐说明：{{ trip.session.activeNotice.contentJson.mealNote }}</text>
+          </view>
+          <view class="itinerary-timeline">
+            <view v-for="(item, index) in trip.session.activeNotice.contentJson.itinerary" :key="`${index}-${item}`" class="itinerary-step">
+              <text class="itinerary-number">{{ index + 1 }}</text><text class="detail-line">{{ item }}</text>
+            </view>
+          </view>
+        </template>
+        <text v-else class="detail-line">行程安排暂未提供，请联系工作人员了解。</text>
+      </view>
+      <view id="activity-fees" class="detail-inline-section">
+        <text class="section-heading">费用说明</text>
+        <view class="detail-fees-summary"><text class="price">{{ formatFen(trip.session.priceFen) }}<text class="caption"> / 人</text></text><text class="detail-line">学生、成人同价，按实际报名人数计费。</text></view>
+        <text class="detail-line">合计 = 单价 × 参加人数</text>
+        <template v-if="trip.session.activeNotice">
+          <text v-for="item in trip.session.activeNotice.contentJson.unitPrices" :key="item" class="detail-line">{{ item }}</text>
+          <text v-for="item in trip.session.activeNotice.contentJson.packageExamples" :key="item" class="detail-line">{{ item }}</text>
+        </template>
+        <text v-else class="detail-line">详细费用说明暂未提供，请联系工作人员了解。</text>
+      </view>
       <view class="info-card detail-section-nav" aria-label="活动详情">
         <button v-for="section in sections" :key="section.id" class="detail-section-link" :data-section-id="section.id" aria-haspopup="dialog" @tap="openSection(section.id)">
           <text>{{ section.title }}</text><text class="detail-section-arrow" aria-hidden="true">›</text>
@@ -109,27 +133,6 @@ function cancelEnrollmentLogin(): void { loginSheetVisible.value = false }
                   <text v-if="trip.session.occupiedCapacity != null && trip.session.minimumParticipants != null" class="detail-line">{{ trip.session.occupiedCapacity >= trip.session.minimumParticipants ? '已达参考人数' : '未达参考人数' }}</text>
                   <text class="detail-line">按已付款且未取消的所有参加人统计。出行安排以工作人员通知为准。</text>
                 </view>
-              </view>
-              <view v-else-if="activeSectionId === 'itinerary'" id="activity-itinerary" class="detail-section">
-                <template v-if="trip.session.activeNotice">
-                  <text class="detail-line">目的地：{{ trip.session.activeNotice.contentJson.destination }}</text>
-                  <text class="detail-line">集合地点：{{ trip.session.activeNotice.contentJson.departurePlace }}</text>
-                  <text class="detail-line">用餐说明：{{ trip.session.activeNotice.contentJson.mealNote }}</text>
-                  <view v-for="(item, index) in trip.session.activeNotice.contentJson.itinerary" :key="item" class="itinerary-step">
-                    <text class="itinerary-number">{{ index + 1 }}</text><text class="detail-line">{{ item }}</text>
-                  </view>
-                </template>
-                <text v-else class="detail-line">行程安排暂未提供，请联系工作人员了解。</text>
-              </view>
-              <view v-else-if="activeSectionId === 'fees'" id="activity-fees" class="detail-section">
-                <text class="price">{{ formatFen(trip.session.priceFen) }}<text class="caption"> / 人</text></text>
-                <text class="detail-line">学生、成人同价，按实际报名人数计费。</text>
-                <text class="detail-line">合计 = 单价 × 参加人数</text>
-                <template v-if="trip.session.activeNotice">
-                  <text v-for="item in trip.session.activeNotice.contentJson.unitPrices" :key="item" class="detail-line">{{ item }}</text>
-                  <text v-for="item in trip.session.activeNotice.contentJson.packageExamples" :key="item" class="detail-line">{{ item }}</text>
-                </template>
-                <text v-else class="detail-line">详细费用说明暂未提供，请联系工作人员了解。</text>
               </view>
               <view v-else-if="activeSectionId === 'notice'" id="activity-notice" class="detail-section parent-notice-card">
                 <template v-if="trip.session.activeNotice">
@@ -199,9 +202,15 @@ function cancelEnrollmentLogin(): void { loginSheetVisible.value = false }
 .detail-sheet-content { padding: var(--space-4) var(--space-4) calc(var(--space-6) + env(safe-area-inset-bottom)); overflow-wrap: anywhere; }
 .detail-sheet-content .detail-line:first-child { margin-top: 0; }
 .minimum-participants { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
-.itinerary-step { display: flex; align-items: baseline; gap: var(--space-3); margin-top: var(--space-3); }
+.detail-inline-section { margin-top: var(--space-6); padding-bottom: var(--space-5); }
+.detail-inline-section + .detail-inline-section { border-top: 1px solid var(--border-subtle); }
+.itinerary-facts { padding: 0 0 var(--space-4); }
+.itinerary-timeline { margin-top: var(--space-2); }
+.itinerary-step { position: relative; display: flex; align-items: flex-start; gap: var(--space-3); padding-bottom: var(--space-4); }
+.itinerary-step:not(:last-child)::before { position: absolute; content: ""; top: var(--space-6); bottom: 0; left: calc(var(--space-3) - 1px); border-left: 2px solid var(--border-default); }
 .itinerary-step .detail-line { margin-top: 0; }
-.itinerary-number { flex-shrink: 0; color: var(--accent-primary); font-size: var(--font-body-sm); font-weight: 600; }
+.itinerary-number { flex: 0 0 var(--space-6); width: var(--space-6); height: var(--space-6); border-radius: var(--radius-control); color: var(--accent-primary); background: var(--accent-soft); font-size: var(--font-body-sm); font-weight: 600; line-height: var(--space-6); text-align: center; }
+.detail-fees-summary { padding: var(--space-4); border-radius: var(--radius-control); background: var(--surface-secondary); }
 .parent-notice-card { gap: var(--space-2); }
 .notice-heading { font-weight: 700; color: var(--text-primary); }
 .detail-cta { position: fixed; right: 0; bottom: 0; left: 0; display: flex; gap: var(--space-3); padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom)); background: var(--surface-elevated); }

@@ -17,7 +17,7 @@ function open(sessionId: string): void { uni.navigateTo({ url: `/pages/activitie
     <view class="card-content">
       <view class="activity-card__meta"><text class="badge" :class="{ 'badge--muted': !trip.canEnroll }">{{ trip.registrationLabel }}</text><text class="caption activity-card__school">{{ trip.schoolName }}</text></view>
       <text class="card-title">{{ trip.activity.title }}</text>
-      <text class="body-secondary activity-card__date">{{ formatDateLabel(trip.session.startsAt) }} 至 {{ formatDateLabel(trip.session.endsAt) }}</text>
+      <view class="body-secondary activity-card__date"><text class="activity-card__text-unit">{{ formatDateLabel(trip.session.startsAt) }}</text><text>至</text><text class="activity-card__text-unit">{{ formatDateLabel(trip.session.endsAt) }}</text></view>
       <view class="row-between card-footer"><view><text class="price">{{ formatFen(trip.session.priceFen) }}<text class="caption"> / 人</text></text><text class="activity-card__pricing">学生、成人同价</text></view><button class="button-secondary activity-detail-button" @tap.stop="open(trip.session.id)">查看详情</button></view>
     </view>
   </view>
@@ -25,4 +25,7 @@ function open(sessionId: string): void { uni.navigateTo({ url: `/pages/activitie
 
 <style>
 @import "../styles/discovery.css";
+.activity-card .card-title, .activity-card .cover-title { text-wrap: balance; }
+.activity-card__text-unit { display: inline-block; white-space: nowrap; }
+.activity-card .activity-card__date { display: flex; flex-wrap: wrap; gap: 0 var(--space-1); }
 </style>

@@ -19,7 +19,7 @@ import {
   type LoadState, type PageMode,
 } from "../../enrollment-flow"
 import {
-  createLocalMemberCode, readContactFieldError, readFirstEnrollmentInvalidTarget, readMemberFieldError,
+  createLocalMemberCode, memberFieldAnchor, readContactFieldError, readFirstEnrollmentInvalidTarget, readMemberFieldError,
   type ContactFieldName, type MemberFieldName,
 } from "../../enrollment-validation"
 import { readableError, readPickerIndex, readStateTone, stateLabel } from "./page-helpers"
@@ -67,6 +67,10 @@ export function useEnrollmentPage() {
   const paymentCapabilities = ref<ServiceCapabilities>(paymentCapabilitiesClosed)
   const wantedSessionId = ref("")
   const savedMembers = ref<readonly SavedEnrollmentMember[]>([])
+  const savedMemberPlacements = ref<ReadonlyMap<string, { readonly label: string; readonly failed: boolean }>>(new Map())
+  const memberPlacementFailed = computed(() => [...savedMemberPlacements.value.values()].some((placement) => placement.failed))
+  const memberToEdit = ref<string | null>(null)
+  let memberPlacementRequest = 0
   const gradeState = ref<LoadState | "idle">("idle")
   const classState = ref<LoadState | "idle">("idle")
   const gradeError = ref("")
@@ -85,6 +89,9 @@ export function useEnrollmentPage() {
   })
   const persistedDraft = useEnrollmentDraft(draft, message => { errorMessage.value = message }, () => {
     savedMembers.value = []
+    savedMemberPlacements.value = new Map()
+    memberPlacementRequest++
+    memberToEdit.value = null
     const token = getWechatSessionToken()
     authenticated.value = import.meta.env["VITE_WECHAT_LOGIN_ENABLED"] !== "true" || token !== undefined
     phoneVerified.value = currentSessionPhoneVerified()
@@ -193,6 +200,7 @@ export function useEnrollmentPage() {
       if (draft.selectedSchoolId) {
         await retryGrades()
         if (draft.selectedGradeId) await retryClasses()
+        await retryMemberPlacements()
       } else if (schoolIndex >= 0) await onSchoolChange({ detail: { value: schoolIndex } })
     } catch (error) {
       const sessionExpired = loadingToken !== undefined && getWechatSessionToken() === undefined
@@ -248,7 +256,50 @@ export function useEnrollmentPage() {
     resetCheckout()
     errorMessage.value = ""
     persistedDraft.restore(draft.selectedTourSessionId)
-    await retryGrades()
+    await Promise.all([retryGrades(), retryMemberPlacements()])
+  }
+
+  async function retryMemberPlacements(): Promise<void> {
+    const request = ++memberPlacementRequest
+    const owner = getEnrollmentDraftOwner(), token = getWechatSessionToken(), schoolId = draft.selectedSchoolId
+    savedMemberPlacements.value = new Map()
+    let schoolGrades: Promise<readonly Grade[]> | undefined
+    const classRequests = new Map<string, Promise<readonly SchoolClass[]>>()
+    const members = savedMembers.value.filter((member) => member.schoolId === schoolId && member.participantKind !== "adult")
+    await Promise.all(members.map(async (member) => {
+      let placement: { readonly label: string; readonly failed: boolean }
+      try {
+        const gradesRequest = member.gradeId === null ? Promise.resolve([]) : schoolGrades ??= api.listGrades(schoolId)
+        const classesRequest = member.gradeId === null || member.classId === null ? Promise.resolve([]) : classRequests.get(member.gradeId) ?? api.listClasses(member.gradeId)
+        if (member.gradeId !== null && member.classId !== null) classRequests.set(member.gradeId, classesRequest)
+        const [grades, classes] = await Promise.all([gradesRequest, classesRequest])
+        const grade = member.gradeId === null ? "年级未填写" : grades.find((item) => item.id === member.gradeId)?.name ?? "年级信息待核实"
+        const schoolClass = member.classId === null ? "班级未填写" : classes.find((item) => item.id === member.classId)?.name ?? "班级信息待核实"
+        placement = { label: `${grade} · ${schoolClass}`, failed: false }
+      } catch {
+        placement = { label: "班级信息暂未加载", failed: true }
+      }
+      if (request !== memberPlacementRequest || owner !== getEnrollmentDraftOwner() || token !== getWechatSessionToken() || schoolId !== draft.selectedSchoolId) return
+      savedMemberPlacements.value = new Map([...savedMemberPlacements.value, [member.id, placement]])
+    }))
+  }
+
+  function memberPlacement(member: FamilyMember): string {
+    if (member.participantKind === "adult") return "成人 · 无需年级班级"
+    if (member.fromCommonList) {
+      const saved = savedMembers.value.find((item) => item.id === member.remoteMemberId)
+      if (saved === undefined) return "学校班级信息暂未加载"
+      const school = catalog.schools.find((item) => item.id === saved.schoolId)?.name ?? "学校信息待核实"
+      return `${school} · ${savedMemberPlacements.value.get(saved.id)?.label ?? "班级信息加载中…"}`
+    }
+    return `${selectedSchool.value?.name ?? "学校待填写"} · ${selectedGrade.value?.name ?? "年级待填写"} · ${selectedClass.value?.name ?? "班级待填写"}`
+  }
+
+  async function editMember(memberId: string): Promise<void> {
+    memberToEdit.value = memberId
+    backToEdit()
+    await nextTick()
+    scrollToEnrollmentAnchor(memberFieldAnchor(memberId, "displayName"))
   }
 
   async function retryGrades(): Promise<void> {
@@ -364,6 +415,9 @@ export function useEnrollmentPage() {
 
   function clearHistoricalMembers(): void {
     savedMembers.value = []
+    savedMemberPlacements.value = new Map()
+    memberPlacementRequest++
+    memberToEdit.value = null
     draft.familyMembers = draft.familyMembers.filter((member) => !member.fromCommonList || member.selected)
     for (const member of draft.familyMembers) {
       if (member.remoteMemberId !== undefined) member.code = createLocalMemberCode()
@@ -398,13 +452,14 @@ export function useEnrollmentPage() {
     }
     try {
       const members = await api.listEnrollmentMembers()
-      if (loginOwner !== getEnrollmentDraftOwner()) return
+      if (loginOwner !== getEnrollmentDraftOwner() || loginToken !== getWechatSessionToken()) return
       savedMembers.value = members
       const available = savedMembers.value.filter((member) => member.schoolId === draft.selectedSchoolId)
       for (const member of available) {
         if (draft.familyMembers.some((existing) => existing.remoteMemberId === member.id)) continue
         draft.familyMembers.push({ id: member.id, code: member.code, displayName: member.displayName, participantKind: member.participantKind ?? "student", identityNumber: member.identityNumberMasked ?? "", phone: member.phoneMasked ?? "", remoteMemberId: member.id, fromCommonList: true, selected: false })
       }
+      await retryMemberPlacements()
     } catch (error) {
       const sessionExpired = error instanceof ApiError && error.statusCode === 401 && loginToken !== undefined && getWechatSessionToken() === undefined
       if ((loginOwner !== getEnrollmentDraftOwner() || loginToken !== getWechatSessionToken()) && !sessionExpired) return
@@ -715,6 +770,7 @@ async function requestWechatPayment(payment: WechatMiniappPayment["miniappPaymen
     loadState,
     loadStateLabel,
     memberFieldError,
+    memberPlacement, memberPlacementFailed, retryMemberPlacements, memberToEdit, editMember,
     onClassChange,
     onGradeChange,
     onSchoolChange,
