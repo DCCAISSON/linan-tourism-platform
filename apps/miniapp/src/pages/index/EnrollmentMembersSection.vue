@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watchEffect } from "vue"
+import { getCurrentInstance, nextTick, ref, watchEffect } from "vue"
 import type { FamilyMember } from "../../enrollment-flow"
 import { memberFieldAnchor, readMemberFieldError } from "../../enrollment-validation"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
@@ -7,11 +7,16 @@ import type { useEnrollmentPage } from "./useEnrollmentPage"
 const props = defineProps<{
   readonly page: ReturnType<typeof useEnrollmentPage>
 }>()
+const instance = getCurrentInstance()
 
 const {
   addMember,
   draft,
   memberFieldError,
+  memberPlacement,
+  memberPlacementFailed,
+  retryMemberPlacements,
+  memberToEdit,
   removeMember,
   toggleMember,
   updateSavedMemberName,
@@ -21,16 +26,41 @@ const editingMemberId = ref<string | null>(null)
 const editingDisplayName = ref("")
 const editingError = ref("")
 const savingMemberId = ref<string | null>(null)
-const collapsedMemberIds = ref(new Set<string>())
+const memberExpanded = ref<Record<string, boolean>>({})
 
 watchEffect(() => {
   for (const member of draft.familyMembers) {
     if ((["displayName", "identityNumber", "phone"] as const).some((field) =>
       memberFieldError(member, field).length > 0)) {
-      collapsedMemberIds.value.delete(member.id)
+      expandMember(member)
+    }
+    if (memberToEdit.value === member.id) {
+      expandMember(member)
+      memberToEdit.value = null
+      void nextTick(() => {
+        const query = uni.createSelectorQuery().in(instance?.proxy)
+        let targetTop: number | undefined
+        query.select(`#${memberFieldAnchor(member.id, "displayName")}`).boundingClientRect((rect) => {
+          if (rect && !Array.isArray(rect) && typeof rect.top === "number") targetTop = rect.top
+        })
+        query.selectViewport().scrollOffset((offset) => {
+          if (targetTop !== undefined && !Array.isArray(offset) && typeof offset.scrollTop === "number") {
+            uni.pageScrollTo({ scrollTop: targetTop + offset.scrollTop, duration: 200 })
+          }
+        })
+        query.exec()
+      })
     }
   }
 })
+
+function isMemberCollapsed(member: FamilyMember): boolean {
+  return !(memberExpanded.value[member.id] ?? !member.fromCommonList)
+}
+
+function expandMember(member: FamilyMember): void {
+  memberExpanded.value[member.id] = true
+}
 
 function canCollapse(member: FamilyMember): boolean {
   return (["displayName", "identityNumber", "phone"] as const)
@@ -38,13 +68,27 @@ function canCollapse(member: FamilyMember): boolean {
 }
 
 function collapseMember(member: FamilyMember): void {
-  if (canCollapse(member) && editingMemberId.value !== member.id) collapsedMemberIds.value.add(member.id)
+  if (canCollapse(member) && editingMemberId.value !== member.id) memberExpanded.value[member.id] = false
+}
+
+function memberProfileStatus(member: FamilyMember): string {
+  const pending: string[] = []
+  const selected = { ...member, selected: true }
+  if (readMemberFieldError(selected, "displayName")) pending.push("姓名")
+  if (!member.identityNumber?.trim() || readMemberFieldError(selected, "identityNumber")) pending.push("证件")
+  if (readMemberFieldError(selected, "phone")) pending.push("手机")
+  return pending.length > 0 ? `${pending.join("、")}待完善` : "姓名、证件已填写"
+}
+
+function memberHealthStatus(member: FamilyMember): string {
+  if (!member.healthNotes?.trim()) return "未填写（选填）"
+  return member.healthConsent ? "已填写，已单独授权本次保存" : "已填写，未授权提交"
 }
 
 function maskedIdentity(member: FamilyMember): string {
   const value = member.identityNumber?.trim() ?? ""
   if (value.includes("*")) return value
-  return value.length > 8 ? `${value.slice(0, 6)}********${value.slice(-4)}` : "已保存"
+  return value.length > 8 ? `${value.slice(0, 6)}********${value.slice(-4)}` : "待完善"
 }
 
 function updateHealthNotes(member: FamilyMember, event: unknown): void {
@@ -94,13 +138,14 @@ async function saveMemberName(member: FamilyMember): Promise<void> {
     <view class="section__header section__header--members">
       <view>
         <text class="section__title">参加人员</text>
-        <text class="section__hint">添加/编辑成员（学生/成人），并勾选本次实际参加人员。</text>
+        <text class="section__hint">勾选本次参加人员，需要更正或补充时再编辑。</text>
       </view>
     </view>
 
 
     <button class="member-manage-button" @tap="addMember">＋ 添加学生或成人</button>
     <text class="required-note"><text class="required-mark">*</text>至少选择一名参加人员；学生联系电话统一使用下方家长手机。</text>
+    <button v-if="memberPlacementFailed" class="member-edit-button" @tap="retryMemberPlacements">重试班级信息</button>
 
     <view v-if="draft.familyMembers.length === 0" class="empty-line">
       <text>尚未添加参加人员，请先添加学生或成人。</text>
@@ -112,14 +157,16 @@ async function saveMemberName(member: FamilyMember): Promise<void> {
       class="member-row member-card"
       :class="{ 'member-card--selected': member.selected }"
     >
-      <view v-if="collapsedMemberIds.has(member.id)" class="member-card__overview">
-        <view class="member-row__fields">
+      <view v-if="isMemberCollapsed(member)" class="member-card__overview">
+        <view :id="memberFieldAnchor(member.id, 'displayName')" class="member-row__fields">
           <view class="member-card__name-line">
             <text class="member-card__name">{{ member.displayName }}</text>
             <text class="member-card__tag">{{ member.participantKind === 'adult' ? '成人' : '学生' }}</text>
           </view>
-          <text class="member-card__identity">证件：{{ maskedIdentity(member) }}</text>
-          <button class="member-edit-button" @tap="collapsedMemberIds.delete(member.id)">编辑参加人</button>
+          <text class="member-card__identity">{{ memberPlacement(member) }}</text>
+          <text class="member-card__identity">资料：{{ memberProfileStatus(member) }}</text>
+          <text class="member-card__identity">本次健康补充：{{ memberHealthStatus(member) }}</text>
+          <button class="member-edit-button" @tap="expandMember(member)">编辑参加人</button>
         </view>
         <button v-if="member.fromCommonList" class="member-choice" :class="{ 'member-choice--selected': member.selected }" @tap="toggleMember(member.id)">
           <text class="member-choice__check">{{ member.selected ? '✓' : '' }}</text>
@@ -138,6 +185,7 @@ async function saveMemberName(member: FamilyMember): Promise<void> {
               <text v-if="member.fromCommonList" class="member-card__tag member-card__tag--soft">常用参加人</text>
             </view>
             <text class="member-card__identity">证件：{{ maskedIdentity(member) }}</text>
+            <text class="member-card__identity">{{ memberPlacement(member) }}</text>
             <button class="member-edit-button" @tap="startEditing(member)">编辑姓名</button>
           </view>
           <view v-else class="member-name-editor">
@@ -242,7 +290,7 @@ async function saveMemberName(member: FamilyMember): Promise<void> {
 .member-card__name { color: var(--text-primary); font-size: var(--font-h3); font-weight: 700; line-height: 1.4; }
 .member-card__tag { padding: 2px var(--space-2); border: 1px solid var(--brand-primary); border-radius: 999px; color: var(--accent-primary); background: var(--accent-soft); font-size: var(--font-caption); line-height: 1.5; }
 .member-card__tag--soft { border-color: var(--border-default); color: var(--text-secondary); background: var(--surface-secondary); }
-.member-card__identity { display: block; margin-top: var(--space-2); color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.5; }
+.member-card__identity { display: block; margin-top: var(--space-2); color: var(--text-secondary); font-size: var(--font-body-sm); line-height: 1.5; overflow-wrap: anywhere; }
 .member-row__fields { flex: 1 1 auto; min-width: 0; }
 .member-choice { display: flex; flex: 0 0 60px; flex-direction: column; align-items: center; gap: var(--space-1); min-width: 60px; min-height: 56px; margin: 0; padding: var(--space-1); color: var(--text-tertiary); background: transparent; font-size: var(--font-caption); line-height: 1.2; }
 .member-choice::after, .member-edit-button::after, .member-delete-button::after, .member-editor-button::after { border: 0; }

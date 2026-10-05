@@ -49,8 +49,10 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Reconciliation scheduler tests
-        run: node --experimental-vm-modules deploy/cloud-test/reconcile-wechat-bill.test.mjs
+      - name: Operations script tests
+        run: |
+          node --experimental-vm-modules deploy/cloud-test/reconcile-wechat-bill.test.mjs
+          node --experimental-vm-modules deploy/cloud-test/check-operations.test.mjs
 
       - name: Build
         run: pnpm build

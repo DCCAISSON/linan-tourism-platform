@@ -149,6 +149,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue"
+import { useSessionQuery } from "@/layouts/useSessionQuery"
 import UserNotificationsPanel from "@/components/UserNotificationsPanel.vue"
 import {
   createNotificationContent,
@@ -179,6 +180,7 @@ const preview = ref<readonly NotificationTargetPreview[]>([])
 const authorizationIds = ref<string[]>([])
 const recipients = ref<readonly NotificationTargetPreview[]>([])
 const sessionOptions = ref<readonly NotificationSessionOption[]>([])
+const sessionQuery = useSessionQuery(sessionId, id => sessionOptions.value.some(row => row.id === id), () => busy.value)
 const templateFields = ref<{ key: string; value: string }[]>([])
 const previewSelection = ref<NotificationPreviewSelection | null>(null)
 const selectedContentId = ref("")
@@ -197,12 +199,12 @@ const entryForms = reactive<EntryForm[]>([
 ])
 const previewCurrent = computed(() => preview.value.length > 0 && isNotificationPreviewCurrent(previewSelection.value, loadedSessionId.value, authorizationIds.value))
 const hasRetryableTargets = computed(() => canRetryNotificationTargets(detail.value?.targets ?? []))
-watch(sessionId, invalidateLoadedSession)
+watch(sessionId, () => { clearLoadedState(); message.value = ""; error.value = "" }, { flush: "sync" })
 watch([selectedContentId, authorizationIds, selectedSourceId], () => { idempotencyKey.value = newIdempotencyKey() }, { deep: true })
 onMounted(loadOptions)
 
-async function loadOptions(): Promise<void> { await run(async () => { sessionOptions.value = await getNotificationSessions() }) }
-async function loadSession(): Promise<void> { const requestedSessionId = sessionId.value; clearLoadedState(); await run(async () => { const [loaded, options] = await Promise.all([getNotificationSession(requestedSessionId), getNotificationRecipients(requestedSessionId)]); if (sessionId.value !== requestedSessionId) throw new Error("团期已变化，请重新读取。"); loadedSessionId.value = requestedSessionId; session.value = loaded; recipients.value = options; applyEntries(loaded.entries); message.value = "团期通知已读取。" }) }
+async function loadOptions(): Promise<void> { await run(async () => { sessionOptions.value = await getNotificationSessions(); sessionQuery.initialize() }) }
+async function loadSession(): Promise<void> { const requestedSessionId = sessionId.value; const revision = sessionQuery.revision.value; clearLoadedState(); await run(async () => { const [loaded, options] = await Promise.all([getNotificationSession(requestedSessionId), getNotificationRecipients(requestedSessionId)]); if (revision !== sessionQuery.revision.value) return; loadedSessionId.value = requestedSessionId; session.value = loaded; recipients.value = options; applyEntries(loaded.entries); message.value = "团期通知已读取。" }) }
 async function saveContent(): Promise<void> { const activeSessionId = loadedSessionId.value; if (activeSessionId === "") return; await run(async () => { await createNotificationContent(activeSessionId, { title: contentDraft.title, bodyText: contentDraft.bodyText, templateId: emptyToNull(contentDraft.templateId), miniappPage: emptyToNull(contentDraft.miniappPage), templateData: readTemplateFields() }); contentDraft.title = ""; contentDraft.bodyText = ""; session.value = await getNotificationSession(activeSessionId); message.value = "内容版本已创建。" }) }
 async function saveEntry(kind: NotificationEntryKind): Promise<void> { const activeSessionId = loadedSessionId.value; const form = entryForms.find(item => item.kind === kind); if (form === undefined || activeSessionId === "") return; await run(async () => { if (form.enabled && !form.url.startsWith("https://")) throw new Error("启用入口必须使用 HTTPS 地址。"); const saved = await saveNotificationEntry(activeSessionId, kind, { label: form.label, url: form.url, corpId: form.corpId || null, enabled: form.enabled, expectedVersion: form.version }); Object.assign(form, saved, { corpId: saved.corpId ?? "" }); message.value = form.enabled ? "入口已保存并启用。" : "入口已保存为停用。" }) }
 async function previewTargets(): Promise<void> { const selection = createNotificationPreviewSelection(loadedSessionId.value, authorizationIds.value); if (selection.sessionId === "" || selection.authorizationIds.length === 0) return; await run(async () => { const loadedPreview = await previewNotificationTargets(selection.sessionId, selection.authorizationIds, selectedSourceId.value || undefined); preview.value = loadedPreview; previewSelection.value = selection; message.value = loadedPreview.length === 0 ? "没有可用授权接收人。" : `已预览 ${loadedPreview.length} 名授权接收人。` }) }
@@ -213,7 +215,6 @@ async function retryTask(): Promise<void> { const taskId = detail.value?.id; if 
 async function refreshSession(): Promise<void> { if (loadedSessionId.value !== "") session.value = await getNotificationSession(loadedSessionId.value) }
 async function run(action: () => Promise<void>): Promise<void> { busy.value = true; error.value = ""; message.value = ""; try { await action() } catch (cause) { error.value = cause instanceof Error ? cause.message : readableNotificationError(cause) } finally { busy.value = false } }
 
-function invalidateLoadedSession(): void { if (loadedSessionId.value !== "" && sessionId.value !== loadedSessionId.value) clearLoadedState() }
 function clearLoadedState(): void { loadedSessionId.value = ""; session.value = null; detail.value = null; preview.value = []; recipients.value = []; authorizationIds.value = []; previewSelection.value = null; selectedContentId.value = ""; selectedSourceId.value = ""; Object.assign(contentDraft, { title: "", bodyText: "", templateId: "", miniappPage: "" }); templateFields.value = []; idempotencyKey.value = newIdempotencyKey() }
 function applyEntries(entries: readonly NotificationChannelEntry[]): void { for (const form of entryForms) { const entry = entries.find(entry => entry.kind === form.kind); Object.assign(form, entry ?? { label: "", url: "", enabled: false, version: 0 }, { corpId: entry?.corpId ?? "" }) } }
 function readTemplateFields(): Readonly<Record<string, { readonly value: string }>> {

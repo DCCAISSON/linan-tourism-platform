@@ -89,7 +89,7 @@ describe("activity detail section navigation", () => {
   it("opens only the selected section and closes without moving the page or starting enrollment", () => {
     const page = setup()
     expect(page.activeSection.value).toBeUndefined()
-    expect(page.sections.map((section) => section.title)).toEqual(["活动介绍", "行程安排", "费用说明", "报名须知", "退费说明"])
+    expect(page.sections.map((section) => section.title)).toEqual(["活动介绍", "报名须知", "退费说明"])
     for (const section of page.sections) {
       page.openSection(section.id)
       expect(page.activeSectionId.value).toBe(section.id)

@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { formatDateLabel, formatFen } from "../../enrollment-flow"
 import EnrollmentMembersSection from "./EnrollmentMembersSection.vue"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
@@ -31,13 +31,14 @@ const {
   selectedSession,
   sessionNames,
 } = page
+const hasNewStudent = computed(() => draft.familyMembers.some((member) => member.selected && member.remoteMemberId === undefined && member.participantKind !== "adult"))
 </script>
 
 <template>
   <view class="section">
     <view class="section__header section__header--school">
       <text class="section__title">学校与班级</text>
-      <text class="section__hint">依次选择学校、年级和班级；常用参加人沿用已存班级。</text>
+      <text class="section__hint">选择学校后勾选参加人；已保存的学生沿用各自班级。</text>
       <text class="required-note"><text class="required-mark">*</text>学校必选；新增学生需选择年级和班级。</text>
     </view>
 
@@ -49,6 +50,7 @@ const {
     </picker>
 
     <text class="required-note">仅显示当前活动可报名的学校。</text>
+    <template v-if="hasNewStudent">
     <picker mode="selector" :range="gradeNames" :value="gradeIndex" :disabled="gradeState !== 'ready'" @change="onGradeChange">
       <view id="enrollment-grade-field" class="field-control" :class="{ 'field-control--disabled': catalog.grades.length === 0 }">
         <text class="field-control__label">年级</text>
@@ -72,6 +74,7 @@ const {
       <button class="text-button" @tap="retryClasses">重试班级</button>
     </view>
     <text v-else-if="classState === 'empty'" class="required-note">该年级暂无可选班级，请联系活动工作人员。</text>
+    </template>
   </view>
 
   <EnrollmentMembersSection :page="page" />

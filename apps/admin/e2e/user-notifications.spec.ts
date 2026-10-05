@@ -8,6 +8,9 @@ const detail = { task, targets: [{ id: "target-1", subscriptionId: "sub-1", stat
 
 test.beforeEach(async ({ page, baseURL }) => {
   await page.route("**/*", route => new URL(route.request().url()).origin === new URL(baseURL ?? "http://127.0.0.1:5174").origin ? route.continue() : route.abort())
+  for (const path of ["/tour-sessions", "/schools", "/catalog-items"]) {
+    await page.route(`http://127.0.0.1:3000${path}`, route => route.fulfill({ json: [] }))
+  }
 })
 
 test("explains accepted, refused, unknown and invalid message attempts without offering resend", async ({ page }, testInfo) => {
@@ -80,7 +83,7 @@ test("creates without sending, preserves retry identity and confirms the selecte
   await page.getByRole("button", { name: "预览可用订阅" }).click()
   await page.getByLabel("选择全部可用订阅").check()
   await page.getByRole("button", { name: "创建用户消息任务" }).click()
-  await expect(page.getByRole("alert")).toContainText("暂时无法创建")
+  await expect(page.getByRole("region", { name: "用户消息 · 新活动提醒" }).getByRole("alert")).toContainText("暂时无法创建")
   await page.getByRole("button", { name: "创建用户消息任务" }).click()
   await expect(page.getByText("用户消息任务已创建，尚未发送。")).toBeVisible()
   expect(bodies).toHaveLength(2); expect(bodies[0]).toEqual(bodies[1]); expect(sends).toHaveLength(0)
@@ -122,5 +125,5 @@ test("shows empty configuration and exposes response errors on refresh", async (
   await expect(page.getByText("暂无用户消息任务。", { exact: true })).toBeVisible()
   malformed = true
   await page.getByRole("button", { name: "刷新用户消息" }).click()
-  await expect(page.getByRole("alert")).toHaveText("用户消息响应格式不正确，请刷新后重试。")
+  await expect(page.getByRole("region", { name: "用户消息 · 新活动提醒" }).getByRole("alert")).toHaveText("用户消息响应格式不正确，请刷新后重试。")
 })

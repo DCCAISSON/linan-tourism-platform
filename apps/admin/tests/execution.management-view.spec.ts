@@ -1,4 +1,5 @@
-import { createApp, nextTick } from "vue"
+import { createApp, h, nextTick } from "vue"
+import { createMemoryHistory, createRouter, RouterView } from "vue-router"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import ExecutionManagementView from "@/views/ExecutionManagementView.vue"
 import { managementSession } from "./execution.fixtures"
@@ -29,7 +30,9 @@ async function mountManagement(permissions = ["execution.read", "execution.manag
   vi.stubGlobal("fetch", request)
   const host = document.createElement("div")
   document.body.append(host)
-  const app = createApp(ExecutionManagementView)
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: "/execution/management", component: ExecutionManagementView }] })
+  await router.push("/execution/management")
+  const app = createApp({ render: () => h(RouterView) }).use(router)
   app.mount(host)
   apps.push(app)
   await vi.waitFor(() => expect(request).toHaveBeenCalled())

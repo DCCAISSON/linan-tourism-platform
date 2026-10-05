@@ -3,6 +3,7 @@ import { WechatFamilySessionEntity } from "../../domain/entities/index.js"
 import { ConfigurationDatabaseService } from "../configuration/configuration-database.service.js"
 import type { EnrollmentIdentity } from "./enrollment.types.js"
 import { hashWechatSessionToken } from "../wechat/wechat-session-token.js"
+import { recordRequestActor } from "../../request-observability.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -19,6 +20,7 @@ export class EnrollmentIdentityService {
       const dataSource = await this.database.getDataSource()
       const session = await dataSource.getRepository(WechatFamilySessionEntity).findOneBy({ tokenHash: hashWechatSessionToken(token) })
       if (session !== null && session.revokedAt === null && session.expiresAt.getTime() > Date.now()) {
+        recordRequestActor(session.openidHash)
         return { familyCode: session.familyCode, actorId: session.openidHash, phoneVerified: session.phoneVerified }
       }
       throw new UnauthorizedException({ code: "identity_required", message: "wechat session is expired" })

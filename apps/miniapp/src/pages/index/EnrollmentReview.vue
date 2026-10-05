@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick } from "vue"
 import { formatDateLabel, formatFen, type FamilyMember } from "../../enrollment-flow"
-import { memberFieldAnchor } from "../../enrollment-validation"
 import type { useEnrollmentPage } from "./useEnrollmentPage"
 
 const props = defineProps<{
@@ -11,8 +10,8 @@ const props = defineProps<{
 const {
   draft,
   backToEdit,
-  selectedClass,
-  selectedGrade,
+  editMember,
+  memberPlacement,
   selectedMembers,
   selectedSchool,
   selectedSession,
@@ -31,20 +30,10 @@ async function editSection(anchor: string): Promise<void> {
   await nextTick()
   uni.pageScrollTo({ selector: `#${anchor}`, duration: 200 })
 }
-function memberPlacement(member: FamilyMember): string {
-  if (member.participantKind === "adult") {
-    return "成人 · 无需年级班级"
-  }
-  if (member.fromCommonList) {
-    return "学生 · 按家庭中心保存班级"
-  }
-  return `学生 · ${selectedGrade.value?.name ?? "年级待确认"} ${selectedClass.value?.name ?? "班级待确认"}`
-}
-
 function maskedIdentity(member: FamilyMember): string {
   const value = (member.identityNumber ?? "").trim()
   if (value.includes("*")) return value
-  if (value.length <= 8) return value.length > 0 ? value : "已保存"
+  if (value.length <= 8) return value.length > 0 ? value : "待完善"
   return `${value.slice(0, 6)}********${value.slice(-4)}`
 }
 
@@ -68,8 +57,8 @@ function maskedPhone(member: FamilyMember): string {
     <view class="review-group">
       <view class="review-heading"><text class="review-group__title">参加人员 · {{ selectedMembers.length }} 人</text><button class="review-edit" @tap="editSection('enrollment-members-field')">修改人员</button></view>
       <view v-for="(member, index) in selectedMembers" :key="member.id" class="review-member">
-        <view class="review-heading"><text class="review-member__name">{{ index + 1 }}. {{ member.displayName }}</text><button class="review-edit" @tap="editSection(memberFieldAnchor(member.id, 'displayName'))">修改</button></view>
-        <text class="review-panel__item">{{ memberPlacement(member) }}</text>
+        <view class="review-heading"><text class="review-member__name">{{ index + 1 }}. {{ member.displayName }}</text><button class="review-edit" @tap="editMember(member.id)">修改</button></view>
+        <text class="review-panel__item">{{ member.participantKind === 'adult' ? '' : '学生 · ' }}{{ memberPlacement(member) }}</text>
         <text class="review-panel__item">证件：{{ maskedIdentity(member) }}</text>
         <text class="review-panel__item">电话：{{ maskedPhone(member) }}</text>
         <view class="health-review-state" :data-member-id="member.id">

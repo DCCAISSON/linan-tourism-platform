@@ -243,6 +243,129 @@ function classesFor(gradeId: string): SchoolClass[] {
   return [1, 2].map((number) => ({ id: `${gradeId}-c${number}`, gradeId, code: `C${number}`, name: `${number}班` }))
 }
 
+describe("saved member placement summaries", () => {
+  const saved = { id: "saved", code: "saved", displayName: "学生甲", participantKind: "student", schoolId: "school-a", gradeId: "school-a-g2", classId: "school-a-g2-c2" } satisfies SavedEnrollmentMember
+
+  it("uses each saved person's placement independently of the current enrollment selectors", async () => {
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    page.draft.selectedSchoolId = "school-a"
+    apiCalls.listEnrollmentMembers.mockResolvedValue([saved])
+    apiCalls.listGrades.mockImplementation(async (schoolId) => gradesFor(schoolId))
+    apiCalls.listClasses.mockImplementation(async (gradeId) => classesFor(gradeId))
+
+    await page.completeLogin()
+    await page.onGradeChange({ detail: { value: 0 } })
+    page.draft.selectedGradeId = "school-a-g1"
+    page.draft.selectedClassId = "school-a-g1-c1"
+
+    const member = page.draft.familyMembers[0]
+    if (member === undefined) throw new Error("Missing saved member")
+    expect(page.memberPlacement(member)).toBe("本地学校甲 · 2年级 · 2班")
+    expect(member).not.toHaveProperty("gradeName")
+    expect(member).not.toHaveProperty("className")
+  })
+
+  it("distinguishes a placement request failure from unfilled fields and allows retry", async () => {
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    page.draft.selectedSchoolId = "school-a"
+    apiCalls.listEnrollmentMembers.mockResolvedValue([saved])
+    apiCalls.listGrades.mockRejectedValueOnce(new Error("offline"))
+
+    await page.completeLogin()
+
+    const member = page.draft.familyMembers[0]
+    if (member === undefined) throw new Error("Missing saved member")
+    expect(page.memberPlacement(member)).toBe("本地学校甲 · 班级信息暂未加载")
+    expect(page.memberPlacementFailed.value).toBe(true)
+    apiCalls.listGrades.mockResolvedValue(gradesFor("school-a"))
+    await page.retryMemberPlacements()
+    expect(page.memberPlacement(member)).toBe("本地学校甲 · 2年级 · 班级信息待核实")
+    expect(page.memberPlacementFailed.value).toBe(false)
+  })
+
+  it("shows missing saved placement as unfilled without unnecessary placement requests", async () => {
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    page.draft.selectedSchoolId = "school-a"
+    apiCalls.listEnrollmentMembers.mockResolvedValue([{ ...saved, gradeId: null, classId: null }])
+
+    await page.completeLogin()
+
+    const member = page.draft.familyMembers[0]
+    if (member === undefined) throw new Error("Missing saved member")
+    expect(page.memberPlacement(member)).toBe("本地学校甲 · 年级未填写 · 班级未填写")
+    expect(apiCalls.listGrades).not.toHaveBeenCalled()
+    expect(apiCalls.listClasses).not.toHaveBeenCalled()
+    expect(page.memberPlacementFailed.value).toBe(false)
+  })
+
+  it("ignores an earlier school's placement response after the school changes", async () => {
+    const page = pageState()
+    page.catalog.schools = schoolOptions
+    page.draft.selectedSchoolId = "school-a"
+    apiCalls.listEnrollmentMembers.mockResolvedValue([saved, { ...saved, id: "other", schoolId: "school-b", gradeId: "school-b-g1", classId: "school-b-g1-c1" }])
+    apiCalls.listGrades.mockImplementation(async (schoolId) => gradesFor(schoolId))
+    const olderClasses = deferred<readonly SchoolClass[]>()
+    apiCalls.listClasses.mockImplementation((gradeId) => gradeId === saved.gradeId ? olderClasses.promise : Promise.resolve(classesFor(gradeId)))
+    const earlierLogin = page.completeLogin()
+    await nextTick()
+
+    await page.onSchoolChange({ detail: { value: 1 } })
+    olderClasses.resolve(classesFor(saved.gradeId))
+    await earlierLogin
+
+    const member = page.draft.familyMembers[0]
+    if (member === undefined) throw new Error("Missing saved member")
+    expect(member.id).toBe("other")
+    expect(page.memberPlacement(member)).toBe("本地学校乙 · 1年级 · 1班")
+  })
+
+  it("does not accept a placement response from an earlier login token", async () => {
+    let token = "token-a"
+    vi.stubGlobal("uni", { getStorageSync: (key: string) => key === "linan_wechat_session_token" ? token : undefined, setStorageSync: vi.fn(), removeStorageSync: vi.fn() })
+    try {
+      const page = pageState()
+      page.catalog.schools = schoolOptions
+      page.draft.selectedSchoolId = "school-a"
+      apiCalls.listEnrollmentMembers.mockResolvedValue([saved])
+      apiCalls.listGrades.mockResolvedValue(gradesFor("school-a"))
+      const pendingClasses = deferred<readonly SchoolClass[]>()
+      apiCalls.listClasses.mockReturnValue(pendingClasses.promise)
+      const pendingLogin = page.completeLogin()
+      await nextTick()
+
+      token = "token-b"
+      pendingClasses.resolve(classesFor(saved.gradeId))
+      await pendingLogin
+
+      const member = page.draft.familyMembers[0]
+      if (member === undefined) throw new Error("Missing saved member")
+      expect(page.memberPlacement(member)).not.toContain("2班")
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("requests the selected member editor before returning from review", async () => {
+    const page = pageState()
+    page.pageMode.value = "review"
+    const scroll = vi.fn()
+    vi.stubGlobal("uni", { pageScrollTo: scroll })
+    try {
+      const editing = page.editMember("saved")
+      expect(page.memberToEdit.value).toBe("saved")
+      expect(page.pageMode.value).toBe("editing")
+      expect(scroll).not.toHaveBeenCalled()
+      await editing
+      expect(scroll).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
+
 describe("enrollment option requests", () => {
   it("keeps the latest school options when an earlier request resolves last", async () => {
     // Given

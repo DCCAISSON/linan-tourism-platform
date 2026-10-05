@@ -8,6 +8,9 @@ const student = { personRef: "paid:line-a", displayName: "学生甲", gradeName:
 const row = { ...student, id: "eval-a", version: 1, standardId: "std-a", organizationId: "school-a", gradeCode: "A", gradeLabel: "学校A标签", internalComment: "内部观察", excellent: false, attention: false, confirmedAt: null }
 
 test.beforeEach(async ({ page }) => {
+  await page.route(api + "/tour-sessions", route => route.fulfill({ json: [{ id: "session-a", organizationId: "school-a", catalogItemId: "catalog-a", code: "第一团", startsAt: "2026-10-15T00:00:00Z", endsAt: "2026-10-15T08:00:00Z", status: "published", priceFen: 100, capacity: 30 }] }))
+  await page.route(api + "/schools", route => route.fulfill({ json: [{ id: "school-a", code: "school-a", name: "研学学校" }] }))
+  await page.route(api + "/catalog-items", route => route.fulfill({ json: [{ id: "catalog-a", title: "研学活动" }] }))
   await page.route(api + "/evaluations/sessions", route => route.fulfill({ json: [{ id: "session-a", code: "第一团", title: "研学活动", organizationId: "school-a" }] }))
 })
 
@@ -135,7 +138,7 @@ test("shows empty and failure states and hides write actions for read-only staff
   await expect(page.getByRole("button", { name: "保存当前学生评价" })).toHaveCount(0)
   await page.route(api + "/evaluations/staff/sessions/session-a", route => route.fulfill({ status: 403, json: { message: "无此团期权限" } }))
   await page.getByRole("button", { name: "加载评价" }).click()
-  await expect(page.getByRole("alert")).toBeVisible()
+  await expect(page.locator(".evaluation-page").getByRole("alert")).toHaveText("无此团期权限")
 })
 
 test("requires explicit school rule inputs and confirmation for a standard", async ({ page }, testInfo) => {

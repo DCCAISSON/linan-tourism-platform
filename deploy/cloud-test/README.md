@@ -84,8 +84,8 @@ corepack pnpm --filter @linan/api staff:bootstrap-admin
 - 价格由活动和团期配置，订单保存明细及金额快照。金额以整数分计算，退款按明细分配和可退余额核对，不能按取消人数直接推算；真实退款以渠道确认结果为准。
 - `GET /health` 必须返回 `revision`，并通过发布清单追溯到已测试的源码提交及产物摘要。若 revision 是清单摘要，不要求其字面等于 Git SHA；每次发布必须记录二者映射，不能用随时变化的分支 HEAD 代替。
 - systemd 验收要求：`systemctl is-active linan-test-api` 和 `systemctl is-enabled linan-test-api` 均通过。
-- 本轮变更见 [PR #4](https://github.com/DCCAISSON/linan-tourism-platform/pull/4)。最近已验证部署记录：2026-10-05 01:34（北京时间）API、管理后台及账单 runner 发布成功，revision 为源码提交 `20c32f5ad688f92c4a1b86d926920c0824dddae9`，[该源码四项 CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37220504419) 均通过。本次发布未执行数据库迁移或恢复数据库，财务记录数量、金额及行摘要保持一致，最小权限账号和定时日程未变；三个后台静态文件均返回 200 且摘要匹配。后续源码与部署的对应以发布清单为准，[实时主分支](https://github.com/DCCAISSON/linan-tourism-platform/tree/main)变化不会自动更新服务器。
-- 小程序 0.3.40 开发版上传及预览成功，冻结产物和上传回执已核验；尚未设为体验版、提审或正式发布。开发者工具原生界面验证通过，手机实际手机号授权、订阅实收和正确跳转仍待验收。服务器部署不能代替小程序发布，CI 不能代替真实外部服务验收。
+- 本轮变更见 [PR #5](https://github.com/DCCAISSON/linan-tourism-platform/pull/5)。最近已验证部署记录：2026-10-05 12:21:21（北京时间）API、管理后台及只读运维检查脚本发布成功，revision 为源码提交 `fddd6d2bd5c36b81dada23832a311363986d995b`，[该源码四项 CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37262555238)均通过。39个变更文件已核验，三个后台静态文件公网均返回200且摘要匹配，旧资源保留。财务记录数量、金额及行摘要、最小权限账号和原定时日程未变；未执行迁移或数据库恢复。后续进度文档提交不改变这份已部署应用源码；[实时主分支](https://github.com/DCCAISSON/linan-tourism-platform/tree/main)变化不会自动更新服务器。
+- 小程序0.3.41于10月5日12:22预览、上传成功，官方包体均为1,605,720字节；旧0.3.40冻结包保留。本次未设置体验版、提审或正式发布。开发者工具已验证隐私前置、独立订阅可跳过和成员核对修改定位；手机实际手机号授权、订阅实收和正确跳转仍待验收。服务器部署不能代替小程序发布，CI不能代替真实外部服务验收。
 
 ## 必验流程
 
@@ -112,6 +112,14 @@ bash deploy/cloud-test/prepare-release-candidate.sh <tested-commit-sha>
 - 工作区干净。若仍有未提交或未追踪源码，脚本失败，因为这些内容不会进入 `git archive`。
 
 候选包 manifest 记录 archive sha256、目标候选目录 `/opt/linan-test/app-candidate-<short-sha>`、当前目录 `/opt/linan-test/app` 和回滚提示。实际发布时应先保留 `/opt/linan-test/app-backup-<short-sha>`，再切换候选目录；失败只回滚应用目录和服务版本，不盲目 down 数据库迁移。
+
+### 小程序与 API 兼容交接
+
+API 发布必须继续支持已发布小程序使用的字段、类型、状态、业务错误码及登录方式；不删除字段、状态或既有成员更新接口别名。新增可选字段可以先发 API，再发小程序；新增枚举状态须验证旧客户端的解析和显示，不能仅因“增加字段”就认定兼容。发布前沿用现有契约回归核对登录、能力开关、报名、订单、支付及退款响应，支付回调的验签、重复通知和返回语义保持。
+
+0.3.41 已于2026-10-05预览、上传开发版，旧0.3.40冻结包保留；尚未设为体验版、提审或正式发布，不能据此设置最低强制客户端版本。后续若确需停止旧版本，须先核对微信实际发布版本、仍在使用的客户端及迁移安排，再由产品与发布负责人签认；本轮不增加版本拦截。
+
+个人信息密钥的多密钥兼容（key ring）、密钥轮换，以及日志、备份、业务数据的保留和删除期限，列为长期待签认事项。须明确保管人、恢复需求、适用依据及历史数据处理方案后另行实施；本轮不轮换密钥、不设置自动删除期限。
 
 ## 日常微信账单核对
 
@@ -168,3 +176,38 @@ sudo /usr/bin/flock --nonblock --conflict-exit-code 75 /run/lock/linan-wechat-bi
 新开发者接手恢复时，应先核对受控包摘要、备份时点、应用版本和迁移记录；用管理凭据导入独立隔离库，再用仅四种 DML 权限的应用账号启动，核对逐表摘要、金额/关联查询、读取和权限拒绝。恢复验证使用合成数据检查密钥，不直接启动一份带真实外发配置的生产环境副本；确认结果后清理本次隔离资源，不覆盖生产库或删除历史备份。
 
 数据库与密钥的上述恢复已经验证，仍缺 COS 媒体完整恢复和第三方影像真实验收。第二副本目前在受控开发电脑，项目方独立保管人、接收人及交接签认仍待落实，不能记为完整灾后交付完成。
+
+## 一次只读运维检查
+
+`check-operations.mjs` 使用现有 Node、API 依赖和受控环境文件，读取既有服务及回执，不运行备份、账单核对、迁移或退款，不写数据库或 COS，不发送通知。它是当前单服务器部署的人工检查入口，没有新增 timer、服务、依赖、环境变量或定时日程。候选源码部署后，在服务器运行：
+
+```bash
+sudo /opt/node-v22.23.2-linux-x64/bin/node --env-file=/etc/linan-test/api.env /opt/linan-test/app/deploy/cloud-test/check-operations.mjs
+```
+
+输出一行脱敏 JSON：`passed=true` 退出 0；任一失败、缺文件、读取失败或缺少请求日志样本均退出 1。仅看退出码不能判断原因，按 `checks[].name/code` 分项处理。脚本不输出凭据、证书或私钥正文、人员数据、原始日志和异常正文。
+
+|检查|判定与处理|
+|---|---|
+|API 与版本|服务应 enabled/active；HTTPS `/health` 返回 200、正确服务名和与受控环境一致的 revision。该接口仍是进程健康检查，数据库和 COS 另查。|
+|数据库、COS|以现有应用凭据执行 `SELECT 1` 和 COS `headBucket`，记录是否通过及耗时。`cos_probe_forbidden` 表示此桶探针没有权限，不据此断言所有对象操作均不可用。|
+|最近 15 分钟请求|只解析 `http_request` JSON 并输出汇总。任意 API 5xx、支付/退款回调非 2xx 或连接中断均退出 1；回调 4xx、5xx、中断分别计数，交由值班人区分验签拒绝和服务故障。没有样本时数量为 null、代码为 `request_log_sample_missing`，不是零故障。|
+|磁盘|应用、备份和对账回执所在文件系统均须至少剩余 1 GiB，且可用容量至少 10%；未达标时只报告，不删除文件。|
+|证书与支付私钥|读取当前 HTTPS 证书及现有支付私钥同目录的 `apiclient_cert.pem`；剩余有效期不超过 30 天、尚未生效、缺失或不可解析均失败。商户证书序列号须匹配现有配置。私钥仅核对文件元数据：root/API 用户持有，实际 API 用户可读，禁止执行权限、组写和其他用户权限；root 持有且 API 所属组只读的 640 可通过。|
+|备份|现有 timer 须 enabled/active，service 最新结果成功；检查最近应完成时点后的 SQL、manifest、字节数与 SHA-256。每日 02:30 后留 10 分钟，02:40 前检查上一轮，之后缺结果即失败。|
+|对账|现有 timer/service 同样核对；每日 10:05 后留 10 分钟，10:15 前检查上一轮。检查相应已结束账单日的最新回执；差异非零、失败、缺失或过期均失败。`no_statement_no_local_transactions`、`completed=false` 可表示该次作业正常退出，但不记为成功对账或零差异。|
+
+上述 10 分钟包括两个既有作业的 5 分钟执行上限及调度余量，不改变 timer。窗口之前保留上一轮检查要求，服务已报失败仍会直接报告。`inspection_failed` 表示该项未能核实，不能视为通过。
+
+2026-10-05 12:21（北京时间）已将 `fddd6d2bd5c36b81dada23832a311363986d995b` 的 API、后台及本脚本部署到受控服务器，[该源码四项 CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37262555238)均通过。部署后直接运行安装路径的脚本，退出0、17项检查通过；已采集10个结构化请求，未发现5xx、回调异常或中断，独立公网健康请求的 `X-Request-Id` 与实际日志对应。此前11:23旧部署的 `request_log_sample_missing` 回执保留为部署前记录，现已完成部署后验证。该结果只代表此次检查窗口，不代表持续监控或真实通知已送达。
+
+本次发布保持财务记录摘要与金额、专用应用账号、89张表及42项迁移、非版本环境配置、原备份和对账脚本及日程；未执行迁移、数据库恢复或真实资金操作。HTTPS 证书到期为 2026-12-22 21:44（北京时间），商户证书到期为 2028-08-01 08:39（北京时间）。同日读取实际 `nginx -T` 未发现 `limit_req/limit_conn` 指令，`certbot.timer` 为 enabled/active；本轮未修改 Nginx 或续期配置。
+
+告警接收人、现有通知渠道、运维和财务的响应时限尚未指定。当前可把检查结果交给当班人，但不能声称已经持续监控或有人收到告警。交接时须明确 API/DB/COS/证书/磁盘/备份的运维负责人，以及对账失败、差异和逾期的财务复核人，再沿用既有渠道完成无真实资金的失败通知实收验证；接收人确认前不向外发送测试消息。
+
+本地合成验证（不访问服务器、数据库或微信）：
+
+```bash
+node --experimental-vm-modules deploy/cloud-test/check-operations.test.mjs
+node --experimental-vm-modules deploy/cloud-test/reconcile-wechat-bill.test.mjs
+```

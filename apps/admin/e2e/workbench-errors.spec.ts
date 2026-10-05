@@ -10,6 +10,8 @@ test("shows denied workbench data as an error and permits retry", async ({ page 
   await page.goto("/home")
   await expect(page.getByRole("alert")).toContainText("无权查看工作台")
   await expect(page.getByTestId("workbench-paid-headcount")).toHaveCount(0)
+  await expect(page.getByRole("region", { name: "明日出发" })).toHaveCount(0)
+  await expect(page.getByText("明日暂无已发布的出发团期。")).toHaveCount(0)
 
   await page.unroute(apiBase + "/roster/workbench")
   await page.route(apiBase + "/roster/workbench", route => route.fulfill({
@@ -26,5 +28,7 @@ test("shows denied workbench data as an error and permits retry", async ({ page 
   }))
   await page.getByRole("button", { name: "刷新数据" }).click()
   await expect(page.getByTestId("workbench-paid-headcount")).toHaveText("0 人")
+  await expect(page.getByRole("region", { name: "明日出发" })).toContainText("2026年9月18日（北京时间）")
+  await expect(page.getByRole("region", { name: "明日出发" })).toContainText("明日暂无已发布的出发团期。")
   await expect(page.getByRole("alert")).toHaveCount(0)
 })

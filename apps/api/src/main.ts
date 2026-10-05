@@ -1,5 +1,6 @@
 import { NestFactory } from "@nestjs/core"
 import { AppModule } from "./app.module.js"
+import { installRequestObservability } from "./request-observability.js"
 
 const DEFAULT_PORT = 3000
 const DEFAULT_ADMIN_ORIGIN = "http://127.0.0.1:5174"
@@ -12,6 +13,7 @@ async function bootstrap(): Promise<void> {
   }
 
   const app = await NestFactory.create(AppModule, { rawBody: true })
+  installRequestObservability(app)
   app.enableCors({
     origin: process.env["ADMIN_WEB_ORIGIN"] ?? DEFAULT_ADMIN_ORIGIN,
     credentials: true,
