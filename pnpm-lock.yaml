@@ -179,6 +179,8 @@ overrides:
 packageExtensionsChecksum: sha256-YykS7hAqkIN5Qj6RY1IZyV4K6GnlboZMXl4Pm9kt1sc=
 
 patchedDependencies:
+  '@vue/server-renderer@3.4.21': 74fcad79f8fc4cbb162fd1a9b8fc2e9aa600d88551936991822e54923919a2e1
+  '@vue/server-renderer@3.5.22': 7e9fed983980f3b49f88e4f2c7ad9bc3b97f2e5745d9133316498c9451fc2559
   '@vue/shared@3.4.21': 7e12a1a31bd754d9f7b53af2ec3f1cb991ce65595fab4ba782c9f2d807503e28
   '@vue/shared@3.5.22': 125a6e757692c82e3b6f6e3d35c848be8321564dbba0229f15f8bad3f9641d25
   braces@3.0.3: e4e37fc1afb5ac38845d4e59d303b59c3efb1a346215b1290b2d32dc83e790bb
@@ -6269,7 +6271,7 @@ snapshots:
       '@vue/compiler-dom': 3.4.21
       '@vue/compiler-sfc': 3.4.21
       '@vue/compiler-ssr': 3.4.21
-      '@vue/server-renderer': 3.4.21(vue@3.4.21(typescript@5.9.2))
+      '@vue/server-renderer': 3.4.21(patch_hash=74fcad79f8fc4cbb162fd1a9b8fc2e9aa600d88551936991822e54923919a2e1)(vue@3.4.21(typescript@5.9.2))
       '@vue/shared': 3.4.21(patch_hash=7e12a1a31bd754d9f7b53af2ec3f1cb991ce65595fab4ba782c9f2d807503e28)
       adm-zip: 0.6.1
       autoprefixer: 10.4.20(postcss@8.5.28)
@@ -6375,7 +6377,7 @@ snapshots:
       '@vitejs/plugin-basic-ssl': 1.2.0(vite@6.4.3(@types/node@22.20.2)(terser@5.51.2))
       '@vue/compiler-dom': 3.4.21
       '@vue/compiler-sfc': 3.4.21
-      '@vue/server-renderer': 3.4.21(vue@3.4.21(typescript@5.9.2))
+      '@vue/server-renderer': 3.4.21(patch_hash=74fcad79f8fc4cbb162fd1a9b8fc2e9aa600d88551936991822e54923919a2e1)(vue@3.4.21(typescript@5.9.2))
       '@vue/shared': 3.4.21(patch_hash=7e12a1a31bd754d9f7b53af2ec3f1cb991ce65595fab4ba782c9f2d807503e28)
       debug: 4.3.7(supports-color@7.2.0)
       fs-extra: 10.1.0
@@ -6405,7 +6407,7 @@ snapshots:
   '@dcloudio/uni-h5-vue@3.0.0-alpha-5020620260914001(vue@3.4.21(typescript@5.9.2))':
     dependencies:
       '@dcloudio/uni-shared': 3.0.0-alpha-5020620260914001
-      '@vue/server-renderer': 3.4.21(vue@3.4.21(typescript@5.9.2))
+      '@vue/server-renderer': 3.4.21(patch_hash=74fcad79f8fc4cbb162fd1a9b8fc2e9aa600d88551936991822e54923919a2e1)(vue@3.4.21(typescript@5.9.2))
     transitivePeerDependencies:
       - vue
 
@@ -6415,7 +6417,7 @@ snapshots:
       '@dcloudio/uni-h5-vue': 3.0.0-alpha-5020620260914001(vue@3.4.21(typescript@5.9.2))
       '@dcloudio/uni-i18n': 3.0.0-alpha-5020620260914001
       '@dcloudio/uni-shared': 3.0.0-alpha-5020620260914001
-      '@vue/server-renderer': 3.4.21(vue@3.4.21(typescript@5.9.2))
+      '@vue/server-renderer': 3.4.21(patch_hash=74fcad79f8fc4cbb162fd1a9b8fc2e9aa600d88551936991822e54923919a2e1)(vue@3.4.21(typescript@5.9.2))
       '@vue/shared': 3.4.21(patch_hash=7e12a1a31bd754d9f7b53af2ec3f1cb991ce65595fab4ba782c9f2d807503e28)
       debug: 4.3.7(supports-color@7.2.0)
       localstorage-polyfill: 1.0.1
@@ -8182,13 +8184,13 @@ snapshots:
       '@vue/shared': 3.5.22(patch_hash=125a6e757692c82e3b6f6e3d35c848be8321564dbba0229f15f8bad3f9641d25)
       csstype: 3.2.3
 
-  '@vue/server-renderer@3.4.21(vue@3.4.21(typescript@5.9.2))':
+  '@vue/server-renderer@3.4.21(patch_hash=74fcad79f8fc4cbb162fd1a9b8fc2e9aa600d88551936991822e54923919a2e1)(vue@3.4.21(typescript@5.9.2))':
     dependencies:
       '@vue/compiler-ssr': 3.4.21
       '@vue/shared': 3.4.21(patch_hash=7e12a1a31bd754d9f7b53af2ec3f1cb991ce65595fab4ba782c9f2d807503e28)
       vue: 3.4.21(typescript@5.9.2)
 
-  '@vue/server-renderer@3.5.22(vue@3.5.22(typescript@5.9.3))':
+  '@vue/server-renderer@3.5.22(patch_hash=7e9fed983980f3b49f88e4f2c7ad9bc3b97f2e5745d9133316498c9451fc2559)(vue@3.5.22(typescript@5.9.3))':
     dependencies:
       '@vue/compiler-ssr': 3.5.22
       '@vue/shared': 3.5.22(patch_hash=125a6e757692c82e3b6f6e3d35c848be8321564dbba0229f15f8bad3f9641d25)
@@ -10931,7 +10933,7 @@ snapshots:
       '@vue/compiler-dom': 3.4.21
       '@vue/compiler-sfc': 3.4.21
       '@vue/runtime-dom': 3.4.21
-      '@vue/server-renderer': 3.4.21(vue@3.4.21(typescript@5.9.2))
+      '@vue/server-renderer': 3.4.21(patch_hash=74fcad79f8fc4cbb162fd1a9b8fc2e9aa600d88551936991822e54923919a2e1)(vue@3.4.21(typescript@5.9.2))
       '@vue/shared': 3.4.21(patch_hash=7e12a1a31bd754d9f7b53af2ec3f1cb991ce65595fab4ba782c9f2d807503e28)
     optionalDependencies:
       typescript: 5.9.2
@@ -10941,7 +10943,7 @@ snapshots:
       '@vue/compiler-dom': 3.5.22
       '@vue/compiler-sfc': 3.5.22
       '@vue/runtime-dom': 3.5.22
-      '@vue/server-renderer': 3.5.22(vue@3.5.22(typescript@5.9.3))
+      '@vue/server-renderer': 3.5.22(patch_hash=7e9fed983980f3b49f88e4f2c7ad9bc3b97f2e5745d9133316498c9451fc2559)(vue@3.5.22(typescript@5.9.3))
       '@vue/shared': 3.5.22(patch_hash=125a6e757692c82e3b6f6e3d35c848be8321564dbba0229f15f8bad3f9641d25)
     optionalDependencies:
       typescript: 5.9.3

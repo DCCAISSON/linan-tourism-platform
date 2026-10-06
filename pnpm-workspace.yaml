@@ -30,6 +30,8 @@ packageExtensions:
     dependencies:
       estree-walker: 2.0.2
 patchedDependencies:
+  '@vue/server-renderer@3.4.21': patches/@vue__server-renderer@3.4.21.patch
+  '@vue/server-renderer@3.5.22': patches/@vue__server-renderer@3.5.22.patch
   '@vue/shared@3.4.21': patches/@vue__shared@3.4.21.patch
   '@vue/shared@3.5.22': patches/@vue__shared@3.5.22.patch
   braces@3.0.3: patches/braces@3.0.3.patch

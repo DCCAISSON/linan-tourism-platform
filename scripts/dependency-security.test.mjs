@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const api = createRequire(new URL('../apps/api/package.json', import.meta.url));
 const miniapp = createRequire(new URL('../apps/miniapp/package.json', import.meta.url));
@@ -77,6 +77,23 @@ for (const app of ['miniapp', 'admin']) {
         assert.equal(await renderToString(project('vue').h('input', props)), '<input id="safe">');
       }
       assert.equal(ssrRenderAttrs({ id: 'safe', 'data-trip': '临安 & "出行"', 'aria-label': '合同', disabled: true }), ' id="safe" data-trip="临安 &amp; &quot;出行&quot;" aria-label="合同" disabled');
+      assert.equal(ssrRenderAttrs({ title: '第一行\r第二行' }), ' title="第一行\r第二行"');
+    });
+  }
+
+  for (const mode of ['esm-bundler', 'esm-browser', 'esm-browser.prod']) {
+    test(`${app} Vue ${mode} rejects CR injection through its published SSR functions`, async context => {
+      context.mock.method(console, 'error', () => {});
+      context.mock.method(console, 'warn', () => {});
+      const filename = renderer.resolve(`./dist/server-renderer.${mode}.js`);
+      const moduleUrl = mode === 'esm-bundler' ? pathToFileURL(filename).href : `data:text/javascript;base64,${Buffer.from(readFileSync(filename, 'utf8')).toString('base64')}`;
+      const { ssrRenderAttrs, renderToString } = await import(moduleUrl);
+      for (const whitespace of ['\r', '\t', '\n', '\f', ' ']) {
+        const props = { id: 'safe', [`x${whitespace}autofocus${whitespace}onfocus`]: 'alert(1)' };
+        assert.equal(ssrRenderAttrs(props), ' id="safe"');
+        assert.equal(await renderToString(project('vue').h('input', props)), '<input id="safe">');
+      }
+      assert.equal(ssrRenderAttrs({ 'data-trip': '临安 & "出行"', 'aria-label': '合同', disabled: true }), ' data-trip="临安 &amp; &quot;出行&quot;" aria-label="合同" disabled');
       assert.equal(ssrRenderAttrs({ title: '第一行\r第二行' }), ' title="第一行\r第二行"');
     });
   }
