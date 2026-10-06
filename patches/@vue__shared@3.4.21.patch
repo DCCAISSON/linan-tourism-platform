@@ -1,0 +1,36 @@
+diff --git a/dist/shared.cjs.js b/dist/shared.cjs.js
+--- a/dist/shared.cjs.js
++++ b/dist/shared.cjs.js
+@@ -331,7 +331,7 @@
+ function includeBooleanAttr(value) {
+   return !!value || value === "";
+ }
+-const unsafeAttrCharRE = /[>/="'\u0009\u000a\u000c\u0020]/;
++const unsafeAttrCharRE = /[>/="'\u0009\u000a\u000c\u000d\u0020]/;
+ const attrValidationCache = {};
+ function isSSRSafeAttrName(name) {
+   if (attrValidationCache.hasOwnProperty(name)) {
+diff --git a/dist/shared.cjs.prod.js b/dist/shared.cjs.prod.js
+--- a/dist/shared.cjs.prod.js
++++ b/dist/shared.cjs.prod.js
+@@ -331,7 +331,7 @@
+ function includeBooleanAttr(value) {
+   return !!value || value === "";
+ }
+-const unsafeAttrCharRE = /[>/="'\u0009\u000a\u000c\u0020]/;
++const unsafeAttrCharRE = /[>/="'\u0009\u000a\u000c\u000d\u0020]/;
+ const attrValidationCache = {};
+ function isSSRSafeAttrName(name) {
+   if (attrValidationCache.hasOwnProperty(name)) {
+diff --git a/dist/shared.esm-bundler.js b/dist/shared.esm-bundler.js
+--- a/dist/shared.esm-bundler.js
++++ b/dist/shared.esm-bundler.js
+@@ -327,7 +327,7 @@
+ function includeBooleanAttr(value) {
+   return !!value || value === "";
+ }
+-const unsafeAttrCharRE = /[>/="'\u0009\u000a\u000c\u0020]/;
++const unsafeAttrCharRE = /[>/="'\u0009\u000a\u000c\u000d\u0020]/;
+ const attrValidationCache = {};
+ function isSSRSafeAttrName(name) {
+   if (attrValidationCache.hasOwnProperty(name)) {
