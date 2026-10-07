@@ -41,7 +41,7 @@
             <textarea id="catalog-description" v-model.trim="description" maxlength="4000" rows="3" placeholder="可选，填写课程内容与参加说明" />
           </div>
           <CatalogCoverField id="catalog-cover" v-model="coverImageUrl" :disabled="submitting || schools.length === 0" @uploading="createUploading = $event" />
-          <p v-if="visibleError" class="form-error">{{ visibleError }}</p>
+          <p v-if="localError" class="form-error">{{ localError }}</p>
           <button type="submit" :disabled="submitting || coverUploading || schools.length === 0">
             {{ submitting ? "提交中..." : "新增课程" }}
           </button>
@@ -63,10 +63,10 @@
           <CatalogCoverField :key="editingId" id="catalog-edit-cover" v-model="editingCover" label="修改封面"
             :disabled="submitting || !editingId || linkedToTemplate" @uploading="editUploading = $event" />
           <p v-if="linkedToTemplate" class="state-text configuration-content-field">该课程使用共享模板，请在上方编辑模板；如需单校修改，可先解除关联。</p>
-          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
           <button type="submit" :disabled="!editingId || submitting || coverUploading || linkedToTemplate">{{ submitting ? "保存中..." : "保存课程内容" }}</button>
         </fieldset>
       </form>
+      <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
       <p v-if="success" class="state-text" role="status">{{ success }} <a :href="`#catalog-saved-${savedId}`" @click="previewId = savedId">查看该课程已保存内容</a></p>
     </template>
     <ul class="record-list record-list--columns">
@@ -135,8 +135,6 @@ watch([editingId, () => props.catalogItems], () => {
   editingDescription.value = item?.description ?? ""
   editingCover.value = item?.coverImageUrl ?? ""
 })
-
-const visibleError = computed(() => localError.value || props.formError)
 
 watch(
   () => props.schools,

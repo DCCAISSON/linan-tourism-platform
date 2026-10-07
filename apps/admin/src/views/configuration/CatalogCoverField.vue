@@ -3,8 +3,8 @@
     <label :for="`${id}-file`">{{ label }}：选择本地图片</label>
     <input :id="`${id}-file`" type="file" accept="image/png,image/jpeg,image/webp" :disabled="disabled || uploading"
       :aria-describedby="`${id}-help`" @change="selectFile" />
-    <small :id="`${id}-help`" class="state-text">PNG、JPEG 或 WebP，最大 5MB。封面将公开展示，请使用自有或已获授权的宣传图片。</small>
-    <label :for="id">{{ label }}链接（也可手填）</label>
+    <small :id="`${id}-help`" class="state-text">PNG、JPEG 或 WebP，最大 5MB；也可在下方填写 HTTPS 图片链接。封面将公开展示，请使用自有或已获授权的宣传图片。</small>
+    <label :for="id">{{ label }}链接</label>
     <input :id="id" :value="modelValue" type="url" maxlength="2048" :disabled="disabled || uploading"
       placeholder="https://…" @input="editUrl" />
     <img v-if="modelValue && !previewFailed" class="catalog-cover-preview" :src="modelValue" alt="当前封面预览" @error="previewFailed = true" />

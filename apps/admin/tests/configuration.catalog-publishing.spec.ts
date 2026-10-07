@@ -22,6 +22,29 @@ function mount(render: () => ReturnType<typeof h>) {
 }
 
 describe("catalog publishing feedback", () => {
+  it.each([{ catalogItems: [] }, { catalogItems: [catalog] }])("shows a server error once regardless of whether the edit form exists", async ({ catalogItems }) => {
+    // Given
+    const host = mount(() => h(CatalogPanel, { catalogItems, schools: [school], error: "", formError: "课程已有团期，不能删除", loading: false, submitting: false }))
+    // When
+    await nextTick()
+    // Then
+    expect(Array.from(host.querySelectorAll("p")).filter(element => element.textContent === "课程已有团期，不能删除")).toHaveLength(1)
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("课程已有团期，不能删除")
+  })
+
+  it("retains the new course validation message alongside the single server error", async () => {
+    // Given
+    const create = vi.fn()
+    const host = mount(() => h(CatalogPanel, { catalogItems: [catalog], schools: [school], error: "", formError: "课程已有团期，不能删除", loading: false, submitting: false, onCreate: create }))
+    // When
+    host.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    await nextTick()
+    // Then
+    expect(host.querySelector("form .form-error")?.textContent).toBe("请选择学校，并填写课程编码和名称")
+    expect(Array.from(host.querySelectorAll("p")).filter(element => element.textContent === "课程已有团期，不能删除")).toHaveLength(1)
+    expect(create).not.toHaveBeenCalled()
+  })
+
   it("offers local covers and a saved content entry for each existing course", async () => {
     // Given
     const host = mount(() => h(CatalogPanel, { catalogItems: [catalog], schools: [school], error: "", formError: "", loading: false, submitting: false }))
@@ -29,6 +52,8 @@ describe("catalog publishing feedback", () => {
     await nextTick()
     // Then
     expect(host.querySelectorAll('input[type="file"]').length).toBe(2)
+    expect(host.querySelector('label[for="catalog-cover"]')?.textContent).toBe("封面链接")
+    expect(host.querySelector('label[for="catalog-edit-cover"]')?.textContent).toBe("修改封面链接")
     expect(host.textContent).toContain("查看已保存内容")
     expect(host.textContent).toContain("保存课程不等于发布团期")
   })
