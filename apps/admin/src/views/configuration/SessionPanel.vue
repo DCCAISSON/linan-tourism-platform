@@ -9,6 +9,8 @@
     wide
   >
     <template #form>
+      <p class="state-text">新增团期默认保存为草稿。课程启用且团期发布后，家长可浏览；报名还需告知书生效、在报名时间内且有名额。保存已发布团期的修改后，小程序重新进入相应页面后显示更新。</p>
+      <p v-if="success" class="state-text" role="status">{{ success }} <a :href="`#session-saved-${savedId}`" @click="previewId = savedId">查看该团期已保存内容</a></p>
       <SessionCreateForm
         :catalog-items="catalogItems"
         :form-error="formError"
@@ -76,8 +78,8 @@
           <button type="submit" :disabled="submitting || tourSessions.length === 0">{{ submitting ? '创建中…' : '创建告知书版本（暂不生效）' }}</button>
         </fieldset>
       </form>
-      <section v-if="previewSession" class="notice-preview" aria-label="家长内容预览">
-        <h4>家长内容预览</h4>
+      <section v-if="previewSession" class="notice-preview" aria-label="未生效告知书预览">
+        <h4>未生效告知书预览</h4>
         <p class="state-text">以下使用当前填写内容，尚未生效。活动介绍来自课程，价格来自已保存团期。</p>
         <strong>{{ catalogTitleById(previewSession.catalogItemId) }}</strong>
         <p>{{ formatRange(previewSession.startsAt, previewSession.endsAt) }}</p>
@@ -133,20 +135,28 @@
             删除
           </button>
         </span>
+        <SessionEnrollmentConditions :catalog="catalogItems.find(item => item.id === session.catalogItemId)" :session="session" :now="now" />
+        <SavedCatalogPreview :id="`session-saved-${session.id}`"
+          :catalog="catalogItems.find(item => item.id === session.catalogItemId) ?? { title: '课程待核实', description: '', coverImageUrl: '' }"
+          :school-label="schools.find(school => school.id === session.organizationId)?.name ?? '学校待核实'" :schools="schools"
+          :tour-sessions="[session]" :expanded="previewId === session.id"
+          @update:expanded="open => previewId = open ? session.id : previewId === session.id ? '' : previewId" />
       </li>
     </ul>
   </ConfigurationCard>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import type { CatalogItem, NoticeContent, NoticeVersion, School, TourSession, TourSessionPayload, TourSessionUpdatePayload } from "@/api/configuration"
 import ConfigurationCard from "./ConfigurationCard.vue"
 import { formatFen, formatRange, statusText } from "./format"
 import SessionCreateForm from "./SessionCreateForm.vue"
 import SessionEditForm from "./SessionEditForm.vue"
+import SessionEnrollmentConditions from "./SessionEnrollmentConditions.vue"
+import SavedCatalogPreview from "./SavedCatalogPreview.vue"
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   readonly catalogItems: readonly CatalogItem[]
   readonly error: string
   readonly formError: string
@@ -155,7 +165,9 @@ const props = defineProps<{
   readonly submitting: boolean
   readonly tourSessions: readonly TourSession[]
   readonly noticeVersions: readonly NoticeVersion[]
-}>()
+  readonly success?: string
+  readonly savedId?: string
+}>(), { success: "", savedId: "" })
 
 const emit = defineEmits<{
   create: [payload: TourSessionPayload]
@@ -175,6 +187,11 @@ const noticeItinerary = ref(["", "", "", "", "", "", ""])
 const noticeUnitPricesText = ref("")
 const noticePackageExamplesText = ref("")
 const noticeRemindersText = ref("")
+const previewId = ref("")
+const now = ref(Date.now())
+let clockTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => { clockTimer = setInterval(() => { now.value = Date.now() }, 60_000) })
+onBeforeUnmount(() => { clearInterval(clockTimer) })
 const previewSession = computed(() => props.tourSessions.find(session => session.id === noticeSessionId.value))
 const previewCatalog = computed(() => props.catalogItems.find(item => item.id === previewSession.value?.catalogItemId))
 

@@ -42,7 +42,7 @@
         @delete="removeClass"
         @select-grade="selectGrade"
       />
-      <CatalogTemplatePanel :schools="schools" :catalog-items="catalogItems" @changed="loadCatalogList" />
+      <CatalogTemplatePanel :schools="schools" :catalog-items="catalogItems" :tour-sessions="tourSessions" @changed="loadCatalogList" />
       <CatalogPanel
         :catalog-items="catalogItems"
         :error="catalogError"
@@ -50,6 +50,9 @@
         :loading="catalogLoading"
         :schools="schools"
         :submitting="catalogSubmitting"
+        :success="catalogSuccess"
+        :saved-id="catalogSavedId"
+        :tour-sessions="tourSessions"
         @create="submitCatalogItem"
         @update="updateCatalog"
         @delete="removeCatalogItem"
@@ -61,6 +64,8 @@
         :loading="sessionLoading"
         :schools="schools"
         :submitting="sessionSubmitting"
+        :success="sessionSuccess"
+        :saved-id="sessionSavedId"
         :notice-versions="noticeVersions"
         :tour-sessions="tourSessions"
         @create="submitTourSession"
@@ -117,6 +122,10 @@ const {
 
 const {
   catalogError,
+  catalogSuccess,
+  catalogSavedId,
+  sessionSuccess,
+  sessionSavedId,
   catalogFormError,
   catalogItems,
   catalogLoading,

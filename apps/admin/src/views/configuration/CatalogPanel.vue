@@ -9,6 +9,7 @@
     wide
   >
     <template #form>
+      <p class="state-text">保存课程不等于发布团期。课程启用后，还需设置团期、启用告知书并发布；报名时间与名额以团期为准。已发布课程的介绍和封面保存后，小程序重新进入相应页面后显示更新。</p>
       <form class="configuration-form configuration-form--grid" @submit.prevent="submit">
         <fieldset :disabled="submitting || schools.length === 0">
           <div class="field">
@@ -39,12 +40,9 @@
             <label for="catalog-description">课程介绍</label>
             <textarea id="catalog-description" v-model.trim="description" maxlength="4000" rows="3" placeholder="可选，填写课程内容与参加说明" />
           </div>
-          <div class="field configuration-content-field">
-            <label for="catalog-cover">封面链接</label>
-            <input id="catalog-cover" v-model.trim="coverImageUrl" maxlength="2048" placeholder="可选，使用自有或授权图片的 HTTPS 链接" />
-          </div>
+          <CatalogCoverField id="catalog-cover" v-model="coverImageUrl" :disabled="submitting || schools.length === 0" @uploading="createUploading = $event" />
           <p v-if="visibleError" class="form-error">{{ visibleError }}</p>
-          <button type="submit" :disabled="submitting || schools.length === 0">
+          <button type="submit" :disabled="submitting || coverUploading || schools.length === 0">
             {{ submitting ? "提交中..." : "新增课程" }}
           </button>
         </fieldset>
@@ -62,14 +60,14 @@
             <label for="catalog-edit-description">修改课程介绍</label>
             <textarea id="catalog-edit-description" v-model.trim="editingDescription" maxlength="4000" rows="3" :disabled="!editingId || linkedToTemplate" />
           </div>
-          <div class="field configuration-content-field">
-            <label for="catalog-edit-cover">修改封面链接</label>
-            <input id="catalog-edit-cover" v-model.trim="editingCover" maxlength="2048" :disabled="!editingId || linkedToTemplate" />
-          </div>
+          <CatalogCoverField :key="editingId" id="catalog-edit-cover" v-model="editingCover" label="修改封面"
+            :disabled="submitting || !editingId || linkedToTemplate" @uploading="editUploading = $event" />
           <p v-if="linkedToTemplate" class="state-text configuration-content-field">该课程使用共享模板，请在上方编辑模板；如需单校修改，可先解除关联。</p>
-          <button type="submit" :disabled="!editingId || submitting || linkedToTemplate">{{ submitting ? "保存中..." : "保存课程内容" }}</button>
+          <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+          <button type="submit" :disabled="!editingId || submitting || coverUploading || linkedToTemplate">{{ submitting ? "保存中..." : "保存课程内容" }}</button>
         </fieldset>
       </form>
+      <p v-if="success" class="state-text" role="status">{{ success }} <a :href="`#catalog-saved-${savedId}`" @click="previewId = savedId">查看该课程已保存内容</a></p>
     </template>
     <ul class="record-list record-list--columns">
       <li v-for="item in catalogItems" :key="item.id">
@@ -81,6 +79,9 @@
         <button type="button" class="record-action" :disabled="submitting" @click="emit('delete', item.id)">
           删除
         </button>
+        <SavedCatalogPreview :id="`catalog-saved-${item.id}`" :catalog="item" :school-label="schoolNameById(item.organizationId)"
+          :schools="schools" :tour-sessions="tourSessions.filter(session => session.catalogItemId === item.id)" :expanded="previewId === item.id"
+          @update:expanded="open => previewId = open ? item.id : previewId === item.id ? '' : previewId" />
       </li>
     </ul>
   </ConfigurationCard>
@@ -89,18 +90,23 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue"
 
-import type { CatalogItem, CatalogItemPayload, CatalogContentPayload, School } from "@/api/configuration"
+import type { CatalogItem, CatalogItemPayload, CatalogContentPayload, School, TourSession } from "@/api/configuration"
 import ConfigurationCard from "./ConfigurationCard.vue"
+import CatalogCoverField from "./CatalogCoverField.vue"
+import SavedCatalogPreview from "./SavedCatalogPreview.vue"
 import { statusText } from "./format"
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   readonly catalogItems: readonly CatalogItem[]
   readonly error: string
   readonly formError: string
   readonly loading: boolean
   readonly schools: readonly School[]
   readonly submitting: boolean
-}>()
+  readonly tourSessions?: readonly TourSession[]
+  readonly success?: string
+  readonly savedId?: string
+}>(), { tourSessions: () => [], success: "", savedId: "" })
 
 const emit = defineEmits<{
   create: [payload: CatalogItemPayload]
@@ -118,6 +124,10 @@ const coverImageUrl = ref("")
 const editingId = ref("")
 const editingDescription = ref("")
 const editingCover = ref("")
+const createUploading = ref(false)
+const editUploading = ref(false)
+const coverUploading = computed(() => createUploading.value || editUploading.value)
+const previewId = ref("")
 const linkedToTemplate = computed(() => !!props.catalogItems.find(item => item.id === editingId.value)?.templateId)
 watch([editingId, () => props.catalogItems], () => {
   const item = props.catalogItems.find(item => item.id === editingId.value)
@@ -139,6 +149,7 @@ watch(
 )
 
 function submit(): void {
+  if (props.submitting || coverUploading.value) return
   localError.value = ""
 
   if (organizationId.value === "" || code.value === "" || title.value === "") {
@@ -157,6 +168,7 @@ function submit(): void {
 }
 
 function saveContent(): void {
+  if (props.submitting || coverUploading.value || linkedToTemplate.value) return
   if (editingId.value !== "") emit("update", { id: editingId.value, payload: { description: editingDescription.value, coverImageUrl: editingCover.value } })
 }
 

@@ -20,12 +20,10 @@
             <label for="catalog-template-description">模板课程介绍</label>
             <textarea id="catalog-template-description" v-model="description" maxlength="4000" rows="3" />
           </div>
-          <div class="field configuration-content-field">
-            <label for="catalog-template-cover">模板封面链接</label>
-            <input id="catalog-template-cover" v-model.trim="coverImageUrl" maxlength="2048" placeholder="可选，使用自有或授权图片的 HTTPS 链接" />
-          </div>
+          <CatalogCoverField :key="selectedId" id="catalog-template-cover" v-model="coverImageUrl" label="模板封面"
+            save-hint="保存共享内容后生效" :disabled="submitting || loading" @uploading="uploading = $event" />
           <p v-if="selectedId" class="state-text configuration-content-field">保存后，已关联的 {{ linkedItems.length }} 个学校课程同步名称、介绍和封面。</p>
-          <button type="submit">{{ submitting ? '保存中...' : selectedId ? '保存共享内容' : '新建课程模板' }}</button>
+          <button type="submit" :disabled="uploading">{{ submitting ? '保存中...' : selectedId ? '保存共享内容' : '新建课程模板' }}</button>
         </fieldset>
       </form>
       <form v-if="selectedId" class="configuration-form configuration-form--grid" @submit.prevent="linkSchool">
@@ -54,7 +52,10 @@
         </fieldset>
       </form>
       <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
-      <p v-if="success" class="state-text" role="status">{{ success }}</p>
+      <p v-if="success" class="state-text" role="status">{{ success }} <a v-if="savedTemplateId" :href="`#template-saved-${savedTemplateId}`" @click="previewOpen = true">查看该模板已保存内容</a></p>
+      <SavedCatalogPreview v-if="selected" :id="`template-saved-${selected.id}`" :key="selected.id" :catalog="selected"
+        :school-label="linkedItems.map(item => schoolName(item.organizationId)).join('、') || '尚未关联学校'" :schools="schools"
+        :tour-sessions="tourSessions.filter(session => linkedItems.some(item => item.id === session.catalogItemId))" v-model:expanded="previewOpen" />
       <button v-if="loadError || formError" type="button" class="record-action" :disabled="loading || submitting" @click="load">刷新模板</button>
     </template>
     <ul v-if="selectedId" class="record-list record-list--columns catalog-template-links">
@@ -71,11 +72,13 @@
 import { computed, onMounted, ref, watch } from "vue"
 import {
   addTemplateSchool, createCatalogTemplate, linkCatalogTemplate, listCatalogTemplates, readableApiError, updateCatalogTemplate,
-  type CatalogItem, type CatalogTemplate, type School,
+  type CatalogItem, type CatalogTemplate, type School, type TourSession,
 } from "@/api/configuration"
 import ConfigurationCard from "./ConfigurationCard.vue"
+import CatalogCoverField from "./CatalogCoverField.vue"
+import SavedCatalogPreview from "./SavedCatalogPreview.vue"
 
-const props = defineProps<{ readonly schools: readonly School[]; readonly catalogItems: readonly CatalogItem[] }>()
+const props = withDefaults(defineProps<{ readonly schools: readonly School[]; readonly catalogItems: readonly CatalogItem[]; readonly tourSessions?: readonly TourSession[] }>(), { tourSessions: () => [] })
 const emit = defineEmits<{ changed: [] }>()
 const templates = ref<readonly CatalogTemplate[]>([])
 const selectedId = ref("")
@@ -90,6 +93,9 @@ const submitting = ref(false)
 const loadError = ref("")
 const formError = ref("")
 const success = ref("")
+const uploading = ref(false)
+const savedTemplateId = ref("")
+const previewOpen = ref(false)
 const selected = computed(() => templates.value.find(item => item.id === selectedId.value))
 const schoolItems = computed(() => props.catalogItems.filter(item => item.organizationId === schoolId.value))
 const linkedItems = computed(() => props.catalogItems.filter(item => item.templateId === selectedId.value))
@@ -99,6 +105,7 @@ watch(selected, template => {
   coverImageUrl.value = template?.coverImageUrl ?? ""
 })
 watch(schoolId, () => { catalogId.value = "" })
+watch(selectedId, () => { success.value = ""; savedTemplateId.value = ""; previewOpen.value = false }, { flush: "sync" })
 onMounted(load)
 
 async function load(): Promise<void> {
@@ -110,9 +117,11 @@ async function load(): Promise<void> {
 }
 
 async function save(): Promise<void> {
+  if (submitting.value || uploading.value) return
   submitting.value = true
   formError.value = ""
   success.value = ""
+  savedTemplateId.value = ""
   try {
     const content = { title: title.value, description: description.value, coverImageUrl: coverImageUrl.value }
     const template = selected.value === undefined
@@ -120,7 +129,8 @@ async function save(): Promise<void> {
       : await updateCatalogTemplate(selected.value.id, { ...content, expectedVersion: selected.value.version })
     templates.value = [...templates.value.filter(item => item.id !== template.id), template]
     selectedId.value = template.id
-    success.value = "课程模板已保存"
+    savedTemplateId.value = template.id
+    success.value = "课程模板已保存。已关联学校同步更新；小程序重新进入相应页面后显示更新，团期状态不变。"
     emit("changed")
   } catch (error) { formError.value = readableApiError(error) }
   finally { submitting.value = false }
