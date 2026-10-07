@@ -47,11 +47,13 @@
       </div>
       <div class="field">
         <label for="enrollment-open">报名开始</label>
-        <input id="enrollment-open" v-model="enrollmentOpensAt" type="date" />
+        <input id="enrollment-open" v-model="enrollmentOpensAt" type="datetime-local" step="60" aria-describedby="enrollment-open-help" />
+        <small id="enrollment-open-help" class="state-text">北京时间，可设置到分钟。</small>
       </div>
       <div class="field">
         <label for="enrollment-close">报名截止</label>
-        <input id="enrollment-close" v-model="enrollmentClosesAt" type="date" />
+        <input id="enrollment-close" v-model="enrollmentClosesAt" type="datetime-local" step="60" aria-describedby="enrollment-close-help" />
+        <small id="enrollment-close-help" class="state-text">北京时间，按所选时刻截止报名。</small>
       </div>
       <div class="field">
         <label for="session-status">团期状态</label>
@@ -75,6 +77,7 @@
 import { computed, ref, watch } from "vue"
 
 import SessionEnrollmentScope from "./SessionEnrollmentScope.vue"
+import { parseBeijingDateTime } from "./format"
 import type { EnrollmentScope, CatalogItem, School, TourSessionPayload } from "@/api/configuration"
 
 const props = defineProps<{
@@ -149,6 +152,17 @@ function submit(): void {
     return
   }
 
+  const opensAt = parseBeijingDateTime(enrollmentOpensAt.value)
+  const closesAt = parseBeijingDateTime(enrollmentClosesAt.value)
+  if (opensAt === null || closesAt === null) {
+    localError.value = "请填写完整的报名日期和时间"
+    return
+  }
+  if (closesAt < opensAt) {
+    localError.value = "报名截止不能早于报名开始"
+    return
+  }
+
   emit("create", {
     enrollmentScope: enrollmentScope.value,
     organizationId: organizationId.value,
@@ -160,8 +174,8 @@ function submit(): void {
     minimumParticipants: minimumCount,
     startsAt: toIsoDate(startsAt.value),
     endsAt: toIsoDate(endsAt.value),
-    enrollmentOpensAt: toIsoDate(enrollmentOpensAt.value),
-    enrollmentClosesAt: toIsoDate(enrollmentClosesAt.value),
+    enrollmentOpensAt: opensAt,
+    enrollmentClosesAt: closesAt,
   })
 }
 

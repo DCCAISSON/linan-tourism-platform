@@ -10,6 +10,16 @@ export function formatRange(start: string, end: string): string {
   return `${formatDate(start)} 至 ${formatDate(end)}`
 }
 
+export function formatBeijingDateTime(value: string): string {
+  const time = Date.parse(value)
+  return Number.isFinite(time) ? new Date(time + 8 * 60 * 60 * 1000).toISOString().slice(0, 16) : ""
+}
+
+export function parseBeijingDateTime(value: string): string | null {
+  const time = Date.parse(`${value}+08:00`)
+  return Number.isFinite(time) ? new Date(time).toISOString() : null
+}
+
 export function statusText(status: string): string {
   switch (status) {
     case "active":

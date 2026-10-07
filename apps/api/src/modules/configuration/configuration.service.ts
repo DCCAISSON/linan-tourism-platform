@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common"
 import { DOMAIN_POLICY_VERSION, ORDER_STATUS, ROSTER_STATUS, TOUR_SESSION_STATUS } from "@linan/contracts"
-import { In } from "typeorm"
+import { In, type EntityManager } from "typeorm"
 import { ensureScopeHierarchy, lockTourSession } from "./configuration.scope.js"
 import type { EnrollmentScope } from "./configuration.scope.js"
 import {
@@ -296,6 +296,12 @@ export class ConfigurationService {
     try {
       const saved = await dataSource.transaction(async (manager) => {
         const session = await lockTourSession(manager, id)
+        if (input.capacity !== undefined) {
+          const occupiedCapacity = await this.countPaidParticipants(id, manager)
+          if (input.capacity < occupiedCapacity) {
+            throw new ConflictException({ code: "capacity_below_occupied", message: "容量不能少于已付款且未取消的人数", occupiedCapacity })
+          }
+        }
         updateTourSessionEntity(session, input)
         ensureCatalogBelongsToSchool(await findCatalogItem(dataSource, session.catalogItemId), session.organizationId)
         ensureTourSessionDates(session)
@@ -360,9 +366,9 @@ export class ConfigurationService {
     return this.withActiveNotice(saved)
   }
 
-  private async countPaidParticipants(id: string): Promise<number> {
-    const dataSource = await this.database.getDataSource()
-    return dataSource.getRepository(RosterEntryEntity).createQueryBuilder("roster")
+  private async countPaidParticipants(id: string, manager?: EntityManager): Promise<number> {
+    const source = manager ?? (await this.database.getDataSource()).manager
+    return source.getRepository(RosterEntryEntity).createQueryBuilder("roster")
       .innerJoin(OrderEntity, "paid_order", "paid_order.enrollment_id = roster.enrollment_id and paid_order.status = :paid", { paid: ORDER_STATUS.paid })
       .where("roster.tour_session_id = :id", { id })
       .andWhere("roster.status != :cancelled", { cancelled: ROSTER_STATUS.cancelled })

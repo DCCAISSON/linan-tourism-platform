@@ -7,10 +7,12 @@
     title="团期"
     title-id="session-title"
     wide
+    @input="feedbackVisible = false"
+    @change="feedbackVisible = false"
   >
     <template #form>
       <p class="state-text">新增团期默认保存为草稿。课程启用且团期发布后，家长可浏览；报名还需告知书生效、在报名时间内且有名额。保存已发布团期的修改后，小程序重新进入相应页面后显示更新。</p>
-      <p v-if="success" class="state-text" role="status">{{ success }} <a :href="`#session-saved-${savedId}`" @click="previewId = savedId">查看该团期已保存内容</a></p>
+      <p v-if="success && feedbackVisible" class="state-text" role="status">{{ success }} <a :href="`#session-saved-${savedId}`" @click="previewId = savedId">查看该团期已保存内容</a></p>
       <SessionCreateForm
         :catalog-items="catalogItems"
         :form-error="formError"
@@ -111,7 +113,7 @@
           <template v-if="session.occupiedCapacity != null"> · {{ session.occupiedCapacity >= session.minimumParticipants ? '已达参考人数' : '未达参考人数' }}</template>
         </span>
         <span>{{ formatRange(session.startsAt, session.endsAt) }}</span>
-        <span>{{ formatRange(session.enrollmentOpensAt, session.enrollmentClosesAt) }}</span>
+        <span class="notice-summary notice-summary--wide">报名：{{ formatBeijingDateTime(session.enrollmentOpensAt).replace('T', ' ') }} 至 {{ formatBeijingDateTime(session.enrollmentClosesAt).replace('T', ' ') }}（北京时间）</span>
         <span>{{ statusText(session.status) }}</span>
         <span class="notice-summary">
           生效告知书：{{ session.activeNotice ? `${session.activeNotice.title}（${session.activeNotice.version}）` : '未启用，家长暂不能报名' }}
@@ -147,10 +149,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type { CatalogItem, NoticeContent, NoticeVersion, School, TourSession, TourSessionPayload, TourSessionUpdatePayload } from "@/api/configuration"
 import ConfigurationCard from "./ConfigurationCard.vue"
-import { formatFen, formatRange, statusText } from "./format"
+import { formatBeijingDateTime, formatFen, formatRange, statusText } from "./format"
 import SessionCreateForm from "./SessionCreateForm.vue"
 import SessionEditForm from "./SessionEditForm.vue"
 import SessionEnrollmentConditions from "./SessionEnrollmentConditions.vue"
@@ -177,6 +179,8 @@ const emit = defineEmits<{
   activateNotice: [change: { readonly tourSessionId: string; readonly noticeVersionId: string }]
 }>()
 
+const feedbackVisible = ref(true)
+watch(() => props.success, () => { feedbackVisible.value = true })
 const noticeSessionId = ref("")
 const noticeVersion = ref("v1")
 const noticeTitle = ref("")

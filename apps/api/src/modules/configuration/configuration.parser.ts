@@ -75,6 +75,12 @@ function readOptionalInteger(body: UnknownRecord, field: string): number | undef
   return readInteger(body, field)
 }
 
+function readCapacity(body: UnknownRecord): number {
+  const capacity = readInteger(body, "capacity")
+  if (capacity <= 0) throw malformedInput("capacity must be a positive integer")
+  return capacity
+}
+
 function readMinimumParticipants(body: UnknownRecord): number | null | undefined {
   const value = body["minimumParticipants"]
   if (value === undefined || value === null) return value
@@ -207,7 +213,7 @@ export function parseTourSession(body: unknown): NewTourSession {
     code: readString(record, "code"),
     status: readTourSessionStatus(record),
     priceFen,
-    capacity: readInteger(record, "capacity"),
+    capacity: readCapacity(record),
     enrollmentScope: "enrollmentScope" in record ? parseEnrollmentScope(record["enrollmentScope"]) : undefined,
     minimumParticipants: readMinimumParticipants(record) ?? null,
     startsAt,
@@ -277,7 +283,7 @@ export function parseTourSessionPatch(body: unknown): UpdateTourSession {
     code: readOptionalString(record, "code"),
     status: readOptionalTourSessionStatus(record),
     priceFen,
-    capacity: readOptionalInteger(record, "capacity"),
+    capacity: "capacity" in record ? readCapacity(record) : undefined,
     enrollmentScope: "enrollmentScope" in record ? parseEnrollmentScope(record["enrollmentScope"]) : undefined,
     minimumParticipants: readMinimumParticipants(record),
     startsAt: readOptionalDate(record, "startsAt"),

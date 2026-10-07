@@ -111,6 +111,8 @@ export type CatalogItemPayload = {
 }
 
 export type CatalogContentPayload = {
+  readonly title?: string
+  readonly status?: string
   readonly description: string
   readonly coverImageUrl: string
 }

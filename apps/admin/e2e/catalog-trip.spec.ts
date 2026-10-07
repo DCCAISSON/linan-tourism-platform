@@ -137,8 +137,9 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
         priceFen: 12800,
         capacity: 30,
         enrollmentOpensAt: "2026-10-01T00:00:00.000Z",
-        enrollmentClosesAt: "2026-10-30T00:00:00.000Z",
+        enrollmentClosesAt: "2026-10-30T12:30:00.000Z",
       })
+      tourSession = { ...tourSession, ...payload }
       await route.fulfill({
         contentType: "application/json",
         status: 201,
@@ -193,7 +194,7 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
   await expect(page.getByText("团期价格不能为负数")).toBeVisible()
   await page.getByLabel("课程学校").selectOption("school-1")
   await page.getByLabel("课程编码").fill("catalog-2")
-  await page.getByLabel("课程名称").fill("博物馆水系课程")
+  await page.getByLabel("课程名称", { exact: true }).fill("博物馆水系课程")
   await page.getByLabel("课程介绍", { exact: true }).fill("沿水系观察地形与人文，完成研学记录。")
   await page.getByLabel("封面链接", { exact: true }).fill("https://example.com/authorized-course.webp")
   await page.getByRole("button", { name: "新增课程" }).click()
@@ -207,11 +208,11 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
   await page.getByLabel("团期课程").selectOption("catalog-1")
   await page.getByLabel("团期编码").fill("session-2")
   await page.getByLabel("团期单价（元/人）").fill("128")
-  await page.getByLabel("容量").fill("30")
+  await page.getByLabel("容量", { exact: true }).fill("30")
   await page.getByLabel("出发日期", { exact: true }).fill("2026-11-12")
   await page.getByLabel("结束日期", { exact: true }).fill("2026-11-13")
-  await page.getByLabel("报名开始", { exact: true }).fill("2026-10-01")
-  await page.getByLabel("报名截止", { exact: true }).fill("2026-10-30")
+  await page.getByLabel("报名开始", { exact: true }).fill("2026-10-01T08:00")
+  await page.getByLabel("报名截止", { exact: true }).fill("2026-10-30T20:30")
   await page.getByRole("button", { name: "新增团期" }).click()
   const sessionRow = page.getByRole("region", { name: "团期", exact: true }).locator(":scope > .record-list--columns > li").filter({
     has: page.locator(".saved-catalog-preview__session h4 > span").filter({ hasText: /^session-2$/ }),
@@ -220,7 +221,7 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
   const sessionSummary = sessionRow.locator(":scope > span")
   await expect(sessionRow.locator(":scope > .record-price").filter({ hasText: "¥128.00" })).toBeVisible()
   await expect(sessionSummary.filter({ hasText: /^2026-11-12 至 2026-11-13$/ })).toBeVisible()
-  await expect(sessionSummary.filter({ hasText: /^2026-10-01 至 2026-10-30$/ })).toBeVisible()
+  await expect(sessionSummary.filter({ hasText: /^报名：2026-10-01 08:00 至 2026-10-30 20:30（北京时间）$/ })).toBeVisible()
   await sessionRow.getByRole("button", { name: "发布", exact: true }).click()
   await expect(sessionSummary.filter({ hasText: /^已发布$/ })).toBeVisible()
   await sessionRow.getByRole("button", { name: "关闭", exact: true }).click()
@@ -229,10 +230,10 @@ test("manages schools, classes, catalog items, and tour sessions", async ({ page
   await page.getByLabel("修改单价（元/人）").fill("188")
   await page.getByLabel("修改出发日期").fill("2026-12-01")
   await page.getByLabel("修改结束日期").fill("2026-12-02")
-  await page.getByLabel("修改报名开始").fill("2026-11-01")
-  await page.getByLabel("修改报名截止").fill("2026-11-20")
+  await page.getByLabel("修改报名开始").fill("2026-11-01T08:00")
+  await page.getByLabel("修改报名截止").fill("2026-11-20T20:30")
   await page.getByRole("button", { name: "保存团期修改" }).click()
   await expect(sessionRow.locator(":scope > .record-price").filter({ hasText: "¥188.00" })).toBeVisible()
   await expect(sessionSummary.filter({ hasText: /^2026-12-01 至 2026-12-02$/ })).toBeVisible()
-  await expect(sessionSummary.filter({ hasText: /^2026-11-01 至 2026-11-20$/ })).toBeVisible()
+  await expect(sessionSummary.filter({ hasText: /^报名：2026-11-01 08:00 至 2026-11-20 20:30（北京时间）$/ })).toBeVisible()
 })

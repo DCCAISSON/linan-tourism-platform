@@ -13,7 +13,7 @@
         <h4><span>{{ session.code }}</span> · <span>{{ schoolName(session.organizationId) }}</span></h4>
         <p><span class="date-endpoint">{{ formatDate(session.startsAt) }}</span> 至 <span class="date-endpoint">{{ formatDate(session.endsAt) }}</span> · {{ statusText(session.status) }}</p>
         <p class="record-price">{{ formatFen(session.priceFen) }} / 人 · 学生、成人同价</p>
-        <p>报名时间：<span class="date-endpoint">{{ formatDate(session.enrollmentOpensAt) }}</span> 至 <span class="date-endpoint">{{ formatDate(session.enrollmentClosesAt) }}</span></p>
+        <p>报名时间：<span class="date-endpoint">{{ formatBeijingDateTime(session.enrollmentOpensAt).replace('T', ' ') }}</span> 至 <span class="date-endpoint">{{ formatBeijingDateTime(session.enrollmentClosesAt).replace('T', ' ') }}</span>（北京时间）</p>
         <template v-if="session.activeNotice">
           <h4>生效告知书：{{ session.activeNotice.title }}（{{ session.activeNotice.version }}）</h4>
           <p>目的地：{{ session.activeNotice.contentJson.destination }}</p>
@@ -35,7 +35,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue"
 import type { CatalogItem, School, TourSession } from "@/api/configuration"
-import { formatDate, formatFen, statusText } from "./format"
+import { formatBeijingDateTime, formatDate, formatFen, statusText } from "./format"
 
 const props = withDefaults(defineProps<{
   readonly id: string
