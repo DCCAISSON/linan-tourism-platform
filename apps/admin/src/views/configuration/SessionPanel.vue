@@ -102,7 +102,7 @@
         </dl>
       </section>
     </template>
-    <ul class="record-list record-list--columns">
+    <ul class="record-list record-list--columns session-record-list">
       <li v-for="session in tourSessions" :key="session.id">
         <strong>{{ catalogTitleById(session.catalogItemId) }}</strong>
         <span class="record-price">{{ formatFen(session.priceFen) }} / 人（学生、成人同价）</span>
@@ -240,6 +240,12 @@ function catalogTitleById(itemId: string): string {
 </script>
 
 <style scoped>
+.session-record-list > li { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.session-record-list > li > strong,
+.session-record-list > li > .notice-summary--wide { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .session-record-list > li { grid-template-columns: minmax(0, 1fr); }
+}
 .notice-editor-help { grid-column: 1 / -1; }
 .notice-preview { padding: 16px; background: var(--surface-secondary); border-left: 4px solid var(--accent-primary); }
 .notice-preview h4 { margin: 0 0 8px; font-size: 18px; }
