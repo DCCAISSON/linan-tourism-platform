@@ -111,6 +111,16 @@ describe("catalog cover HTTP upload and public reading", () => {
     expect(objects.size).toBe(0)
   })
 
+  it("accepts a file of exactly 5MiB", async () => {
+    // Given a PNG padded to the inclusive size limit.
+    const bytes = Buffer.alloc(5 * 1024 * 1024)
+    png.copy(bytes)
+    // When the editor uploads the exact maximum size.
+    const response = await request(app.getHttpServer()).post(route).set(adminHeaders).attach("file", bytes, "cover.png").expect(201)
+    // Then storage receives every byte of the accepted image.
+    expect(objects.get(coverPath(response.body).slice(1))?.body.equals(bytes)).toBe(true)
+  })
+
   it("rejects files above 5MB", async () => {
     // Given an otherwise valid image exceeding the limit.
     const bytes = Buffer.alloc(5 * 1024 * 1024 + 1)
