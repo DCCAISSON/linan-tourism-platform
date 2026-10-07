@@ -75,11 +75,13 @@ function clear(): void {
   context?.draw()
 }
 watch(() => props.modelValue, async signature => {
-  if (!signature) { drawing = false; strokes = []; limitMessage.value = "" }
+  drawing = false
+  strokes = signature ? signature.strokes.map(stroke => stroke.map(point => ({ x: Math.round(point.x * width / signature.width), y: Math.round(point.y * height / signature.height) }))) : []
+  if (!signature) limitMessage.value = ""
   displayHeight.value = Math.round(displayWidth.value * (signature ? signature.height / signature.width : height / width))
   await nextTick()
   redraw()
-})
+}, { immediate: true })
 onMounted(async () => {
   await nextTick()
   const query = uni.createSelectorQuery().in(instance?.proxy)

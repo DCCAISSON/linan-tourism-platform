@@ -19,6 +19,8 @@ overrides:
   jpeg-js: 0.4.4
   multer: 2.4.0
   postcss: 8.5.28
+  proxy-addr: 2.0.8
+  source-map-js: 1.2.2
   ws: 8.21.3
 packageExtensions:
   '@dcloudio/uni-h5-vite@3.0.0-alpha-5020620260914001':
@@ -28,9 +30,14 @@ packageExtensions:
     dependencies:
       estree-walker: 2.0.2
 patchedDependencies:
+  '@vue/server-renderer@3.4.21': patches/@vue__server-renderer@3.4.21.patch
+  '@vue/server-renderer@3.5.22': patches/@vue__server-renderer@3.5.22.patch
+  '@vue/shared@3.4.21': patches/@vue__shared@3.4.21.patch
+  '@vue/shared@3.5.22': patches/@vue__shared@3.5.22.patch
   braces@3.0.3: patches/braces@3.0.3.patch
 audit:
-  # Mitigated by patches/braces@3.0.3.patch; CI must run scripts/dependency-security.test.mjs first.
-  # Upstream has no fixed release. Review/removal conditions: docs/依赖安全补丁说明.md.
+  # Exact local patches require scripts/dependency-security.test.mjs to pass before audit.
+  # These are not upstream fixed versions. Review/removal conditions: docs/依赖安全补丁说明.md.
   ignore:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-g2v6-rqmx-r4w6
