@@ -9,7 +9,7 @@ export type NodeType = keyof typeof nodeLabels
 export type OccurrenceStatus = keyof typeof statusLabels
 export type PersonRef = `paid:${string}` | `imported:${string}`
 export type GuideSessionSummary = { readonly id: string; readonly code: string; readonly startsAt: string; readonly endsAt: string; readonly vehicleIds: readonly string[] }
-export type GuidePerson = { readonly personRef: PersonRef; readonly displayName: string; readonly className: string | null; readonly active: boolean; readonly inactiveReason: string | null; readonly vehicleId: string }
+export type GuidePerson = { readonly personRef: PersonRef; readonly displayName: string; readonly className: string | null; readonly active: boolean; readonly inactiveReason: string | null; readonly vehicleId: string; readonly healthAuthorized: boolean }
 export type GroupPerson = Pick<GuidePerson, "personRef" | "displayName" | "className" | "vehicleId"> & { readonly vehicleSequence: number | null }
 export type GuideEvent = { readonly id: string; readonly category: keyof typeof eventLabels; readonly occurredAt: string; readonly personRef: PersonRef | null; readonly content: string; readonly publicSummary: string }
 export type GuideSession = GuideSessionSummary & { readonly confirmationStatus: "current" | "stale" | "unconfirmed"; readonly vehicles: readonly { readonly id: string; readonly sequence: number; readonly plateNumber: string }[]; readonly people: readonly GuidePerson[]; readonly groupPeople: readonly GroupPerson[]; readonly events: readonly GuideEvent[] }
@@ -42,7 +42,7 @@ function parseSession(value: unknown): GuideSession {
   if (confirmationStatus !== "current" && confirmationStatus !== "stale" && confirmationStatus !== "unconfirmed") throw invalid()
   return { ...parseSessionSummary(value), confirmationStatus,
     vehicles: readCollection(row["vehicles"], item => { const vehicle = readRecord(item); return { id: readString(vehicle, "id"), sequence: readNonNegativeInteger(vehicle, "sequence"), plateNumber: text(vehicle, "plateNumber") } }),
-    people: readCollection(row["people"], item => { const person = readRecord(item); return { ...parsePerson(person), active: bool(person, "active"), inactiveReason: nullable(person, "inactiveReason") } }),
+    people: readCollection(row["people"], item => { const person = readRecord(item); return { ...parsePerson(person), active: bool(person, "active"), inactiveReason: nullable(person, "inactiveReason"), healthAuthorized: bool(person, "healthAuthorized") } }),
     groupPeople: readCollection(row["groupPeople"], item => { const person = readRecord(item); return { ...parsePerson(person), vehicleSequence: person["vehicleSequence"] === null ? null : readNonNegativeInteger(person, "vehicleSequence") } }),
     events: readCollection(row["events"], readRecord).filter(event => event["category"] !== "health").map(parseEvent),
   }

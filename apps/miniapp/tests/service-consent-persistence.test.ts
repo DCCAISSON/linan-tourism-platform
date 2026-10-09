@@ -40,7 +40,7 @@ describe("first visit privacy persistence", () => {
   })
 
   it("requires confirmation of the expanded policy when only the old policy was accepted", async () => {
-    storage.set("linan_service_consent", { version: "2026-10-03", choice: "accepted" })
+    storage.set("linan_service_consent", { version: "2026-10-03.2", choice: "accepted" })
     const consent = await import("../src/service-consent")
     expect(consent.hasServiceConsent()).toBe(false)
   })

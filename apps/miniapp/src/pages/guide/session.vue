@@ -18,6 +18,10 @@ onShow(() => { void load(sessionId.value) })
 onHide(clear)
 onUnload(clear)
 function back(): void { uni.redirectTo({ url: "/pages/guide/index" }) }
+function openWork(page: "media" | "evaluations" | "daily"): void {
+  if (busy.value || !state.session) return
+  uni.navigateTo({ url: `/pages/guide/${page}?id=${encodeURIComponent(state.session.id)}` })
+}
 function changeTab(value: "attendance" | "records" | "group"): void { if (value !== tab.value) { state.selection = null; tab.value = value } }
 </script>
 
@@ -31,6 +35,14 @@ function changeTab(value: "attendance" | "records" | "group"): void { if (value 
       <view class="guide-section"><text class="guide-subtitle">{{ state.session.code }}</text><text class="guide-muted">{{ chinaDate(state.session.startsAt) }} 至 {{ chinaDate(state.session.endsAt) }}</text><text>{{ vehicles.length ? vehicles.map(vehicle => `${vehicle.sequence}号车${vehicle.plateNumber ? ' · ' + vehicle.plateNumber : ''}`).join('；') : '尚未分配所带车辆' }}</text><button class="guide-secondary" :disabled="busy" @tap="load(sessionId)">刷新名单与记录</button></view>
       <view v-if="state.session.confirmationStatus !== 'current'" class="guide-warning guide-section">{{ state.session.confirmationStatus === 'stale' ? '人车安排已变化，重新确认后可继续填写。' : '人车安排尚未确认，确认后可开始填写。' }}</view>
       <text v-else-if="!state.canWrite" class="guide-muted">当前账号可查看记录，无填写权限。</text>
+      <view class="guide-section">
+        <text class="guide-subtitle">团期工作</text>
+        <view class="guide-actions">
+          <button class="guide-secondary" :disabled="busy" @tap="openWork('media')">照片与视频</button>
+          <button class="guide-secondary" :disabled="busy" @tap="openWork('evaluations')">学生评价</button>
+          <button class="guide-secondary" :disabled="busy" @tap="openWork('daily')">参加人日报</button>
+        </view>
+      </view>
       <view class="guide-tabs" role="tablist"><button :class="['guide-tab', { selected: tab === 'attendance' }]" :disabled="busy" @tap="changeTab('attendance')">本车点名</button><button :class="['guide-tab', { selected: tab === 'records' }]" :disabled="busy" @tap="changeTab('records')">执行记录</button><button :class="['guide-tab', { selected: tab === 'group' }]" :disabled="busy" @tap="changeTab('group')">全团只读</button></view>
       <template v-if="tab !== 'group'">
         <ExecutionNodes :key="`${state.generation}:${tab}`" :session="state.session" :data="state.nodes" :selection="state.selection" :attendance="tab === 'attendance'" :can-write="state.canWrite" :busy="busy" @select="state.selection = $event" @save="saveOccurrence" />

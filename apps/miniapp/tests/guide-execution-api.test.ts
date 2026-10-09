@@ -36,6 +36,8 @@ describe("guide execution API", () => {
     // Then
     expect(requests[0]?.url).toBe("https://api.example.test/staff/execution/sessions/tour%2Fa")
     expect(result.people[0]).not.toHaveProperty("health")
+    expect(result.people[0]?.healthAuthorized).toBe(true)
+    expect(result.groupPeople[0]).not.toHaveProperty("healthAuthorized")
     expect(result.people[0]).not.toHaveProperty("attendance")
     expect(result).not.toHaveProperty("dailyReports")
     expect(result.events).toHaveLength(1)

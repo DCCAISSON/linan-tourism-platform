@@ -28,20 +28,22 @@ export class StaffMediaController {
   @Post("sessions/:sessionId/assets")
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: 50 * 1024 * 1024 } }))
   async upload(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @UploadedFile() file: unknown, @Body() body: unknown) {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.media.upload(await this.staffAccess.resolve(headers), mediaId(sessionId), parseMediaUpload(file, body))
+    return this.media.upload(await this.staffAccess.resolveExecutionWrite(headers), mediaId(sessionId), parseMediaUpload(file, body))
   }
 
   @Patch("sessions/:sessionId/assets/:assetId/status")
   async status(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("assetId") assetId: string, @Body() body: unknown) {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.media.changeStatus(await this.staffAccess.resolve(headers), { sessionId: mediaId(sessionId), assetId: mediaId(assetId) }, parseMediaStatus(body))
+    return this.media.changeStatus(await this.staffAccess.resolveExecutionWrite(headers), { sessionId: mediaId(sessionId), assetId: mediaId(assetId) }, parseMediaStatus(body))
+  }
+
+  @Post("sessions/:sessionId/assets/:assetId/status")
+  async nativeStatus(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("assetId") assetId: string, @Body() body: unknown) {
+    return this.status(headers, sessionId, assetId, body)
   }
 
   @Delete("sessions/:sessionId/assets/:assetId")
   async remove(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("assetId") assetId: string, @Query() query: unknown) {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.media.remove(await this.staffAccess.resolve(headers), { sessionId: mediaId(sessionId), assetId: mediaId(assetId) }, readExpectedVersion(query))
+    return this.media.remove(await this.staffAccess.resolveExecutionWrite(headers), { sessionId: mediaId(sessionId), assetId: mediaId(assetId) }, readExpectedVersion(query))
   }
 
   @Get("sessions/:sessionId/assets/:assetId/content")

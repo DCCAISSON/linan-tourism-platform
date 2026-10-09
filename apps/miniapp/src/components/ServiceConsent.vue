@@ -55,6 +55,7 @@ function openPrivacy(): void {
         </view>
         <text class="service-consent-copy">我们根据登录、报名和出行服务的需要，处理您的账号资料、联系方式、参加人身份信息及订单记录。</text>
         <text class="service-consent-copy">未成年人信息由监护人提供和确认；健康等敏感信息在填写时单独征求同意。</text>
+        <text class="service-consent-copy">肖像使用：您同意我们拍摄、保存活动中含您或您所监护参加人肖像的照片、视频，用于活动记录，并向本团参加人及其监护人展示。公开宣传用途另行征得同意。如需撤回授权，请通过隐私保护指引中的联系方式提出。</text>
         <text class="service-consent-copy">个人信息管理及联系渠道详见隐私保护指引。</text>
         <template v-if="details">
           <text class="service-consent-copy">您可以先浏览活动。登录时，手机号用于确认身份和联系报名人；头像、昵称由您自行选择，用于个人页面展示，目前保存在本机。</text>

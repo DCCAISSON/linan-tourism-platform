@@ -7,7 +7,7 @@ export type StaffRequestOptions = { readonly baseUrl?: string; readonly request?
 export type StaffAccess = { readonly actorId: string; readonly forcePasswordChange: boolean; readonly permissionKeys: readonly string[] }
 
 export function createStaffRequest(options: StaffRequestOptions = {}) {
-  return async (path: string, method: "GET" | "POST" = "GET", data?: object): Promise<unknown> => {
+  return async (path: string, method: "GET" | "POST" | "DELETE" = "GET", data?: object): Promise<unknown> => {
     const token = getStaffSessionToken()
     if (token === undefined) throw new ApiError(401, "请登录导游账号。")
     try {
@@ -52,7 +52,7 @@ export function createStaffApi(options: StaffRequestOptions = {}) {
   }
 }
 
-type StaffRequest = { readonly path: string; readonly method: "GET" | "POST"; readonly data?: object | undefined; readonly token?: string | undefined }
+type StaffRequest = { readonly path: string; readonly method: "GET" | "POST" | "DELETE"; readonly data?: object | undefined; readonly token?: string | undefined }
 
 async function requestJson(options: StaffRequestOptions, input: StaffRequest): Promise<unknown> {
   const baseUrl = (options.baseUrl ?? import.meta.env["VITE_API_BASE_URL"] ?? FALLBACK_API_BASE_URL).replace(/\/$/, "")

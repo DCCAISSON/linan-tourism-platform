@@ -3,7 +3,7 @@ import { ApiError } from "../src/api-error"
 import type { ExecutionOccurrence, GuideApi, GuideSession, NodeData, OccurrenceInput } from "../src/guide-execution-api"
 import { useGuideExecution } from "../src/guide-execution-state"
 
-const person = { personRef: "paid:p1", displayName: "张同学", className: "一班", active: true, inactiveReason: null, vehicleId: "v1" } as const
+const person = { personRef: "paid:p1", displayName: "张同学", className: "一班", active: true, inactiveReason: null, vehicleId: "v1", healthAuthorized: false } as const
 const session: GuideSession = { id: "s1", code: "QYX-01", startsAt: "2026-10-09T00:00:00Z", endsAt: "2026-10-10T12:00:00Z", vehicleIds: ["v1"], confirmationStatus: "current", vehicles: [{ id: "v1", sequence: 1, plateNumber: "浙A12345" }], people: [person], groupPeople: [ { ...person, vehicleSequence: 1 } ], events: [] }
 const nodes: NodeData = { nodes: [], records: [], progress: [] }
 const payload: OccurrenceInput = { personRef: "paid:p1", reportDate: "2026-10-09", type: "attendance", label: "出发", nodeId: null, occurredAt: "2026-10-09T00:00:00Z", status: "present", location: "", note: "", correctsId: null, correctionReason: "", expectedVersion: 0 }

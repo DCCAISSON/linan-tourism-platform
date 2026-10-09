@@ -39,7 +39,7 @@ it("clears credentials even when listing saved drafts fails", () => {
     ["linan_wechat_session_token", "session-a"],
     ["linan_wechat_phone_verification", { token: "session-a", phoneVerified: true }],
     ["linan_enrollment_draft_identity", { token: "session-a", familyCode: "family-a" }],
-    ["linan_service_consent", { version: "2026-10-03.2", choice: "accepted" }],
+    ["linan_service_consent", { version: "2026-10-09.1", choice: "accepted" }],
   ])
   vi.stubGlobal("uni", {
     getStorageSync: (key: string) => storage.get(key),
