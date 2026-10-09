@@ -50,7 +50,7 @@ async function mountPage(sessionId = "trip-a") {
 }
 beforeEach(() => {
   storage.clear()
-  storage.set("linan_service_consent", { version: "2026-10-03.2", choice: "accepted" })
+  storage.set("linan_service_consent", { version: "2026-10-09.1", choice: "accepted" })
   calls.listMembers.mockReset().mockResolvedValue([])
   vi.stubGlobal("uni", { getStorageSync: (key: string) => storage.get(key), setStorageSync: (key: string, value: unknown) => storage.set(key, value), removeStorageSync: (key: string) => storage.delete(key) })
 })

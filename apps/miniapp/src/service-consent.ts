@@ -1,5 +1,5 @@
 const SERVICE_CONSENT_KEY = "linan_service_consent" as const
-const SERVICE_CONSENT_VERSION = "2026-10-03.2" as const
+const SERVICE_CONSENT_VERSION = "2026-10-09.1" as const
 let browsingThisLaunch = false
 
 function readConsent(): "accepted" | "declined" | undefined {

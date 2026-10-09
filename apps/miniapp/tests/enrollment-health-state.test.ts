@@ -34,7 +34,7 @@ beforeEach(() => {
   calls.authorize.mockReset().mockResolvedValue(undefined)
   calls.getOrderDetail.mockResolvedValue({ ...order, tourSessionId: "trip", activityTitle: "研学", schoolName: "学校", startsAt: "2026-11-01", endsAt: "2026-11-02", createdAt: "2026-09-27", contactName: "家长", emergencyContactName: null, emergencyContactPhone: null, refundSummary: { status: "none", refundedFen: 0, pendingFen: 0, failedCount: 0 }, refundHistory: [], participants: ["second", "first"].map((id) => ({ id: `line-${id}`, familyMemberId: id, enrollmentParticipantId: `participant-${id}`, displayName: "同名学生", participantKind: "student", gradeName: "五年级", className: "二班", amountFen: 100, refundedFen: 0, refundStatus: "none" })) })
   vi.stubGlobal("uni", { pageScrollTo: vi.fn(), getStorageSync: (key: string) => {
-    if (key === "linan_service_consent") return { version: "2026-10-03.2", choice: "accepted" }
+    if (key === "linan_service_consent") return { version: "2026-10-09.1", choice: "accepted" }
     if (key === "linan_enrollment_draft_identity") return { token: calls.token, familyCode: "same-family" }
     if (key === "linan_wechat_phone_verification") return { token: calls.phoneVerificationToken, phoneVerified: true }
     return calls.token
