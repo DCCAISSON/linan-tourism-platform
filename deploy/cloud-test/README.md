@@ -8,7 +8,7 @@
 - API 进程：`linan-test-api.service`，由 systemd 管理，工作目录为 `/opt/linan-test/app/apps/api`。
 - API 只监听服务器回环地址，管理后台通过 Nginx 受保护 HTTPS 入口访问；小程序 API 使用独立 HTTPS 域名和应用身份校验。
 - 业务库由受控 `DATABASE_URL` 指定，库名和本地 UAT 不得互换。本地 Compose 的空密码配置不用于云端。2026-10-04 23:54（北京时间）已切换为专用应用账号 `linan_app`，仅允许已核验应用内网来源访问指定业务库，权限为 `SELECT, INSERT, UPDATE, DELETE`；环境文件权限为 `600`。
-- 当前后台产物未覆盖 `VITE_API_BASE_URL`，生产默认调用 `https://api.linantravel.cn`。重建时沿用该地址；模板保留的后台 `/api/` 代理不是当前产物实际调用路径。
+- 当前后台产物显式设置 `VITE_API_BASE_URL=https://api.linantravel.cn`。重建时沿用该地址；模板保留的后台 `/api/` 代理不是当前产物实际调用路径。
 - 公众官网由 `apps/site/dist` 提供，根域名和 `www` 不启用 Basic Auth。备案号、公安备案号和公开联系方式由构建环境变量注入，未提供时页面只显示待同步说明。
 
 公众官网构建示例：
@@ -80,12 +80,14 @@ corepack pnpm --filter @linan/api staff:bootstrap-admin
 
 ## 发布验收口径与最近已验证记录
 
-- 当前迁移链路包含 42 个迁移文件，空数据库全链路迁移已通过；已部署数据库按自己的迁移记录核对，不重复执行历史迁移。
+- 当前迁移链路包含 43 个迁移文件，空数据库全链路迁移已通过；已部署数据库按自己的迁移记录核对，不重复执行历史迁移。
+- 最新小程序为0.3.44开发版，2026-10-09 22:19（北京时间）上传成功；源码同为`d2803f866329cbf5a0facf545429ad4247496b9e`，官方回执1,888,312字节、冻结文件229个。中文备注“支持查看团期保险方案和参加人的投保结果”经CLI和开发者工具实际接收值双重核对；包摘要保持、临时网络与进程已清理。未设置体验版、提审或正式发布，真实手机和保险回执仍需验收。下文0.3.42为历史记录，旧冻结包保留。
+- 最近已验证部署为2026-10-09 22:12（北京时间），API及后台revision `d2803f866329cbf5a0facf545429ad4247496b9e`，见[PR #9](https://github.com/DCCAISSON/linan-tourism-platform/pull/9)及[同一提交四项通过的CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37941208836)。本次部署66个应用文件，新增团期保险方案与家长保障查询；仅执行`AddInsurancePlans1766025000000`，添加两个可空JSON字段，无历史回填。89张表旧列内容、财务金额和名单摘要不变，最小权限账号、Nginx、非REVISION环境、备份及对账日程保持；三个后台资源公网200且摘要匹配，两条保险读取接口匿名访问均401。迁移前已有备份实际恢复到独立数据库，89表730行与当时生产基线一致。上一应用版本`52afc105`已保留回退文件；应用回退保留新增字段与迁移记录，不执行生产库恢复或迁移down。
 - 价格由活动和团期配置，订单保存明细及金额快照。金额以整数分计算，退款按明细分配和可退余额核对，不能按取消人数直接推算；真实退款以渠道确认结果为准。
 - `GET /health` 必须返回 `revision`，并通过发布清单追溯到已测试的源码提交及产物摘要。若 revision 是清单摘要，不要求其字面等于 Git SHA；每次发布必须记录二者映射，不能用随时变化的分支 HEAD 代替。
 - systemd 验收要求：`systemctl is-active linan-test-api` 和 `systemctl is-enabled linan-test-api` 均通过。
-- 最近已验证部署为2026-10-07 09:18:37（北京时间），API及后台revision `d4db2f1e26788f973aa689629d23379b92186bc6`，见[PR #7](https://github.com/DCCAISSON/linan-tourism-platform/pull/7)和[该源码四项通过的CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37555503003)。发布31个应用文件及Nginx配置，三个后台静态文件公网200且摘要匹配。新增课程封面上传、保存/发布提示、报名条件核对及已保存内容入口。真实staff账号通过API直连与后台代理各上传1,573,924字节PNG，匿名读回SHA一致，测试对象精确删除后404，测试会话已退出；未绑定真实课程。
-- 财务数量、金额及行摘要、报名、参加人和名单摘要、89张表及42项迁移、最小权限账号、原定时任务与日程均保持；未执行数据库迁移/恢复、依赖安装、真实支付/退款或通知。服务器锁文件及node_modules保留，本轮不将此前仓库安全补丁声称为服务器依赖升级。上一版本为[PR #5](https://github.com/DCCAISSON/linan-tourism-platform/pull/5)的 `fddd6d2`，回滚文件位于 `/opt/linan-test/releases/catalog-publishing-20261007010816-da913074/backup`，旧哈希资源保留。后续文档提交和[主分支](https://github.com/DCCAISSON/linan-tourism-platform/tree/main)变化不会自动部署。
+- 10月7日历史部署：09:18:37（北京时间），API及后台revision `d4db2f1e26788f973aa689629d23379b92186bc6`，见[PR #7](https://github.com/DCCAISSON/linan-tourism-platform/pull/7)和[该源码四项通过的CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37555503003)。当时发布31个应用文件及Nginx配置，三个后台静态文件公网200且摘要匹配。新增课程封面上传、保存/发布提示、报名条件核对及已保存内容入口。真实staff账号通过API直连与后台代理各上传1,573,924字节PNG，匿名读回SHA一致，测试对象精确删除后404，测试会话已退出；未绑定真实课程。
+- 上述10月7日部署保留财务数量、金额及行摘要、报名、参加人和名单摘要、89张表及42项迁移、最小权限账号和原定时任务；未执行数据库迁移/恢复、依赖安装、真实支付/退款或通知。服务器锁文件及node_modules保留，不将此前仓库安全补丁声称为服务器依赖升级。当时的回滚点为[PR #5](https://github.com/DCCAISSON/linan-tourism-platform/pull/5)的 `fddd6d2`，回滚文件位于 `/opt/linan-test/releases/catalog-publishing-20261007010816-da913074/backup`，旧哈希资源保留。后续文档提交和[主分支](https://github.com/DCCAISSON/linan-tourism-platform/tree/main)变化不会自动部署。
 - 小程序0.3.42于10月7日首次预览、上传成功，08:52沿用原源码重传中文备注“优化长合同阅读和手写签字，保留阅读位置与签字草稿。”；0.3.41冻结包保留。对应源码 `aa20d88dc325dafbbb3ca019ec7a0b2c70da7863`，[四项CI](https://github.com/DCCAISSON/linan-tourism-platform/actions/runs/37503025685)通过。合同改为独立阅读/签字视图、底部操作入口、原位置及笔迹保留，原生隔离13项通过。原200个文件的清单和SHA保持一致，CLI及开发者工具接收的中文备注已核对，官方上传成功；公众平台备注未直接读回。首次官方包体1,610,341字节，两次重传均为1,755,754字节，差异原因未确认，不能将源码一致等同于微信编译包逐字节一致。本轮未操作体验版设置、提审或正式发布；手机本人手写、原生手机号授权、订阅实收仍待验收。服务器运行时node_modules未升级，相关待部署补丁详见[依赖安全补丁说明](../../docs/依赖安全补丁说明.md)。服务器部署不能代替小程序发布，CI不能代替真实外部服务验收。
 
 后台封面操作：在“学校、课程与团期配置”的课程或共享模板中选取PNG/JPEG/WebP（最大5MiB），上传后预览并自动填入HTTPS地址，再保存内容。已发布内容保存后对外生效，共享模板影响其关联课程；家长重新进入对应页面读取更新。`POST /configuration/catalog-covers` 沿用配置写权限和Origin校验，`GET /catalog-covers/:uuid.ext` 只读取独立公开封面前缀；私有相册权限保持。仅该上传接口和后台 `/api/configuration/catalog-covers` 的精确代理路径设置 `client_max_body_size 6m`，供multipart开销使用；接口仍执行5MiB上限。
