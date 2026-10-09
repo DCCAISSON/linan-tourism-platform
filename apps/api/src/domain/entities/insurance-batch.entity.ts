@@ -1,7 +1,7 @@
 import { Column, CreateDateColumn, Entity, ForeignKey, Index, PrimaryColumn, UpdateDateColumn } from "typeorm"
 import { OrganizationEntity } from "./organization.entity.js"
 import { TourSessionEntity } from "./tour-session.entity.js"
-import type { InsuranceBatchStatus } from "../../modules/insurance/insurance.types.js"
+import type { InsuranceBatchStatus, InsurancePlan } from "../../modules/insurance/insurance.types.js"
 
 @Entity({ name: "insurance_batches" })
 @Index("idx_insurance_batches_session", ["tourSessionId", "createdAt"])
@@ -23,6 +23,9 @@ export class InsuranceBatchEntity {
 
   @Column({ type: "varchar", length: 32 })
   status: InsuranceBatchStatus = "draft"
+
+  @Column({ name: "plan_snapshot_json", type: "json", nullable: true })
+  planSnapshotJson: InsurancePlan | null = null
 
   @Column({ name: "company_template_name", type: "varchar", length: 120, nullable: true })
   companyTemplateName: string | null = null

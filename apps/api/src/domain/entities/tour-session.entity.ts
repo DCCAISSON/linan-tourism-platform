@@ -15,6 +15,7 @@ import {
 } from "typeorm"
 import { CatalogItemEntity } from "./catalog-item.entity.js"
 import { OrganizationEntity } from "./organization.entity.js"
+import type { InsurancePlan } from "../../modules/insurance/insurance.types.js"
 
 @Index("idx_tour_sessions_active_notice", ["activeNoticeId"])
 @Entity({ name: "tour_sessions" })
@@ -54,6 +55,9 @@ export class TourSessionEntity {
 
   @Column({ name: "minimum_participants", type: "int", unsigned: true, nullable: true })
   minimumParticipants: number | null = null
+
+  @Column({ name: "insurance_plan_json", type: "json", nullable: true })
+  insurancePlanJson: InsurancePlan | null = null
 
   @Column({ name: "starts_at", type: "datetime", precision: 6 })
   startsAt = new Date(0)

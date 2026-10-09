@@ -1,4 +1,41 @@
 import type { PersonRef } from "../travelers/travelers.types.js"
+import type { ParticipantRefundStatus } from "../order/order.types.js"
+
+export type InsurancePlan = {
+  readonly insurerName: string
+  readonly planName: string
+  readonly coverageSummary: string
+  readonly notice: string | null
+}
+
+export type SessionInsurancePlan = {
+  readonly tourSessionId: string
+  readonly plan: InsurancePlan | null
+}
+
+export type FamilyInsuranceRecord = {
+  readonly batchId: string
+  readonly batchStatus: InsuranceBatchStatus
+  readonly status: InsurancePersonStatus
+  readonly planSnapshot: InsurancePlan | null
+  readonly policyNumber: string | null
+  readonly coverageStart: string | null
+  readonly coverageEnd: string | null
+  readonly createdAt: string
+  readonly submittedAt: string | null
+}
+
+export type FamilyInsuranceResponse = {
+  readonly orderId: string
+  readonly tourSessionId: string
+  readonly currentPlan: InsurancePlan | null
+  readonly people: readonly {
+    readonly orderLineId: string
+    readonly displayName: string
+    readonly refundStatus: ParticipantRefundStatus
+    readonly records: readonly FamilyInsuranceRecord[]
+  }[]
+}
 
 export type InsuranceBatchStatus = "draft" | "blocked" | "submitted" | "insured" | "failed" | "change_pending"
 export type InsurancePersonStatus = "ready" | "blocked" | "submitted" | "insured" | "failed" | "cancellation_requested"
@@ -39,6 +76,7 @@ export type InsuranceBatchSnapshot = {
   readonly organizationId: string
   readonly rosterVersion: string
   readonly status: InsuranceBatchStatus
+  readonly planSnapshot: InsurancePlan | null
   readonly companyTemplateName: string | null
   readonly submittedAt: string | null
   readonly createdAt: string

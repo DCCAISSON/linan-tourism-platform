@@ -1,12 +1,13 @@
 import { ConflictException, ForbiddenException } from "@nestjs/common"
 import type { InternalTravelerSnapshot, TravelerRecord } from "../travelers/travelers.types.js"
-import type { InsuranceAccess, InsuranceBatchPerson, InsuranceBatchSnapshot, InsuranceRosterDiff } from "./insurance.types.js"
+import type { InsuranceAccess, InsuranceBatchPerson, InsuranceBatchSnapshot, InsurancePlan, InsuranceRosterDiff } from "./insurance.types.js"
 
 export type InsuranceDraftInput = {
   readonly id: string
   readonly actorId: string
   readonly snapshot: InternalTravelerSnapshot
   readonly companyTemplateName: string | null
+  readonly planSnapshot: InsurancePlan | null
 }
 
 export function buildInsuranceDraft(input: InsuranceDraftInput): InsuranceBatchSnapshot {
@@ -18,6 +19,7 @@ export function buildInsuranceDraft(input: InsuranceDraftInput): InsuranceBatchS
     organizationId: input.snapshot.organizationId,
     rosterVersion: input.snapshot.rosterVersion,
     status: blocked ? "blocked" : "draft",
+    planSnapshot: input.planSnapshot,
     companyTemplateName: input.companyTemplateName,
     submittedAt: null,
     createdAt: new Date(0).toISOString(),
