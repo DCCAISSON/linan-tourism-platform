@@ -46,20 +46,17 @@ export class EvaluationsController {
 
   @Post("staff/batch")
   async batch(@Headers() headers: StaffAccessRequestHeaders, @Body() body: unknown) {
-    this.access.assertUnsafeOrigin(headers)
-    return this.evaluations.batchEvaluate(await this.access.resolve(headers), parseBatchEvaluation(body))
+    return this.evaluations.batchEvaluate(await this.access.resolveExecutionWrite(headers), parseBatchEvaluation(body))
   }
 
   @Post("staff/:id")
   async revise(@Headers() headers: StaffAccessRequestHeaders, @Param("id") id: string, @Body() body: unknown) {
-    this.access.assertUnsafeOrigin(headers)
-    return this.evaluations.revise(await this.access.resolve(headers), id, parseEvaluationRevision(body))
+    return this.evaluations.revise(await this.access.resolveExecutionWrite(headers), id, parseEvaluationRevision(body))
   }
 
   @Post("staff/sessions/:sessionId/confirm")
   async confirmSession(@Headers() headers: StaffAccessRequestHeaders, @Param("sessionId") sessionId: string) {
-    this.access.assertUnsafeOrigin(headers)
-    return this.evaluations.confirmSession(await this.access.resolve(headers), sessionId)
+    return this.evaluations.confirmSession(await this.access.resolveExecutionWrite(headers), sessionId)
   }
 
   @Get("school/sessions/:sessionId")
