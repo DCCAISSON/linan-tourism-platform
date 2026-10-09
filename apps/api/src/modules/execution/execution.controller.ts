@@ -32,32 +32,27 @@ export class StaffExecutionController {
 
   @Post("sessions/:sessionId/people/:personRef/attendance")
   async attendance(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("personRef") personRef: string, @Body() body: unknown): Promise<AttendanceResponse> {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.execution.saveAttendance(await this.staffAccess.resolve(headers), sessionId, parsePersonRef(personRef), parseAttendanceInput(body))
+    return this.execution.saveAttendance(await this.staffAccess.resolveExecutionWrite(headers), sessionId, parsePersonRef(personRef), parseAttendanceInput(body))
   }
 
   @Post("sessions/:sessionId/daily-reports")
   async dailyReport(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Body() body: unknown): Promise<DailyReportResponse> {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.execution.saveDailyReport(await this.staffAccess.resolve(headers), sessionId, parseDailyReportInput(body))
+    return this.execution.saveDailyReport(await this.staffAccess.resolveExecutionWrite(headers), sessionId, parseDailyReportInput(body))
   }
 
   @Post("sessions/:sessionId/events")
   async event(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Body() body: unknown): Promise<EventResponse> {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.execution.createEvent(await this.staffAccess.resolve(headers), sessionId, parseEventInput(body))
+    return this.execution.createEvent(await this.staffAccess.resolveExecutionWrite(headers), sessionId, parseEventInput(body))
   }
 
   @Post("sessions/:sessionId/daily-reports/:reportId/public-summary")
   async publishDaily(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("reportId") reportId: string, @Body() body: unknown): Promise<DailyReportResponse> {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.execution.approveDailySummary(await this.staffAccess.resolve(headers), sessionId, reportId, parsePublicApproval(body))
+    return this.execution.approveDailySummary(await this.staffAccess.resolveExecutionWrite(headers), sessionId, reportId, parsePublicApproval(body))
   }
 
   @Post("sessions/:sessionId/events/:eventId/public-summary")
   async publishEvent(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("eventId") eventId: string, @Body() body: unknown): Promise<EventResponse> {
-    this.staffAccess.assertUnsafeOrigin(headers)
-    return this.execution.approveEventSummary(await this.staffAccess.resolve(headers), sessionId, eventId, parsePublicApproval(body))
+    return this.execution.approveEventSummary(await this.staffAccess.resolveExecutionWrite(headers), sessionId, eventId, parsePublicApproval(body))
   }
 
   @Get("sessions/:sessionId/people/:personRef/health")

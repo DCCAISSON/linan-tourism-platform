@@ -177,7 +177,19 @@ export class StaffAuthService {
   async changePassword(username: string, currentPassword: string, newPassword: string): Promise<void> {
     const dataSource = await this.database.getDataSource()
     const account = await dataSource.getRepository(StaffAccountEntity).findOneBy({ username })
-    if (account === null || !(await verifyStaffPassword(currentPassword, account.passwordHash))) {
+    const now = new Date()
+    if (account === null || account.status !== "active" || (account.expiresAt !== null && account.expiresAt <= now)) {
+      throw invalidLogin()
+    }
+    if (account.lockedUntil !== null && account.lockedUntil > now) {
+      await recordStaffAccountAudit(this.database, this.audit, account, "staff.login.locked", account.id)
+      throw new HttpException({ code: "staff_account_locked", message: "staff account is locked" }, 423)
+    }
+    if (!(await verifyStaffPassword(currentPassword, account.passwordHash))) {
+      account.failedLoginAttempts += 1
+      if (account.failedLoginAttempts >= MAX_FAILED_LOGINS) account.lockedUntil = new Date(now.getTime() + LOCK_MS)
+      await dataSource.getRepository(StaffAccountEntity).save(account)
+      await recordStaffAccountAudit(this.database, this.audit, account, account.lockedUntil === null ? "staff.login.failed" : "staff.login.locked", account.id)
       throw invalidLogin()
     }
     account.passwordHash = await passwordHash(newPassword)
