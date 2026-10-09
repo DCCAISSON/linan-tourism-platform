@@ -1,11 +1,14 @@
 .insurance-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: var(--space-5);
 }
 
 .insurance-heading,
 .insurance-filter,
 .insurance-card {
+  min-width: 0;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card);
   background: var(--surface-elevated);
@@ -14,8 +17,13 @@
 
 .insurance-heading {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--space-4);
+}
+
+.insurance-heading > div {
+  flex-shrink: 0;
 }
 
 .insurance-heading h2,
@@ -175,5 +183,65 @@
 @media (max-width: 640px) {
   .insurance-heading {
     display: grid;
+  }
+}
+
+.insurance-plan fieldset {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.insurance-plan legend {
+  margin-bottom: var(--space-3);
+  font-size: var(--font-body-sm);
+  color: var(--text-secondary);
+}
+
+.insurance-plan .insurance-action-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.insurance-plan label,
+.insurance-plan input,
+.insurance-plan textarea {
+  min-width: 0;
+}
+
+.insurance-plan input,
+.insurance-plan textarea,
+.insurance-plan button,
+.insurance-plan-snapshot summary {
+  min-height: var(--size-touch-target);
+}
+
+.insurance-plan .insurance-plan__clear {
+  color: var(--text-primary);
+  background: var(--surface-secondary);
+}
+
+.insurance-plan-snapshot {
+  margin-top: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.insurance-plan-snapshot summary {
+  display: list-item;
+  align-content: center;
+  cursor: pointer;
+  color: var(--accent-primary);
+}
+
+.insurance-plan-snapshot p {
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .insurance-plan .insurance-action-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
