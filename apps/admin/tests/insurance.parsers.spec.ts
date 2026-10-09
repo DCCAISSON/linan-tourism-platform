@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { ApiError } from "@/api/configuration.errors"
-import { parseInsuranceBatch, parseInsuranceDiff } from "@/api/insurance.parsers"
+import { parseInsuranceBatch, parseInsuranceDiff, parseSessionInsurancePlan } from "@/api/insurance.parsers"
 
 const validBatch = {
   id: "batch-1",
@@ -35,6 +35,21 @@ const validBatch = {
 } as const
 
 describe("insurance response boundary", () => {
+  it("keeps the batch plan separate from the current plan and permits legacy batches", () => {
+    const plan = { insurerName: "保险公司", planName: "一日出行方案", coverageSummary: "保障内容", notice: null }
+    expect(parseSessionInsurancePlan({ tourSessionId: "session-1", plan }).plan).toEqual(plan)
+    expect(parseInsuranceBatch({ ...validBatch, planSnapshot: plan }).planSnapshot).toEqual(plan)
+    expect(parseInsuranceBatch(validBatch).planSnapshot).toBeNull()
+    expect(parseInsuranceBatch({ ...validBatch, planSnapshot: null }).planSnapshot).toBeNull()
+  })
+
+  it("distinguishes missing or malformed plan data from a deliberately unconfigured plan", () => {
+    expect(parseSessionInsurancePlan({ tourSessionId: "session-1", plan: null }).plan).toBeNull()
+    expect(() => parseSessionInsurancePlan({ tourSessionId: "session-1" })).toThrow(ApiError)
+    expect(() => parseSessionInsurancePlan({ tourSessionId: "session-1", plan: { insurerName: "公司" } })).toThrow(ApiError)
+    expect(() => parseInsuranceBatch({ ...validBatch, planSnapshot: "invalid" })).toThrow(ApiError)
+  })
+
   it("keeps roster version, people status, and handoff receipt references", () => {
     const parsed = parseInsuranceBatch(validBatch)
 

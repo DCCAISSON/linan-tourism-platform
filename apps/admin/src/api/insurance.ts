@@ -1,11 +1,23 @@
 import { resolveAdminApiBaseUrl } from "./base-url"
 import { ApiError } from "./configuration.errors"
-import { parseInsuranceBatch, parseInsuranceDiff, parseInsurancePreview } from "./insurance.parsers"
-import type { InsuranceBatch, InsuranceDiff, InsuranceExportKind, InsurancePreview } from "./insurance.types"
+import { parseInsuranceBatch, parseInsuranceDiff, parseInsurancePreview, parseSessionInsurancePlan } from "./insurance.parsers"
+import type { InsuranceBatch, InsuranceDiff, InsuranceExportKind, InsurancePlan, InsurancePreview, SessionInsurancePlan } from "./insurance.types"
 
-export type { InsuranceBatch, InsuranceBatchPerson, InsuranceBatchStatus, InsuranceDiff, InsuranceExportKind, InsuranceHandoff, InsurancePreview } from "./insurance.types"
+export type { InsuranceBatch, InsuranceBatchPerson, InsuranceBatchStatus, InsuranceDiff, InsuranceExportKind, InsuranceHandoff, InsurancePlan, InsurancePreview } from "./insurance.types"
 
 const apiBaseUrl = resolveAdminApiBaseUrl()
+
+export async function getSessionInsurancePlan(tourSessionId: string): Promise<SessionInsurancePlan> {
+  const result = parseSessionInsurancePlan(await requestJson(`/insurance/sessions/${encodeURIComponent(tourSessionId)}/plan`, { method: "GET" }))
+  if (result.tourSessionId !== tourSessionId) throw new ApiError(0, "保险方案所属团期不一致，请重新读取。")
+  return result
+}
+
+export async function saveSessionInsurancePlan(tourSessionId: string, plan: InsurancePlan | null): Promise<SessionInsurancePlan> {
+  const result = parseSessionInsurancePlan(await requestJson(`/insurance/sessions/${encodeURIComponent(tourSessionId)}/plan`, jsonRequest("PUT", { plan })))
+  if (result.tourSessionId !== tourSessionId) throw new ApiError(0, "保险方案所属团期不一致，请重新读取。")
+  return result
+}
 
 export async function getLatestInsuranceBatch(tourSessionId: string): Promise<InsuranceBatch | null> {
   const value = await requestJson(`/insurance/sessions/${encodeURIComponent(tourSessionId)}/latest`, { method: "GET" })
@@ -60,7 +72,7 @@ export function readableInsuranceError(error: unknown): string {
   return error instanceof ApiError ? error.message : "保险操作失败，请稍后重试。"
 }
 
-function jsonRequest(method: "POST", payload: unknown): RequestInit {
+function jsonRequest(method: "POST" | "PUT", payload: unknown): RequestInit {
   return { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }
 }
 

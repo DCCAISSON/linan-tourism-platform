@@ -1,10 +1,10 @@
-import { Body, Controller, Get, Headers, Inject, Param, Post, Query, Res } from "@nestjs/common"
+import { Body, Controller, Get, Headers, Inject, Param, Post, Put, Query, Res } from "@nestjs/common"
 import type { Response } from "express"
 import { DevStaffAccessService } from "../iam/dev-staff-access.service.js"
 import { InsuranceService } from "./insurance.service.js"
-import { parseChangeHandoff, parseCreateBatch, parseExportQuery, parseManualResult, parseSubmitBatch } from "./insurance.parser.js"
+import { parseChangeHandoff, parseCreateBatch, parseExportQuery, parseInsurancePlan, parseManualResult, parseSubmitBatch } from "./insurance.parser.js"
 import { createInsuranceWorkbook } from "./insurance.workbook.js"
-import type { InsuranceBatchSnapshot, InsurancePreview, InsuranceRosterDiff } from "./insurance.types.js"
+import type { InsuranceBatchSnapshot, InsurancePreview, InsuranceRosterDiff, SessionInsurancePlan } from "./insurance.types.js"
 
 type RequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -14,6 +14,17 @@ export class InsuranceController {
     @Inject(InsuranceService) private readonly insurance: InsuranceService,
     @Inject(DevStaffAccessService) private readonly staffAccess: DevStaffAccessService,
   ) {}
+
+  @Get("sessions/:tourSessionId/plan")
+  async plan(@Headers() headers: RequestHeaders, @Param("tourSessionId") tourSessionId: string): Promise<SessionInsurancePlan> {
+    return this.insurance.sessionPlan(await this.staffAccess.resolve(headers), tourSessionId)
+  }
+
+  @Put("sessions/:tourSessionId/plan")
+  async savePlan(@Headers() headers: RequestHeaders, @Param("tourSessionId") tourSessionId: string, @Body() body: unknown): Promise<SessionInsurancePlan> {
+    this.staffAccess.assertUnsafeOrigin(headers)
+    return this.insurance.saveSessionPlan(await this.staffAccess.resolve(headers), { tourSessionId, plan: parseInsurancePlan(body) })
+  }
 
   @Get("sessions/:tourSessionId/latest")
   async latest(@Headers() headers: RequestHeaders, @Param("tourSessionId") tourSessionId: string): Promise<InsuranceBatchSnapshot | null> {

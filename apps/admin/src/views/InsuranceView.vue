@@ -29,6 +29,8 @@
       <p v-if="error" class="insurance-state insurance-state--error" role="alert">{{ error }}</p>
     </form>
 
+    <InsurancePlanEditor v-if="tourSessionId" :key="tourSessionId" :tour-session-id="tourSessionId" :can-write="canWrite" />
+
     <section class="insurance-summary" aria-label="保险名单预览">
       <article><span>当前名单版本</span><strong>{{ preview?.rosterVersion ?? "待读取" }}</strong></article>
       <article><span>有效人数</span><strong>{{ preview?.activeCount ?? 0 }} 人</strong></article>
@@ -83,6 +85,15 @@
 
     <section class="insurance-card" aria-labelledby="insurance-table-title">
       <h3 id="insurance-table-title">批次人员</h3>
+      <details v-if="batch" class="insurance-plan-snapshot">
+        <summary>查看本批次保险方案</summary>
+        <template v-if="batch.planSnapshot">
+          <p><strong>{{ batch.planSnapshot.planName }}</strong> · {{ batch.planSnapshot.insurerName }}</p>
+          <p>{{ batch.planSnapshot.coverageSummary }}</p>
+          <p v-if="batch.planSnapshot.notice">{{ batch.planSnapshot.notice }}</p>
+        </template>
+        <p v-else>该批次未记录保险方案，请以正式保单为准。</p>
+      </details>
       <p v-if="batch === null" class="insurance-state">请选择团期后读取或生成保险批次。</p>
       <div v-else class="insurance-table-wrap">
         <table class="insurance-table" aria-label="保险批次人员表">
@@ -114,6 +125,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
+import InsurancePlanEditor from "@/components/InsurancePlanEditor.vue"
 import { useSessionQuery } from "@/layouts/useSessionQuery"
 import { getCurrentStaff } from "@/api/auth"
 import { listTourSessions } from "@/api/configuration"

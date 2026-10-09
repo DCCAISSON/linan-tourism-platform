@@ -1,5 +1,23 @@
 import { ApiError } from "./configuration.errors"
-import type { InsuranceBatch, InsuranceBatchPerson, InsuranceDiff, InsuranceHandoff, InsurancePreview } from "./insurance.types"
+import type { InsuranceBatch, InsuranceBatchPerson, InsuranceDiff, InsuranceHandoff, InsurancePlan, InsurancePreview, SessionInsurancePlan } from "./insurance.types"
+
+export function parseSessionInsurancePlan(value: unknown): SessionInsurancePlan {
+  const record = readRecord(value, "团期保险方案")
+  return {
+    tourSessionId: readString(record, "tourSessionId", "团期保险方案"),
+    plan: record["plan"] === null ? null : parseInsurancePlan(record["plan"]),
+  }
+}
+
+function parseInsurancePlan(value: unknown): InsurancePlan {
+  const record = readRecord(value, "保险方案")
+  return {
+    insurerName: readString(record, "insurerName", "保险方案"),
+    planName: readString(record, "planName", "保险方案"),
+    coverageSummary: readString(record, "coverageSummary", "保险方案"),
+    notice: readNullableString(record, "notice", "保险方案"),
+  }
+}
 
 export function parseInsuranceBatch(value: unknown): InsuranceBatch {
   const record = readRecord(value, "保险批次")
@@ -10,6 +28,7 @@ export function parseInsuranceBatch(value: unknown): InsuranceBatch {
     rosterVersion: readString(record, "rosterVersion", "保险批次"),
     status: readString(record, "status", "保险批次") as InsuranceBatch["status"],
     companyTemplateName: readNullableString(record, "companyTemplateName", "保险批次"),
+    planSnapshot: record["planSnapshot"] == null ? null : parseInsurancePlan(record["planSnapshot"]),
     submittedAt: readNullableString(record, "submittedAt", "保险批次"),
     createdAt: readString(record, "createdAt", "保险批次"),
     people: readArray(record, "people", "保险批次").map(parsePerson),

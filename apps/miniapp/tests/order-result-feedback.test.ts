@@ -17,6 +17,7 @@ type Page = {
   cancelPayment: () => Promise<void>
   submit: () => Promise<void>
   openRefund: () => void
+  openInsurance: () => void
 }
 const pending = { id: "order", status: "pending_payment", paidFen: 0, amountFen: 200, participants: [] }
 const paid = { ...pending, status: "paid", paidFen: 200 }
@@ -76,6 +77,15 @@ beforeEach(() => {
 })
 
 describe("order result feedback", () => {
+  it("opens this order's insurance without starting payment or changing the order", async () => {
+    const page = setup("detail")
+    await page.load()
+    page.order.value = { ...pending, id: "order/1" }
+    page.openInsurance()
+    expect(navigateTo).toHaveBeenCalledWith({ url: "/pages/orders/insurance?orderId=order%2F1" })
+    expect(api.createWechatPayment).not.toHaveBeenCalled()
+    expect(page.order.value).toMatchObject({ status: "pending_payment" })
+  })
   it("shows the authoritative cancelled result without depending on another request", async () => {
     const page = setup("detail")
     await page.load()

@@ -11,7 +11,7 @@ import { AuditLogService } from "../iam/audit-log.service.js"
 import type { StaffAccess } from "../iam/dev-staff-access.service.js"
 import { readTravelers } from "../travelers/travelers.read-model.js"
 import { assertBatchSubmittable, assertInsurancePermission, assertSensitiveExportAllowed, buildInsuranceDraft, diffInsuranceBatch } from "./insurance.policy.js"
-import type { InsuranceBatchPerson, InsuranceBatchSnapshot, InsuranceExportKind, InsuranceHandoff, InsuranceHandoffKind, InsurancePreview, InsuranceRosterDiff } from "./insurance.types.js"
+import type { InsuranceBatchPerson, InsuranceBatchSnapshot, InsuranceExportKind, InsuranceHandoff, InsuranceHandoffKind, InsurancePreview, InsuranceRosterDiff, SessionInsurancePlan } from "./insurance.types.js"
 
 export type CreateInsuranceBatchInput = { readonly tourSessionId: string; readonly expectedRosterVersion: string; readonly companyTemplateName: string | null }
 export type SubmitInsuranceBatchInput = { readonly expectedRosterVersion: string; readonly receiptReference: string; readonly note: string }
@@ -26,6 +26,24 @@ export class InsuranceService {
     @Inject(AuditLogService) private readonly audit: AuditLogService,
   ) {}
 
+  async sessionPlan(access: StaffAccess, tourSessionId: string): Promise<SessionInsurancePlan> {
+    assertInsurancePermission(access, "insurance.read")
+    const manager = (await this.database.getDataSource()).manager
+    const session = await this.assertSessionScope(manager, access, tourSessionId)
+    return { tourSessionId, plan: session.insurancePlanJson }
+  }
+
+  async saveSessionPlan(access: StaffAccess, input: SessionInsurancePlan): Promise<SessionInsurancePlan> {
+    assertInsurancePermission(access, "insurance.write")
+    const dataSource = await this.database.getDataSource()
+    return dataSource.transaction(async (manager) => {
+      const session = await this.assertSessionScope(manager, access, input.tourSessionId)
+      await manager.update(TourSessionEntity, { id: session.id }, { insurancePlanJson: input.plan })
+      await this.audit.record(manager, { organizationId: session.organizationId, actorId: access.actorId, action: "insurance.plan.updated", targetType: "tour_session", targetId: session.id })
+      return input
+    })
+  }
+
   async latest(access: StaffAccess, tourSessionId: string): Promise<InsuranceBatchSnapshot | null> {
     assertInsurancePermission(access, "insurance.read")
     const manager = (await this.database.getDataSource()).manager
@@ -39,7 +57,7 @@ export class InsuranceService {
     const manager = (await this.database.getDataSource()).manager
     await this.assertSessionScope(manager, access, tourSessionId)
     const snapshot = await readTravelers(manager, tourSessionId)
-    const people = buildInsuranceDraft({ id: "preview", actorId: access.actorId, snapshot, companyTemplateName: null }).people
+    const people = buildInsuranceDraft({ id: "preview", actorId: access.actorId, snapshot, companyTemplateName: null, planSnapshot: null }).people
     return {
       tourSessionId,
       organizationId: snapshot.organizationId,
@@ -54,16 +72,17 @@ export class InsuranceService {
     assertInsurancePermission(access, "insurance.write")
     const dataSource = await this.database.getDataSource()
     return dataSource.transaction(async (manager) => {
-      await this.assertSessionScope(manager, access, input.tourSessionId)
+      const session = await this.assertSessionScope(manager, access, input.tourSessionId)
       const snapshot = await readTravelers(manager, input.tourSessionId)
       if (snapshot.rosterVersion !== input.expectedRosterVersion) throw staleRoster()
-      const draft = buildInsuranceDraft({ id: makeId("insurance"), actorId: access.actorId, snapshot, companyTemplateName: input.companyTemplateName })
+      const draft = buildInsuranceDraft({ id: makeId("insurance"), actorId: access.actorId, snapshot, companyTemplateName: input.companyTemplateName, planSnapshot: session.insurancePlanJson })
       await manager.save(InsuranceBatchEntity, {
         id: draft.id,
         organizationId: draft.organizationId,
         tourSessionId: draft.tourSessionId,
         rosterVersion: draft.rosterVersion,
         status: draft.status,
+        planSnapshotJson: draft.planSnapshot,
         companyTemplateName: draft.companyTemplateName,
         createdBy: access.actorId,
       })
@@ -174,6 +193,7 @@ export class InsuranceService {
       organizationId: batch.organizationId,
       rosterVersion: batch.rosterVersion,
       status: batch.status,
+      planSnapshot: batch.planSnapshotJson,
       companyTemplateName: batch.companyTemplateName,
       submittedAt: batch.submittedAt?.toISOString() ?? null,
       createdAt: batch.createdAt.toISOString(),

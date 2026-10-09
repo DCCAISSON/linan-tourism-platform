@@ -1,6 +1,33 @@
 import { BadRequestException } from "@nestjs/common"
 import type { CreateInsuranceBatchInput, InsuranceChangeHandoffInput, InsuranceManualResultInput, SubmitInsuranceBatchInput } from "./insurance.service.js"
-import type { InsuranceExportKind } from "./insurance.types.js"
+import type { InsuranceExportKind, InsurancePlan } from "./insurance.types.js"
+
+export function parseInsurancePlan(value: unknown): InsurancePlan | null {
+  const input = readRecord(value)
+  if (!Object.hasOwn(input, "plan") || Object.keys(input).some((key) => key !== "plan")) throw malformed("请提供保险方案")
+  if (input["plan"] === null) return null
+  const plan = readRecord(input["plan"])
+  const keys = ["insurerName", "planName", "coverageSummary", "notice"]
+  if (Object.keys(plan).some((key) => !keys.includes(key))) throw malformed("保险方案包含未知字段")
+  const insurerName = readPlanText(plan["insurerName"], 120)
+  const planName = readPlanText(plan["planName"], 120)
+  const coverageSummary = readPlanText(plan["coverageSummary"], 4000)
+  if (insurerName === null || planName === null || coverageSummary === null) throw malformed("请填写保险公司、方案名称和保障内容")
+  return {
+    insurerName,
+    planName,
+    coverageSummary,
+    notice: readPlanText(plan["notice"], 2000),
+  }
+}
+
+function readPlanText(value: unknown, maxLength: number): string | null {
+  if (value === undefined || value === null) return null
+  if (typeof value !== "string") throw malformed("保险方案内容必须是文字")
+  const text = value.trim()
+  if (text.length > maxLength) throw malformed("保险方案内容超出长度限制")
+  return text.length === 0 ? null : text
+}
 
 export function parseCreateBatch(value: unknown): CreateInsuranceBatchInput {
   const record = readRecord(value)
@@ -24,12 +51,15 @@ export function parseManualResult(value: unknown): InsuranceManualResultInput {
   const record = readRecord(value)
   const success = record["success"]
   if (typeof success !== "boolean") throw malformed("success 必须是布尔值")
+  const coverageStart = readOptionalDate(record, "coverageStart")
+  const coverageEnd = readOptionalDate(record, "coverageEnd")
+  if (coverageStart !== null && coverageEnd !== null && coverageStart > coverageEnd) throw malformed("保障结束日期不能早于开始日期")
   return {
     success,
     receiptReference: readOptionalText(record, "receiptReference", 255),
     policyNumber: readOptionalText(record, "policyNumber", 120),
-    coverageStart: readOptionalDate(record, "coverageStart"),
-    coverageEnd: readOptionalDate(record, "coverageEnd"),
+    coverageStart,
+    coverageEnd,
     note: readText(record, "note", 500),
   }
 }
@@ -77,7 +107,8 @@ function readRosterVersion(record: Record<string, unknown>, key: string): string
 function readOptionalDate(record: Record<string, unknown>, key: string): string | null {
   const value = readOptionalText(record, key, 10)
   if (value === null) return null
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw malformed(`${key}日期格式不正确`)
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== value) throw malformed("保障日期不正确，请填写有效日期")
   return value
 }
 

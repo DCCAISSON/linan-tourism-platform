@@ -1,6 +1,7 @@
 import { AddUserNotifications1766016240000 } from "../migrations/1766016240000-AddUserNotifications.js"
 import "reflect-metadata"
 import { AddTourContracts1766024000000 } from "../migrations/1766024000000-AddTourContracts.js"
+import { AddInsurancePlans1766025000000 } from "../migrations/1766025000000-AddInsurancePlans.js"
 import { DataSource, type DataSourceOptions } from "typeorm"
 import { DOMAIN_ENTITIES } from "./entities/index.js"
 import { InitialDomainContract1765897200000 } from "../migrations/1765897200000-InitialDomainContract.js"
@@ -96,6 +97,7 @@ export const DOMAIN_DATA_SOURCE_OPTIONS = {
     AddRecipientInvitations1766022000000,
     AddOrderChangeRequests1766023000000,
     AddTourContracts1766024000000,
+    AddInsurancePlans1766025000000,
   ],
 } satisfies DataSourceOptions
 

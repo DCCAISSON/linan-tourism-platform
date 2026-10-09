@@ -142,6 +142,11 @@ function openPretrip(): void {
   uni.navigateTo({ url: `/pages/orders/pretrip?orderId=${encodeURIComponent(order.value.id)}` })
 }
 
+function openInsurance(): void {
+  if (order.value === null) return
+  uni.navigateTo({ url: `/pages/orders/insurance?orderId=${encodeURIComponent(order.value.id)}` })
+}
+
 function openNotifications(): void {
   if (order.value === null) return
   uni.navigateTo({ url: "/pages/notifications/index" })
@@ -227,6 +232,7 @@ function participantPlacement(person: OrderParticipant): string {
         <button v-if="order.status === 'paid'" class="button-primary order-pretrip-entry" @tap="openPretrip">查看行前信息</button>
         <text v-if="order.status === 'refunded'" class="body-secondary">订单已退款，可查看原订单的行前信息和相关记录。</text>
         <view class="order-services__grid">
+          <button class="button-secondary insurance-order-entry" @tap="openInsurance">出行保障</button>
           <button v-if="order.status === 'paid'" class="button-secondary" @tap="openAlbum">查看活动影像</button>
           <button v-if="order.status === 'paid'" class="button-secondary" @tap="openChangeRequest"><text class="order-service-phrase">换人或</text><text class="order-service-phrase">增补申请</text></button>
           <button v-if="order.status === 'refunded'" class="button-secondary" @tap="openPretrip">查看原行前信息</button>

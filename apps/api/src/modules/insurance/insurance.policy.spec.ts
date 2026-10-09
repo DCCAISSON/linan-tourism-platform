@@ -44,7 +44,7 @@ describe("insurance policy", () => {
       { ...baseTraveler, personRef: "paid:line-2", conflict: { code: "identity_fields_conflict", sourceRefs: ["paid:line-2", "imported:teacher-1"] } },
     ])
 
-    const draft = buildInsuranceDraft({ id: "batch-1", actorId: "staff-1", snapshot, companyTemplateName: null })
+    const draft = buildInsuranceDraft({ id: "batch-1", actorId: "staff-1", snapshot, companyTemplateName: null, planSnapshot: null })
 
     expect(draft.status).toBe("blocked")
     expect(draft.people.map((person) => person.issueCode)).toEqual(["missing_identity", "traveler_conflict"])
@@ -52,7 +52,7 @@ describe("insurance policy", () => {
   })
 
   it("detects roster additions and removals without changing insurance state automatically", () => {
-    const batch = buildInsuranceDraft({ id: "batch-1", actorId: "staff-1", snapshot: travelerSnapshot([baseTraveler]), companyTemplateName: null })
+    const batch = buildInsuranceDraft({ id: "batch-1", actorId: "staff-1", snapshot: travelerSnapshot([baseTraveler]), companyTemplateName: null, planSnapshot: null })
     const next = travelerSnapshot([{ ...baseTraveler, personRef: "paid:line-2", displayName: "新增教师", orderLineId: "line-2" }])
 
     const diff = diffInsuranceBatch(batch, next)

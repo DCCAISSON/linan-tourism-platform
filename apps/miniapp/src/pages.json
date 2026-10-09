@@ -8,6 +8,7 @@
     { "path": "pages/enrollment/index", "style": { "navigationBarTitleText": "研学报名" } },
     { "path": "pages/orders/index", "style": { "navigationBarTitleText": "我的订单" } },
     { "path": "pages/orders/detail", "style": { "navigationBarTitleText": "订单详情" } },
+    { "path": "pages/orders/insurance", "style": { "navigationBarTitleText": "出行保障" } },
     { "path": "pages/orders/contract", "style": { "navigationBarTitleText": "合同与签字" } },
     { "path": "pages/orders/pretrip", "style": { "navigationBarTitleText": "行前服务" } },
     { "path": "pages/orders/refund", "style": { "navigationBarTitleText": "退款申请" } },

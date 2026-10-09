@@ -3,6 +3,18 @@ export type InsurancePersonStatus = "ready" | "blocked" | "submitted" | "insured
 export type InsuranceHandoffKind = "submitted" | "manual_success" | "manual_failure" | "policy_change" | "cancellation_change"
 export type InsuranceExportKind = "preparation" | "company_template"
 
+export type InsurancePlan = {
+  readonly insurerName: string
+  readonly planName: string
+  readonly coverageSummary: string
+  readonly notice: string | null
+}
+
+export type SessionInsurancePlan = {
+  readonly tourSessionId: string
+  readonly plan: InsurancePlan | null
+}
+
 export type InsuranceBatchPerson = {
   readonly id: string
   readonly personRef: string
@@ -33,6 +45,7 @@ export type InsuranceBatch = {
   readonly rosterVersion: string
   readonly status: InsuranceBatchStatus
   readonly companyTemplateName: string | null
+  readonly planSnapshot: InsurancePlan | null
   readonly submittedAt: string | null
   readonly createdAt: string
   readonly people: readonly InsuranceBatchPerson[]
