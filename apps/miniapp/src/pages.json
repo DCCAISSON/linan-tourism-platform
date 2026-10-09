@@ -22,6 +22,8 @@
     { "path": "pages/trip-contact/index", "style": { "navigationBarTitleText": "行程服务" } },
     { "path": "pages/recipient-invite/index", "style": { "navigationBarTitleText": "接收行程通知" } },
     { "path": "pages/family/index", "style": { "navigationBarTitleText": "我的" } },
+    { "path": "pages/guide/index", "style": { "navigationBarTitleText": "导游工作台" } },
+    { "path": "pages/guide/session", "style": { "navigationBarTitleText": "团期执行" } },
     { "path": "pages/settings/index", "style": { "navigationBarTitleText": "设置", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7" } }
   ],
   "globalStyle": { "navigationBarTitleText": "临安文旅", "navigationBarBackgroundColor": "#F5F9F7", "navigationBarTextStyle": "black", "backgroundColor": "#F5F9F7" },
