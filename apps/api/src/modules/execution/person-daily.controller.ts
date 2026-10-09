@@ -19,8 +19,7 @@ export class PersonDailyController {
 
   @Post("people/:personRef/daily-reports")
   async save(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("personRef") personRef: string, @Body() body: unknown) {
-    this.staff.assertUnsafeOrigin(headers)
-    return this.daily.save(await this.staff.resolve(headers), { sessionId, personRef: parsePersonRef(personRef) }, parsePersonDailyInput(body))
+    return this.daily.save(await this.staff.resolveExecutionWrite(headers), { sessionId, personRef: parsePersonRef(personRef) }, parsePersonDailyInput(body))
   }
 
   @Get("person-daily-reports/:reportId/history")
@@ -30,7 +29,6 @@ export class PersonDailyController {
 
   @Post("person-daily-reports/:reportId/public-summary")
   async approve(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Param("reportId") reportId: string, @Body() body: unknown) {
-    this.staff.assertUnsafeOrigin(headers)
-    return this.daily.approve(await this.staff.resolve(headers), { sessionId, reportId }, parsePersonDailyApproval(body))
+    return this.daily.approve(await this.staff.resolveExecutionWrite(headers), { sessionId, reportId }, parsePersonDailyApproval(body))
   }
 }

@@ -10,6 +10,7 @@ import { hasDevStaffHeader, resolveDevelopmentStaff } from "./dev-staff-access.d
 import type { StaffPermissionKey, StaffScope } from "./staff-permissions.js"
 import { hashToken, STAFF_SESSION_COOKIE } from "./staff-session-token.js"
 import { recordRequestActor } from "../../request-observability.js"
+import { readMobileStaffToken } from "./staff-mobile-transport.js"
 
 export type StaffAccessRequestHeaders = Record<string, string | readonly string[] | undefined>
 
@@ -37,7 +38,7 @@ export class DevStaffAccessService {
   constructor(@Inject(ConfigurationDatabaseService) private readonly database: ConfigurationDatabaseService) {}
 
   async resolve(headers: StaffAccessRequestHeaders, options: ResolveOptions = { allowPasswordChange: false }): Promise<StaffAccess> {
-    const token = readCookie(headers, STAFF_SESSION_COOKIE)
+    const token = headers["authorization"] !== undefined ? readMobileStaffToken(headers) : readCookie(headers, STAFF_SESSION_COOKIE)
     if (token !== undefined) {
       const access = await this.resolveSession(token, options)
       recordRequestActor(access.actorId)
@@ -52,6 +53,11 @@ export class DevStaffAccessService {
     }
 
     throw identityRequired("staff identity is required")
+  }
+
+  async resolveExecutionWrite(headers: StaffAccessRequestHeaders): Promise<StaffAccess> {
+    if (headers["authorization"] === undefined) this.assertUnsafeOrigin(headers)
+    return this.resolve(headers)
   }
 
   assertConfigurationWrite(access: StaffAccess): void {

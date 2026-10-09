@@ -82,6 +82,7 @@ function completeProfile(): void {
 function cancelProfile(): void { loginPrompt.value = false }
 function business(): void { uni.navigateTo({ url: "/pages/business/index" }) }
 function settings(): void { uni.navigateTo({ url: "/pages/settings/index" }) }
+function guideWorkspace(): void { uni.navigateTo({ url: "/pages/guide/index" }) }
 </script>
 
 <template>
@@ -103,6 +104,7 @@ function settings(): void { uni.navigateTo({ url: "/pages/settings/index" }) }
     <view v-if="authenticated && state === 'ready'" class="family-members"><view v-for="member in members" :key="member.id" class="family-member-card"><text class="card-title">{{ member.displayName }}</text><text class="detail-line">{{ member.participantKind === 'adult' ? '成人参加人' : `${member.schoolName} · ${member.gradeName} · ${member.className}` }}</text></view></view>
     <text v-if="authenticated" class="family-help-note">报名时可保存常用参加人，未保存的信息可在订单中查看。</text>
     <button class="info-card family-service-entry" @tap="business"><FunctionalIcon name="travel" /><view><text class="shortcut-title">文旅服务</text><text class="body-secondary">旅游、疗休养与定制行程</text></view><text class="family-service-arrow">›</text></button>
+    <button class="info-card family-service-entry family-guide-entry" @tap="guideWorkspace"><FunctionalIcon name="people" /><view><text class="shortcut-title">导游工作台</text><text class="body-secondary">工作人员查看团期、点名与执行记录</text></view><text class="family-service-arrow">›</text></button>
     <ProfileLoginSheet v-if="loginPrompt" @completed="completeProfile" @cancelled="cancelProfile" />
     <text class="family-help-note">更正或删除已提交的信息，可在订单详情中联系客服。</text>
   </view>

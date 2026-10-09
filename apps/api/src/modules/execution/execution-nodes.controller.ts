@@ -10,12 +10,10 @@ export class ExecutionNodesController {
   async list(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string) { return this.nodes.list(await this.staff.resolve(headers), sessionId) }
   @Post("nodes")
   async saveNode(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Body() body: unknown) {
-    this.staff.assertUnsafeOrigin(headers)
-    return this.nodes.saveNode(await this.staff.resolve(headers), sessionId, parseExecutionNodeInput(body))
+    return this.nodes.saveNode(await this.staff.resolveExecutionWrite(headers), sessionId, parseExecutionNodeInput(body))
   }
   @Post("occurrences")
   async saveOccurrence(@Headers() headers: RequestHeaders, @Param("sessionId") sessionId: string, @Body() body: unknown) {
-    this.staff.assertUnsafeOrigin(headers)
-    return this.nodes.saveOccurrence(await this.staff.resolve(headers), sessionId, parseOccurrenceInput(body))
+    return this.nodes.saveOccurrence(await this.staff.resolveExecutionWrite(headers), sessionId, parseOccurrenceInput(body))
   }
 }
