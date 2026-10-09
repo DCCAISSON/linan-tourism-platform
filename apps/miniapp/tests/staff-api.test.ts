@@ -41,6 +41,14 @@ describe("guide staff identity", () => {
     await expect(createStaffRequest(options)("/staff/execution/sessions")).rejects.toMatchObject({ statusCode: 401 })
     expect(request).not.toHaveBeenCalled()
   })
+  it("uses staff identity for media DELETE operations", async () => {
+    saveStaffSession(session)
+    await createStaffRequest(options)("/staff/media/sessions/s1/assets/a1?expectedVersion=2", "DELETE")
+    expect(request).toHaveBeenCalledWith({
+      url: "https://api.example.test/staff/media/sessions/s1/assets/a1?expectedVersion=2", method: "DELETE",
+      header: { Authorization: `Staff ${session.token}` },
+    })
+  })
   it("invalidates matching staff session on 401, preserves family", async () => {
     saveStaffSession(session); storage.set("linan_wechat_session_token", "family-token")
     request.mockResolvedValue({ statusCode: 401, data: { message: "staff session expired" } })

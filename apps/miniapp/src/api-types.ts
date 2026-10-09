@@ -241,7 +241,7 @@ export type WechatMiniappPayment = {
 
 export type MiniappRequestOptions = {
   readonly url: string
-  readonly method: "GET" | "POST"
+  readonly method: "GET" | "POST" | "DELETE"
   readonly header: Record<string, string>
   readonly data?: object
 }
